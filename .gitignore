@@ -1,9 +1,7 @@
-Serie_Formato_ 491 AFILIADOS AFP.xlsm
 *.tmp
 *.lock
 *.bak
 .DS_Store
-Thumbs.dbinsumos_ejemplo/Serie_Formato_491 AFILIADOS AFP.xlsm
 
 # Ignorar excels grandes de insumos
 insumos_ejemplo/*.xls*
