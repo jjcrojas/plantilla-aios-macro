@@ -1,0 +1,6 @@
+~$*.xlsm
+*.tmp
+*.lock
+*.bak
+.DS_Store
+Thumbs.db
