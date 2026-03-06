@@ -11,7 +11,9 @@
   </parent>
 
   <groupId>co.gov.sfc</groupId>
-  <artifactId>inf_fin-app</artifactId>
+  <artifactId>plantilla-aios-generator</artifactId>
+  <name>plantilla-aios-generator</name>
+  <description>Generador de reportes AIOS (migración de macro Excel a Spring Boot)</description>
   <version>0.0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
 
