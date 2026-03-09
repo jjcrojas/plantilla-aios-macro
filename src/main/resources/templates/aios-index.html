@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Generador Plantilla AIOS</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; max-width: 720px; }
+        h1 { margin-bottom: 0.5rem; }
+        .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; }
+        .row { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.35rem; font-weight: bold; }
+        input, select, button { padding: 0.5rem; font-size: 1rem; width: 100%; }
+        button { cursor: pointer; background: #0b57d0; color: #fff; border: none; border-radius: 6px; }
+        small { color: #555; }
+    </style>
+</head>
+<body>
+<h1>Generador Plantilla AIOS</h1>
+<p>Seleccione parámetros y ejecute la generación del archivo.</p>
+<p th:if="${mensaje}" style="background:#fff7d1;border:1px solid #f0d66a;padding:.5rem;border-radius:6px;" th:text="${mensaje}"></p>
+
+
+<div class="card">
+    <form method="post" action="/aios/generar">
+        <div class="row">
+            <label for="fechaCorte">Fecha de corte</label>
+            <input id="fechaCorte" name="fechaCorte" type="date" th:value="${fechaHoy}" required />
+        </div>
+
+        <div class="row">
+            <label for="modo">Modo</label>
+            <select id="modo" name="modo" required>
+                <option th:each="m : ${modos}" th:value="${m}" th:text="${m}"></option>
+            </select>
+        </div>
+
+        <button type="submit">Generar</button>
+        <small>La descarga del Excel/ZIP iniciará al terminar el proceso.</small>
+    </form>
+</div>
+</body>
+</html>
