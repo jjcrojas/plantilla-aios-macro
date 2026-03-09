@@ -26,6 +26,8 @@ public class MensualDataReader {
         this.locator = locator;
         this.properties = properties;
         IOUtils.setByteArrayMaxOverride(300_000_000);
+        System.setProperty("jdk.xml.maxGeneralEntitySizeLimit", "0");
+        System.setProperty("jdk.xml.totalEntitySizeLimit", "0");
     }
 
     public MensualData read(LocalDate fechaCorte) {
@@ -131,7 +133,7 @@ public class MensualDataReader {
         String mes = fechaCorte.getMonth().getDisplayName(TextStyle.SHORT, new Locale("es", "CO")).replace(".", "").toLowerCase();
         String textoFecha = mes + "-" + String.format("%02d", fechaCorte.getYear() % 100);
 
-        BigDecimal trm = readTrmFromReferencia(textoFecha);
+        BigDecimal trm = readTrmFromSeries(fechaCorte);
 
         return new MensualData(
                 textoFecha,
@@ -156,21 +158,53 @@ public class MensualDataReader {
     }
 
 
-    private BigDecimal readTrmFromReferencia(String textoFecha) {
-        try (Workbook wb = WorkbookFactory.create(properties.salidasReferenciaDir().resolve("Boletin_AIOS MENSUAL.xlsx").toFile(), null, true)) {
-            Sheet sheet = wb.getSheet("HOJA1");
-            DataFormatter formatter = new DataFormatter();
-            for (Row row : sheet) {
-                String val = formatter.formatCellValue(row.getCell(0));
-                if (textoFecha.equalsIgnoreCase(val != null ? val.trim() : "")) {
-                    return num(sheet, row.getRowNum() + 1, 19, null);
+    private BigDecimal readTrmFromSeries(LocalDate fechaCorte) {
+        try {
+            var seriesFile = locator.findRequired("PIB_PEA_TRM_DG");
+            try (Workbook wb = WorkbookFactory.create(seriesFile.toFile(), null, true)) {
+                Sheet sheet = wb.getSheet("Hoja1");
+                if (sheet == null) {
+                    sheet = wb.getSheetAt(0);
                 }
+                BigDecimal trm = BigDecimal.ONE;
+                LocalDate mejorFecha = LocalDate.MIN;
+                for (Row row : sheet) {
+                    LocalDate fecha = cellAsDate(row.getCell(1)); // Columna B
+                    if (fecha == null || fecha.isAfter(fechaCorte)) {
+                        continue;
+                    }
+                    BigDecimal valor = num(sheet, row.getRowNum() + 1, 3, null); // Columna C
+                    if (!fecha.isBefore(mejorFecha)) {
+                        mejorFecha = fecha;
+                        trm = valor;
+                    }
+                }
+                return trm.signum() == 0 ? BigDecimal.ONE : trm;
             }
         } catch (Exception e) {
-            log.warn("No se pudo leer TRM de salida de referencia: {}", e.getMessage());
+            log.warn("No se pudo leer TRM desde series PIB_PEA_TRM_DG: {}", e.getMessage());
+            return BigDecimal.ONE;
         }
-        return BigDecimal.ONE;
     }
+
+    private LocalDate cellAsDate(Cell cell) {
+        if (cell == null) {
+            return null;
+        }
+        try {
+            if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+                return cell.getLocalDateTimeCellValue().toLocalDate();
+            }
+            String txt = new DataFormatter().formatCellValue(cell);
+            if (txt == null || txt.isBlank()) {
+                return null;
+            }
+            return java.time.LocalDate.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy"));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private int findHeaderCol(Sheet sheet, String header) {
         for (Row row : sheet) {
             for (Cell cell : row) {
@@ -185,11 +219,11 @@ public class MensualDataReader {
     private int findMaxRow(Sheet sheet, int col1Based) {
         int bestRow = -1;
         BigDecimal max = BigDecimal.valueOf(-1);
-        for (int r = 0; r <= sheet.getLastRowNum(); r++) {
-            BigDecimal v = num(sheet, r + 1, col1Based, null);
+        for (Row row : sheet) {
+            BigDecimal v = num(sheet, row.getRowNum() + 1, col1Based, null);
             if (v.compareTo(max) > 0) {
                 max = v;
-                bestRow = r + 1;
+                bestRow = row.getRowNum() + 1;
             }
         }
         if (bestRow < 1) throw new IllegalArgumentException("No data row");
