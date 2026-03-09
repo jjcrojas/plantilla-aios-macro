@@ -160,12 +160,10 @@ public class MensualDataReader {
         try (Workbook wb = WorkbookFactory.create(properties.salidasReferenciaDir().resolve("Boletin_AIOS MENSUAL.xlsx").toFile(), null, true)) {
             Sheet sheet = wb.getSheet("HOJA1");
             DataFormatter formatter = new DataFormatter();
-            for (int i = 0; i <= sheet.getLastRowNum(); i++) {
-                Row row = sheet.getRow(i);
-                if (row == null) continue;
+            for (Row row : sheet) {
                 String val = formatter.formatCellValue(row.getCell(0));
                 if (textoFecha.equalsIgnoreCase(val != null ? val.trim() : "")) {
-                    return num(sheet, i + 1, 19, null);
+                    return num(sheet, row.getRowNum() + 1, 19, null);
                 }
             }
         } catch (Exception e) {

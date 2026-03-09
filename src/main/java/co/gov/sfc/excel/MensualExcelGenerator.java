@@ -87,12 +87,10 @@ public class MensualExcelGenerator {
 
     private int findDateRow(Sheet sheet, String textoFecha) {
         DataFormatter formatter = new DataFormatter();
-        for (int i = 0; i <= sheet.getLastRowNum(); i++) {
-            Row row = sheet.getRow(i);
-            if (row == null) continue;
+        for (Row row : sheet) {
             String value = formatter.formatCellValue(row.getCell(0));
             if (value != null && value.trim().equalsIgnoreCase(textoFecha.trim())) {
-                return i + 1;
+                return row.getRowNum() + 1;
             }
         }
         throw new IllegalArgumentException("No se encontró la fecha " + textoFecha + " en HOJA1 columna A.");
