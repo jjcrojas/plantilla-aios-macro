@@ -18,6 +18,8 @@
 <body>
 <h1>Generador Plantilla AIOS</h1>
 <p>Seleccione parámetros y ejecute la generación del archivo.</p>
+<p th:if="${mensaje}" style="background:#fff7d1;border:1px solid #f0d66a;padding:.5rem;border-radius:6px;" th:text="${mensaje}"></p>
+
 
 <div class="card">
     <form method="post" action="/aios/generar">
