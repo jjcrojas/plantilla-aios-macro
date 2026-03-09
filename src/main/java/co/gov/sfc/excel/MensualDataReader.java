@@ -4,15 +4,13 @@ import co.gov.sfc.config.AiosProperties;
 import co.gov.sfc.insumos.InsumosLocator;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellReference;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
 import java.util.Locale;
@@ -27,6 +25,7 @@ public class MensualDataReader {
     public MensualDataReader(InsumosLocator locator, AiosProperties properties) {
         this.locator = locator;
         this.properties = properties;
+        IOUtils.setByteArrayMaxOverride(300_000_000);
     }
 
     public MensualData read(LocalDate fechaCorte) {
@@ -36,20 +35,19 @@ public class MensualDataReader {
         BigDecimal consFdosAdmon;
 
         var file491 = locator.findRequired("491");
-        try (InputStream in = Files.newInputStream(file491); Workbook wb = WorkbookFactory.create(in)) {
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+        try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
             Sheet informe = wb.getSheet("informe de prensa");
             Sheet multifondos = wb.getSheet("multifondos");
 
             setDate(informe, "C3", fechaCorte);
-            hombres = num(informe, "C11", evaluator);
-            mujeres = num(informe, "D11", evaluator);
+            hombres = num(informe, "C11", null);
+            mujeres = num(informe, "D11", null);
 
             setDate(multifondos, "C4", fechaCorte);
-            aportantes = num(multifondos, "E25", evaluator);
-            var j8 = num(multifondos, "J8", evaluator);
-            var j9 = num(multifondos, "J9", evaluator);
-            var j12 = num(multifondos, "J12", evaluator);
+            aportantes = num(multifondos, "E25", null);
+            var j8 = num(multifondos, "J8", null);
+            var j9 = num(multifondos, "J9", null);
+            var j12 = num(multifondos, "J12", null);
             consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
         } catch (Exception e) {
             throw new IllegalStateException("Error leyendo Formato 491", e);
@@ -57,12 +55,11 @@ public class MensualDataReader {
 
         BigDecimal traspasosSistema;
         var file493 = locator.findRequired("493");
-        try (InputStream in = Files.newInputStream(file493); Workbook wb = WorkbookFactory.create(in)) {
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+        try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
             Sheet tras = wb.getSheet("Traslados Entre AFP");
             setDate(tras, "B11", fechaCorte);
             setNumeric(tras, "D4", 99);
-            traspasosSistema = num(tras, "BQ11", evaluator);
+            traspasosSistema = num(tras, "BQ11", null);
         } catch (Exception e) {
             throw new IllegalStateException("Error leyendo Formato 493", e);
         }
@@ -70,11 +67,10 @@ public class MensualDataReader {
         BigDecimal tmpReal1;
         BigDecimal tmpNominal1;
         var rentFile = locator.findRequired("Rent_Vr_Uni_Moderado");
-        try (InputStream in = Files.newInputStream(rentFile); Workbook wb = WorkbookFactory.create(in)) {
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+        try (Workbook wb = WorkbookFactory.create(rentFile.toFile(), null, true)) {
             Sheet rent = wb.getSheetAt(0);
-            tmpReal1 = num(rent, "D10", evaluator);
-            tmpNominal1 = num(rent, "D11", evaluator);
+            tmpReal1 = num(rent, "D10", null);
+            tmpNominal1 = num(rent, "D11", null);
         } catch (Exception e) {
             throw new IllegalStateException("Error leyendo rentabilidad moderado", e);
         }
@@ -82,16 +78,15 @@ public class MensualDataReader {
         BigDecimal vrFondo = BigDecimal.ZERO;
         BigDecimal porcVrFondo = BigDecimal.ZERO;
         var sistemaTotal = locator.findRequired("SISTEMA TOTAL");
-        try (InputStream in = Files.newInputStream(sistemaTotal); Workbook wb = WorkbookFactory.create(in)) {
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+        try (Workbook wb = WorkbookFactory.create(sistemaTotal.toFile(), null, true)) {
             Sheet ws = wb.getSheet("restot");
             int cSistema = findHeaderCol(ws, "SISTEMA");
             int cProt = findHeaderCol(ws, "PROTECCION");
             int cPorv = findHeaderCol(ws, "PORVENIR");
             int row = findMaxRow(ws, cSistema + 1);
-            vrFondo = num(ws, row, cSistema + 1, evaluator).divide(BigDecimal.valueOf(1000), 8, RoundingMode.HALF_UP);
-            var prot = num(ws, row, cProt + 1, evaluator);
-            var porv = num(ws, row, cPorv + 1, evaluator);
+            vrFondo = num(ws, row, cSistema + 1, null).divide(BigDecimal.valueOf(1000), 8, RoundingMode.HALF_UP);
+            var prot = num(ws, row, cProt + 1, null);
+            var porv = num(ws, row, cPorv + 1, null);
             if (vrFondo.signum() != 0) {
                 porcVrFondo = prot.add(porv).divide(vrFondo, 8, RoundingMode.HALF_UP).divide(BigDecimal.TEN, 8, RoundingMode.HALF_UP);
             }
@@ -109,22 +104,21 @@ public class MensualDataReader {
         BigDecimal h17 = BigDecimal.ZERO;
         try {
             var limites = locator.findRequired("LIMITES");
-            try (InputStream in = Files.newInputStream(limites); Workbook wb = WorkbookFactory.create(in)) {
-                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-                Sheet aios = wb.getSheet("AIOS");
-                total1 = num(aios, "AB4", evaluator);
-                dudaG = num(aios, "C4", evaluator);
-                dudaEf = num(aios, "E4", evaluator);
-                dudaNf = num(aios, "G4", evaluator);
-                dudaAc = num(aios, "I4", evaluator);
-                dudaF = num(aios, "K4", evaluator);
-                var ge = num(aios, "O4", evaluator);
-                var efe = num(aios, "Q4", evaluator);
-                var nfe = num(aios, "S4", evaluator);
-                var ace = num(aios, "U4", evaluator);
-                var fe = num(aios, "W4", evaluator);
-                var ste = num(aios, "Y4", evaluator);
-                otros = num(aios, "AA4", evaluator);
+            try (Workbook wb = WorkbookFactory.create(limites.toFile(), null, true)) {
+                    Sheet aios = wb.getSheet("AIOS");
+                total1 = num(aios, "AB4", null);
+                dudaG = num(aios, "C4", null);
+                dudaEf = num(aios, "E4", null);
+                dudaNf = num(aios, "G4", null);
+                dudaAc = num(aios, "I4", null);
+                dudaF = num(aios, "K4", null);
+                var ge = num(aios, "O4", null);
+                var efe = num(aios, "Q4", null);
+                var nfe = num(aios, "S4", null);
+                var ace = num(aios, "U4", null);
+                var fe = num(aios, "W4", null);
+                var ste = num(aios, "Y4", null);
+                otros = num(aios, "AA4", null);
                 h17 = ge.add(efe).add(nfe).add(ace).add(fe).add(ste);
             }
         } catch (Exception ignored) {
@@ -160,8 +154,7 @@ public class MensualDataReader {
 
 
     private BigDecimal readTrmFromReferencia(String textoFecha) {
-        try (InputStream in = Files.newInputStream(properties.salidasReferenciaDir().resolve("Boletin_AIOS MENSUAL.xlsx"));
-             Workbook wb = new XSSFWorkbook(in)) {
+        try (Workbook wb = WorkbookFactory.create(properties.salidasReferenciaDir().resolve("Boletin_AIOS MENSUAL.xlsx").toFile(), null, true)) {
             Sheet sheet = wb.getSheet("HOJA1");
             DataFormatter formatter = new DataFormatter();
             for (int i = 0; i <= sheet.getLastRowNum(); i++) {
@@ -222,7 +215,7 @@ public class MensualDataReader {
 
     private BigDecimal num(Sheet sheet, String a1, FormulaEvaluator evaluator) {
         CellReference ref = new CellReference(a1);
-        return num(sheet, ref.getRow() + 1, ref.getCol() + 1, evaluator);
+        return num(sheet, ref.getRow() + 1, ref.getCol() + 1, null);
     }
 
     private BigDecimal num(Sheet sheet, int row1Based, int col1Based, FormulaEvaluator evaluator) {
@@ -231,10 +224,13 @@ public class MensualDataReader {
         Cell cell = row.getCell(col1Based - 1);
         if (cell == null) return BigDecimal.ZERO;
         try {
-            if (cell.getCellType() == CellType.FORMULA && evaluator != null) {
-                CellValue v = evaluator.evaluate(cell);
-                if (v != null && v.getCellType() == CellType.NUMERIC) return BigDecimal.valueOf(v.getNumberValue());
-                return BigDecimal.ZERO;
+            if (cell.getCellType() == CellType.FORMULA) {
+                if (evaluator != null) {
+                    CellValue v = evaluator.evaluate(cell);
+                    if (v != null && v.getCellType() == CellType.NUMERIC) return BigDecimal.valueOf(v.getNumberValue());
+                    return BigDecimal.ZERO;
+                }
+                return BigDecimal.valueOf(cell.getNumericCellValue());
             }
             if (cell.getCellType() == CellType.NUMERIC) return BigDecimal.valueOf(cell.getNumericCellValue());
             if (cell.getCellType() == CellType.STRING) return new BigDecimal(cell.getStringCellValue().trim());

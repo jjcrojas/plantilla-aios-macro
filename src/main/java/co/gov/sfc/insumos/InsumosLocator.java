@@ -18,6 +18,9 @@ public class InsumosLocator {
     }
 
     public Path findRequired(String contains) {
+        if (properties.insumosDir() == null) {
+            throw new IllegalStateException("La propiedad 'aios.insumos-dir' no está configurada.");
+        }
         try (var stream = Files.list(properties.insumosDir())) {
             return stream
                     .filter(Files::isRegularFile)
