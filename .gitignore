@@ -12,3 +12,8 @@ Thumbs.db
 
 # Build
 target/
+
+# Eclipse
+.classpath
+.project
+.settings/
