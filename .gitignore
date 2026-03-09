@@ -9,3 +9,6 @@ insumos_ejemplo/*.xls*
 Thumbs.db
 
 !insumos_ejemplo/Serie_Formato_ 491 AFILIADOS AFP.xlsm
+
+# Build
+target/
