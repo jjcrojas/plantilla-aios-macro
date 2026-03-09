@@ -53,15 +53,18 @@ public class MensualDataReader {
             throw new IllegalStateException("Error leyendo Formato 491", e);
         }
 
-        BigDecimal traspasosSistema;
+        BigDecimal traspasosSistema = BigDecimal.ZERO;
         var file493 = locator.findRequired("493");
         try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
             Sheet tras = wb.getSheet("Traslados Entre AFP");
+            if (tras == null) {
+                throw new IllegalStateException("No existe hoja 'Traslados Entre AFP' en Formato 493");
+            }
             setDate(tras, "B11", fechaCorte);
             setNumeric(tras, "D4", 99);
             traspasosSistema = num(tras, "BQ11", null);
         } catch (Exception e) {
-            throw new IllegalStateException("Error leyendo Formato 493", e);
+            log.warn("No fue posible leer Formato 493; se usará 0 en traspasos_sistema. Causa: {}", e.getMessage());
         }
 
         BigDecimal tmpReal1;
