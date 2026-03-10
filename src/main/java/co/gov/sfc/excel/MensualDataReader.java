@@ -58,6 +58,7 @@ public class MensualDataReader {
             log.info("Afiliados desde 491 para fechaCorte={}: hombres={}, mujeres={}, total={}", fechaCorte, hombres, mujeres, hombres.add(mujeres));
 
             aportantes = num(multifondos, "E25", evaluator);
+            log.info("Aportantes desde 491 para fechaCorte={}: {}", fechaCorte, aportantes);
             var j8 = num(multifondos, "J8", evaluator);
             var j9 = num(multifondos, "J9", evaluator);
             var j12 = num(multifondos, "J12", evaluator);
@@ -70,13 +71,14 @@ public class MensualDataReader {
         BigDecimal traspasosSistema = BigDecimal.ZERO;
         var file493 = locator.findRequired("493");
         try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
+            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
             Sheet tras = wb.getSheet("Traslados Entre AFP");
             if (tras == null) {
                 throw new IllegalStateException("No existe hoja 'Traslados Entre AFP' en Formato 493");
             }
             setDate(tras, "B11", fechaCorte);
             setNumeric(tras, "D4", 99);
-            traspasosSistema = num(tras, "BQ11", null);
+            traspasosSistema = num(tras, "BQ11", evaluator);
         } catch (Exception e) {
             log.warn("No fue posible leer Formato 493; se usará 0 en traspasos_sistema. Causa: {}", e.getMessage());
         }
@@ -86,9 +88,10 @@ public class MensualDataReader {
         BigDecimal tmpNominal1;
         var rentFile = locator.findRequired("Rent_Vr_Uni_Moderado");
         try (Workbook wb = WorkbookFactory.create(rentFile.toFile(), null, true)) {
+            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
             Sheet rent = wb.getSheetAt(0);
-            tmpReal1 = num(rent, "D10", null);
-            tmpNominal1 = num(rent, "D11", null);
+            tmpReal1 = num(rent, "D10", evaluator);
+            tmpNominal1 = num(rent, "D11", evaluator);
         } catch (Exception e) {
             throw new IllegalStateException("Error leyendo rentabilidad moderado", e);
         }
@@ -98,14 +101,15 @@ public class MensualDataReader {
         BigDecimal porcVrFondo = BigDecimal.ZERO;
         var sistemaTotal = locator.findRequired("SISTEMA TOTAL");
         try (Workbook wb = WorkbookFactory.create(sistemaTotal.toFile(), null, true)) {
+            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
             Sheet ws = wb.getSheet("restot");
             int cSistema = findHeaderCol(ws, "SISTEMA");
             int cProt = findHeaderCol(ws, "PROTECCION");
             int cPorv = findHeaderCol(ws, "PORVENIR");
-            int row = findMaxRow(ws, cSistema + 1);
-            vrFondo = num(ws, row, cSistema + 1, null).divide(BigDecimal.valueOf(1000), 8, RoundingMode.HALF_UP);
-            var prot = num(ws, row, cProt + 1, null);
-            var porv = num(ws, row, cPorv + 1, null);
+            int row = findMaxRow(ws, cSistema + 1, evaluator);
+            vrFondo = num(ws, row, cSistema + 1, evaluator).divide(BigDecimal.valueOf(1000), 8, RoundingMode.HALF_UP);
+            var prot = num(ws, row, cProt + 1, evaluator);
+            var porv = num(ws, row, cPorv + 1, evaluator);
             if (vrFondo.signum() != 0) {
                 porcVrFondo = prot.add(porv).divide(vrFondo, 8, RoundingMode.HALF_UP).divide(BigDecimal.TEN, 8, RoundingMode.HALF_UP);
             }
@@ -125,20 +129,21 @@ public class MensualDataReader {
         try {
             var limites = locator.findRequired("LIMITES");
             try (Workbook wb = WorkbookFactory.create(limites.toFile(), null, true)) {
+                    FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
                     Sheet aios = wb.getSheet("AIOS");
-                total1 = num(aios, "AB4", null);
-                dudaG = num(aios, "C4", null);
-                dudaEf = num(aios, "E4", null);
-                dudaNf = num(aios, "G4", null);
-                dudaAc = num(aios, "I4", null);
-                dudaF = num(aios, "K4", null);
-                var ge = num(aios, "O4", null);
-                var efe = num(aios, "Q4", null);
-                var nfe = num(aios, "S4", null);
-                var ace = num(aios, "U4", null);
-                var fe = num(aios, "W4", null);
-                var ste = num(aios, "Y4", null);
-                otros = num(aios, "AA4", null);
+                total1 = num(aios, "AB4", evaluator);
+                dudaG = num(aios, "C4", evaluator);
+                dudaEf = num(aios, "E4", evaluator);
+                dudaNf = num(aios, "G4", evaluator);
+                dudaAc = num(aios, "I4", evaluator);
+                dudaF = num(aios, "K4", evaluator);
+                var ge = num(aios, "O4", evaluator);
+                var efe = num(aios, "Q4", evaluator);
+                var nfe = num(aios, "S4", evaluator);
+                var ace = num(aios, "U4", evaluator);
+                var fe = num(aios, "W4", evaluator);
+                var ste = num(aios, "Y4", evaluator);
+                otros = num(aios, "AA4", evaluator);
                 h17 = ge.add(efe).add(nfe).add(ace).add(fe).add(ste);
             }
         } catch (Exception ignored) {
@@ -233,11 +238,11 @@ public class MensualDataReader {
         throw new IllegalArgumentException("No header " + header);
     }
 
-    private int findMaxRow(Sheet sheet, int col1Based) {
+    private int findMaxRow(Sheet sheet, int col1Based, FormulaEvaluator evaluator) {
         int bestRow = -1;
         BigDecimal max = BigDecimal.valueOf(-1);
         for (Row row : sheet) {
-            BigDecimal v = num(sheet, row.getRowNum() + 1, col1Based, null);
+            BigDecimal v = num(sheet, row.getRowNum() + 1, col1Based, evaluator);
             if (v.compareTo(max) > 0) {
                 max = v;
                 bestRow = row.getRowNum() + 1;
@@ -276,7 +281,7 @@ public class MensualDataReader {
 
     private BigDecimal num(Sheet sheet, String a1, FormulaEvaluator evaluator) {
         CellReference ref = new CellReference(a1);
-        return num(sheet, ref.getRow() + 1, ref.getCol() + 1, null);
+        return num(sheet, ref.getRow() + 1, ref.getCol() + 1, evaluator);
     }
 
     private BigDecimal num(Sheet sheet, int row1Based, int col1Based, FormulaEvaluator evaluator) {
