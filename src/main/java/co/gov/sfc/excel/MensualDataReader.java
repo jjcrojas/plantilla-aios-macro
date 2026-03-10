@@ -38,18 +38,21 @@ public class MensualDataReader {
 
         var file491 = locator.findRequired("491");
         try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
+            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
             Sheet informe = wb.getSheet("informe de prensa");
             Sheet multifondos = wb.getSheet("multifondos");
 
             setDate(informe, "C3", fechaCorte);
-            hombres = num(informe, "C11", null);
-            mujeres = num(informe, "D11", null);
-
             setDate(multifondos, "C4", fechaCorte);
-            aportantes = num(multifondos, "E25", null);
-            var j8 = num(multifondos, "J8", null);
-            var j9 = num(multifondos, "J9", null);
-            var j12 = num(multifondos, "J12", null);
+
+            // Igual que macro VBA: afiliados = hombres + mujeres (informe de prensa).
+            hombres = num(informe, "C11", evaluator);
+            mujeres = num(informe, "D11", evaluator);
+
+            aportantes = num(multifondos, "E25", evaluator);
+            var j8 = num(multifondos, "J8", evaluator);
+            var j9 = num(multifondos, "J9", evaluator);
+            var j12 = num(multifondos, "J12", evaluator);
             consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
         } catch (Exception e) {
             throw new IllegalStateException("Error leyendo Formato 491", e);
