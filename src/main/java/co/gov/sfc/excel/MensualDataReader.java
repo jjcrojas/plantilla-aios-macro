@@ -51,8 +51,10 @@ public class MensualDataReader {
             evaluator.clearAllCachedResultValues();
 
             // Igual que macro VBA: afiliados = hombres + mujeres (informe de prensa).
-            hombres = num(informe, "C11", evaluator);
-            mujeres = num(informe, "D11", evaluator);
+            // Para evitar quedarse con valores cacheados del archivo guardado (ej. diciembre),
+            // se recalcula desde filas de detalle dependientes de C3 (C7:C10 y D7:D10).
+            hombres = sumRange(informe, evaluator, 7, 10, 3);
+            mujeres = sumRange(informe, evaluator, 7, 10, 4);
             log.info("Afiliados desde 491 para fechaCorte={}: hombres={}, mujeres={}, total={}", fechaCorte, hombres, mujeres, hombres.add(mujeres));
 
             aportantes = num(multifondos, "E25", evaluator);
@@ -243,6 +245,15 @@ public class MensualDataReader {
         }
         if (bestRow < 1) throw new IllegalArgumentException("No data row");
         return bestRow;
+    }
+
+
+    private BigDecimal sumRange(Sheet sheet, FormulaEvaluator evaluator, int rowStart, int rowEnd, int col1Based) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (int r = rowStart; r <= rowEnd; r++) {
+            total = total.add(num(sheet, r, col1Based, evaluator));
+        }
+        return total;
     }
 
     private void setDate(Sheet sheet, String a1, LocalDate value) {
