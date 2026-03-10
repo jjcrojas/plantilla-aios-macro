@@ -49,7 +49,6 @@ public class MensualDataReader {
             log.info("Formato 491 actualizado con fechaCorte={} en informe!C3 y multifondos!C4", fechaCorte);
 
             evaluator.clearAllCachedResultValues();
-            evaluator.evaluateAll();
 
             // Igual que macro VBA: afiliados = hombres + mujeres (informe de prensa).
             hombres = num(informe, "C11", evaluator);
@@ -64,6 +63,7 @@ public class MensualDataReader {
         } catch (Exception e) {
             throw new IllegalStateException("Error leyendo Formato 491", e);
         }
+        log.info("Lectura Formato 491 completada para fechaCorte={}", fechaCorte);
 
         BigDecimal traspasosSistema = BigDecimal.ZERO;
         var file493 = locator.findRequired("493");
@@ -78,6 +78,7 @@ public class MensualDataReader {
         } catch (Exception e) {
             log.warn("No fue posible leer Formato 493; se usará 0 en traspasos_sistema. Causa: {}", e.getMessage());
         }
+        log.info("Lectura Formato 493 completada para fechaCorte={}", fechaCorte);
 
         BigDecimal tmpReal1;
         BigDecimal tmpNominal1;
@@ -89,6 +90,7 @@ public class MensualDataReader {
         } catch (Exception e) {
             throw new IllegalStateException("Error leyendo rentabilidad moderado", e);
         }
+        log.info("Lectura rentabilidad completada para fechaCorte={}", fechaCorte);
 
         BigDecimal vrFondo = BigDecimal.ZERO;
         BigDecimal porcVrFondo = BigDecimal.ZERO;
@@ -108,6 +110,7 @@ public class MensualDataReader {
         } catch (Exception e) {
             log.warn("No fue posible leer SISTEMA TOTAL: {}", e.getMessage());
         }
+        log.info("Lectura SISTEMA TOTAL completada para fechaCorte={}", fechaCorte);
 
         BigDecimal total1 = BigDecimal.ZERO;
         BigDecimal dudaG = BigDecimal.ZERO;
@@ -139,6 +142,7 @@ public class MensualDataReader {
         } catch (Exception ignored) {
             log.warn("Insumo LIMITES no encontrado; columnas 6-13 del mensual se dejarán en 0");
         }
+        log.info("Lectura LIMITES completada para fechaCorte={}", fechaCorte);
 
         String mes = fechaCorte.getMonth().getDisplayName(TextStyle.SHORT, new Locale("es", "CO")).replace(".", "").toLowerCase();
         String textoFecha = mes + "-" + String.format("%02d", fechaCorte.getYear() % 100);
