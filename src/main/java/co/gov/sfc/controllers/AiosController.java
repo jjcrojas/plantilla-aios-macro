@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.springframework.http.MediaType.TEXT_PLAIN;
 
@@ -19,6 +21,8 @@ import java.time.LocalDate;
 @RestController
 @RequestMapping("/aios")
 public class AiosController {
+
+    private static final Logger log = LoggerFactory.getLogger(AiosController.class);
 
     private final AiosGeneracionService generacionService;
 
@@ -31,6 +35,7 @@ public class AiosController {
             @RequestParam LocalDate fechaCorte,
             @RequestParam ModoGeneracion modo
     ) {
+        log.info("Solicitud generar AIOS recibida: fechaCorte={}, modo={}", fechaCorte, modo);
         var resultado = generacionService.generar(fechaCorte, modo);
         var archivo = resultado.archivosGenerados().getFirst();
         var mediaType = resultado.zip() ? "application/zip" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";

@@ -31,6 +31,8 @@ public class MensualDataReader {
     }
 
     public MensualData read(LocalDate fechaCorte) {
+        log.info("Iniciando lectura de insumos para fechaCorte={}", fechaCorte);
+
         BigDecimal hombres;
         BigDecimal mujeres;
         BigDecimal aportantes;
@@ -44,10 +46,15 @@ public class MensualDataReader {
 
             setDate(informe, "C3", fechaCorte);
             setDate(multifondos, "C4", fechaCorte);
+            log.info("Formato 491 actualizado con fechaCorte={} en informe!C3 y multifondos!C4", fechaCorte);
+
+            evaluator.clearAllCachedResultValues();
+            evaluator.evaluateAll();
 
             // Igual que macro VBA: afiliados = hombres + mujeres (informe de prensa).
             hombres = num(informe, "C11", evaluator);
             mujeres = num(informe, "D11", evaluator);
+            log.info("Afiliados desde 491 para fechaCorte={}: hombres={}, mujeres={}, total={}", fechaCorte, hombres, mujeres, hombres.add(mujeres));
 
             aportantes = num(multifondos, "E25", evaluator);
             var j8 = num(multifondos, "J8", evaluator);
@@ -137,6 +144,7 @@ public class MensualDataReader {
         String textoFecha = mes + "-" + String.format("%02d", fechaCorte.getYear() % 100);
 
         BigDecimal trm = readTrmFromSeries(fechaCorte);
+        log.info("TRM seleccionada para fechaCorte={}: {}", fechaCorte, trm);
 
         return new MensualData(
                 textoFecha,
