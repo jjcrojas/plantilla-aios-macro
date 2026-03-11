@@ -89,9 +89,20 @@ public class MensualDataReader {
         var rentFile = locator.findRequired("Rent_Vr_Uni_Moderado");
         try (Workbook wb = WorkbookFactory.create(rentFile.toFile(), null, true)) {
             FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-            Sheet rent = wb.getSheetAt(0);
-            tmpReal1 = num(rent, "D10", evaluator);
-            tmpNominal1 = num(rent, "D11", evaluator);
+            Sheet consolidado = wb.getSheet("consolidado");
+            if (consolidado == null) {
+                consolidado = wb.getSheetAt(0);
+            }
+
+            // Igual que macro: D5 = fecha final, D4 = fecha inicial (fecha final - 1 año)
+            setDate(consolidado, "D5", fechaCorte);
+            setDate(consolidado, "D4", fechaCorte.minusYears(1));
+            evaluator.clearAllCachedResultValues();
+
+            tmpReal1 = num(consolidado, "D10", evaluator);
+            tmpNominal1 = num(consolidado, "D11", evaluator);
+            log.info("Rentabilidad moderado con fechaCorte={}: consolidado!D4={}, D5={}, D11(nominal)={}, D10(real)={}",
+                    fechaCorte, fechaCorte.minusYears(1), fechaCorte, tmpNominal1, tmpReal1);
         } catch (Exception e) {
             throw new IllegalStateException("Error leyendo rentabilidad moderado", e);
         }
