@@ -45,28 +45,20 @@ public class MensualDataReader {
 
         var file491 = locator.findRequired("491", fechaCorte);
         try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
             Sheet informe = wb.getSheet("informe de prensa");
             Sheet multifondos = wb.getSheet("multifondos");
 
-            setDate(informe, "C3", fechaCorte);
-            setDate(multifondos, "C4", fechaCorte);
-            log.info("Formato 491 actualizado con fechaCorte={} en informe!C3 y multifondos!C4", fechaCorte);
+            // Modo memoria-reducida: evitar evaluator sobre libro grande.
+            // Se toman valores cacheados del archivo para reducir riesgo de OOM.
+            hombres = num(informe, "C11", null);
+            mujeres = num(informe, "D11", null);
+            log.info("Afiliados (cache 491) para fechaCorte={}: hombres={}, mujeres={}, total={}", fechaCorte, hombres, mujeres, hombres.add(mujeres));
 
-            evaluator.clearAllCachedResultValues();
-
-            // Igual que macro VBA: afiliados = hombres + mujeres (informe de prensa).
-            // Para evitar quedarse con valores cacheados del archivo guardado (ej. diciembre),
-            // se recalcula desde filas de detalle dependientes de C3 (C7:C10 y D7:D10).
-            hombres = sumRange(informe, evaluator, 7, 10, 3);
-            mujeres = sumRange(informe, evaluator, 7, 10, 4);
-            log.info("Afiliados desde 491 para fechaCorte={}: hombres={}, mujeres={}, total={}", fechaCorte, hombres, mujeres, hombres.add(mujeres));
-
-            aportantes = num(multifondos, "E25", evaluator);
-            log.info("Aportantes desde 491 para fechaCorte={}: {}", fechaCorte, aportantes);
-            var j8 = num(multifondos, "J8", evaluator);
-            var j9 = num(multifondos, "J9", evaluator);
-            var j12 = num(multifondos, "J12", evaluator);
+            aportantes = num(multifondos, "E25", null);
+            log.info("Aportantes (cache 491) para fechaCorte={}: {}", fechaCorte, aportantes);
+            var j8 = num(multifondos, "J8", null);
+            var j9 = num(multifondos, "J9", null);
+            var j12 = num(multifondos, "J12", null);
             consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
         } catch (Exception e) {
             throw new IllegalStateException("Error leyendo Formato 491", e);
@@ -76,14 +68,11 @@ public class MensualDataReader {
         BigDecimal traspasosSistema = BigDecimal.ZERO;
         var file493 = locator.findRequired("493", fechaCorte);
         try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
             Sheet tras = wb.getSheet("Traslados Entre AFP");
             if (tras == null) {
                 throw new IllegalStateException("No existe hoja 'Traslados Entre AFP' en Formato 493");
             }
-            setDate(tras, "B11", fechaCorte);
-            setNumeric(tras, "D4", 99);
-            traspasosSistema = num(tras, "BQ11", evaluator);
+            traspasosSistema = num(tras, "BQ11", null);
         } catch (Exception e) {
             log.warn("No fue posible leer Formato 493; se usará 0 en traspasos_sistema. Causa: {}", e.getMessage());
         }

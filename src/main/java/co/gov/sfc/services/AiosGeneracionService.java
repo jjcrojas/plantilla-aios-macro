@@ -30,9 +30,13 @@ public class AiosGeneracionService {
     public ResultadoGeneracion generar(LocalDate fechaCorte, ModoGeneracion modo) {
         List<Path> archivos = new ArrayList<>();
 
-        if (modo == ModoGeneracion.MENSUAL || modo == ModoGeneracion.TODO) {
-            var mensual = mensualExcelGenerator.generar(mensualDataReader.read(fechaCorte));
-            archivos.add(mensual);
+        try {
+            if (modo == ModoGeneracion.MENSUAL || modo == ModoGeneracion.TODO) {
+                var mensual = mensualExcelGenerator.generar(mensualDataReader.read(fechaCorte));
+                archivos.add(mensual);
+            }
+        } catch (OutOfMemoryError oom) {
+            throw new IllegalStateException("Memoria insuficiente generando AIOS. Intente con más heap (-Xmx) o reduzca insumos cargados.", oom);
         }
 
         if (modo == ModoGeneracion.TRIMESTRAL || modo == ModoGeneracion.SEMESTRAL) {
