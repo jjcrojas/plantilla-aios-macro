@@ -96,7 +96,7 @@ public class MensualDataReader {
             evaluator.clearAllCachedResultValues();
 
             tmpNominal1 = num(consolidado, "D11", evaluator);
-            tmpReal1 = readRentabilidadReal(consolidado, evaluator, fechaCorte);
+            tmpReal1 = readRentabilidadReal(consolidado, fechaCorte);
             log.info("Rentabilidad moderado con fechaCorte={}: consolidado!D4={}, D5={}, D11(nominal)={}, D10(real)={}",
                     fechaCorte, fechaCorte.minusYears(1), fechaCorte, tmpNominal1, tmpReal1);
         } catch (Exception e) {
@@ -108,15 +108,14 @@ public class MensualDataReader {
         BigDecimal porcVrFondo = BigDecimal.ZERO;
         var sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
         try (Workbook wb = WorkbookFactory.create(sistemaTotal.toFile(), null, true)) {
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
             Sheet ws = wb.getSheet("restot");
             int cSistema = findHeaderCol(ws, "SISTEMA");
             int cProt = findHeaderCol(ws, "PROTECCION");
             int cPorv = findHeaderCol(ws, "PORVENIR");
-            int row = findMaxRow(ws, cSistema + 1, evaluator);
-            vrFondo = num(ws, row, cSistema + 1, evaluator).divide(BigDecimal.valueOf(1000), 8, RoundingMode.HALF_UP);
-            var prot = num(ws, row, cProt + 1, evaluator);
-            var porv = num(ws, row, cPorv + 1, evaluator);
+            int row = findMaxRow(ws, cSistema + 1, null);
+            vrFondo = num(ws, row, cSistema + 1, null).divide(BigDecimal.valueOf(1000), 8, RoundingMode.HALF_UP);
+            var prot = num(ws, row, cProt + 1, null);
+            var porv = num(ws, row, cPorv + 1, null);
             if (vrFondo.signum() != 0) {
                 porcVrFondo = prot.add(porv).divide(vrFondo, 8, RoundingMode.HALF_UP).divide(BigDecimal.TEN, 8, RoundingMode.HALF_UP);
             }
@@ -226,10 +225,11 @@ public class MensualDataReader {
         return null;
     }
 
-    private BigDecimal readRentabilidadReal(Sheet consolidado, FormulaEvaluator evaluator, LocalDate fechaCorte) {
+    private BigDecimal readRentabilidadReal(Sheet consolidado, LocalDate fechaCorte) {
         // En macro VBA D10 equivale a BUSCARV(fecha_final, A:I, 9, FALSO).
         // POI puede devolver 0 cuando D10 evalúa error por dependencias externas/caché,
         // por eso se hace el lookup explícito sobre la tabla base.
+        // Importante: se usan valores cacheados (sin evaluator) para evitar evaluar miles de fórmulas y disparar uso de heap.
         double objetivo = DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte));
         BigDecimal exacta = null;
         BigDecimal anterior = null;
@@ -237,12 +237,12 @@ public class MensualDataReader {
 
         int last = consolidado.getLastRowNum() + 1;
         for (int r = 14; r <= last; r++) {
-            BigDecimal fecha = num(consolidado, r, 1, evaluator);
+            BigDecimal fecha = num(consolidado, r, 1, null);
             if (fecha.signum() == 0) {
                 continue;
             }
             double excelDate = fecha.doubleValue();
-            BigDecimal real = num(consolidado, r, 9, evaluator);
+            BigDecimal real = num(consolidado, r, 9, null);
             if (Math.abs(excelDate - objetivo) < 0.00001d && real.signum() != 0) {
                 exacta = real;
                 break;
@@ -258,7 +258,7 @@ public class MensualDataReader {
             log.info("Rentabilidad real D10 sin match exacto para {}. Se usa fecha hábil anterior (excelDate={})", fechaCorte, fechaAnterior);
             return anterior;
         }
-        return num(consolidado, "D10", evaluator);
+        return num(consolidado, "D10", null);
     }
 
     private LocalDate cellAsDate(Cell cell) {
