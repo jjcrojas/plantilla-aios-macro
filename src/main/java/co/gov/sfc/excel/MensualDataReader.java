@@ -38,7 +38,7 @@ public class MensualDataReader {
         BigDecimal aportantes;
         BigDecimal consFdosAdmon;
 
-        var file491 = locator.findRequired("491");
+        var file491 = locator.findRequired("491", fechaCorte);
         try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
             FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
             Sheet informe = wb.getSheet("informe de prensa");
@@ -69,7 +69,7 @@ public class MensualDataReader {
         log.info("Lectura Formato 491 completada para fechaCorte={}", fechaCorte);
 
         BigDecimal traspasosSistema = BigDecimal.ZERO;
-        var file493 = locator.findRequired("493");
+        var file493 = locator.findRequired("493", fechaCorte);
         try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
             FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
             Sheet tras = wb.getSheet("Traslados Entre AFP");
@@ -86,7 +86,7 @@ public class MensualDataReader {
 
         BigDecimal tmpReal1;
         BigDecimal tmpNominal1;
-        var rentFile = locator.findRequired("Rent_Vr_Uni_Moderado");
+        var rentFile = locator.findRequired("Rent_Vr_Uni_Moderado", fechaCorte);
         try (Workbook wb = WorkbookFactory.create(rentFile.toFile(), null, true)) {
             FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
             Sheet consolidado = getSheetIgnoreCase(wb, "Consolidado");
@@ -108,7 +108,7 @@ public class MensualDataReader {
 
         BigDecimal vrFondo = BigDecimal.ZERO;
         BigDecimal porcVrFondo = BigDecimal.ZERO;
-        var sistemaTotal = locator.findRequired("SISTEMA TOTAL");
+        var sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
         try (Workbook wb = WorkbookFactory.create(sistemaTotal.toFile(), null, true)) {
             FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
             Sheet ws = wb.getSheet("restot");
@@ -136,7 +136,7 @@ public class MensualDataReader {
         BigDecimal otros = BigDecimal.ZERO;
         BigDecimal h17 = BigDecimal.ZERO;
         try {
-            var limites = locator.findRequired("LIMITES");
+            var limites = locator.findRequired("LIMITES", fechaCorte);
             try (Workbook wb = WorkbookFactory.create(limites.toFile(), null, true)) {
                     FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
                     Sheet aios = wb.getSheet("AIOS");
@@ -191,7 +191,7 @@ public class MensualDataReader {
 
     private BigDecimal readTrmFromSeries(LocalDate fechaCorte) {
         try {
-            var seriesFile = locator.findRequired("PIB_PEA_TRM_DG");
+            var seriesFile = locator.findRequired("PIB_PEA_TRM_DG", fechaCorte);
             try (Workbook wb = WorkbookFactory.create(seriesFile.toFile(), null, true)) {
                 Sheet sheet = wb.getSheet("Hoja1");
                 if (sheet == null) {
