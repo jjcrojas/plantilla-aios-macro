@@ -86,19 +86,18 @@ public class MensualDataReader {
         BigDecimal tmpNominal1;
         var rentFile = locator.findRequired("Rent_Vr_Uni_Moderado", fechaCorte);
         try (Workbook wb = WorkbookFactory.create(rentFile.toFile(), null, true)) {
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
             Sheet consolidado = getSheetIgnoreCase(wb, "Consolidado");
             if (consolidado == null) consolidado = wb.getSheetAt(0);
 
-            // Igual que macro: D5 = fecha final, D4 = fecha inicial (fecha final - 1 año)
+            LocalDate fechaInicial = fechaCorte.minusYears(1);
+            // Igual que macro: D5 = fecha final, D4 = fecha inicial.
             setDate(consolidado, "D5", fechaCorte);
-            setDate(consolidado, "D4", fechaCorte.minusYears(1));
-            evaluator.clearAllCachedResultValues();
+            setDate(consolidado, "D4", fechaInicial);
 
-            tmpNominal1 = num(consolidado, "D11", evaluator);
+            tmpNominal1 = readRentabilidadNominal(consolidado, fechaInicial, fechaCorte);
             tmpReal1 = readRentabilidadReal(consolidado, fechaCorte);
             log.info("Rentabilidad moderado con fechaCorte={}: consolidado!D4={}, D5={}, D11(nominal)={}, D10(real)={}",
-                    fechaCorte, fechaCorte.minusYears(1), fechaCorte, tmpNominal1, tmpReal1);
+                    fechaCorte, fechaInicial, fechaCorte, tmpNominal1, tmpReal1);
         } catch (Exception e) {
             throw new IllegalStateException("Error leyendo rentabilidad moderado", e);
         }
@@ -135,21 +134,20 @@ public class MensualDataReader {
         try {
             var limites = locator.findRequired("LIMITES", fechaCorte);
             try (Workbook wb = WorkbookFactory.create(limites.toFile(), null, true)) {
-                    FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
                     Sheet aios = wb.getSheet("AIOS");
-                total1 = num(aios, "AB4", evaluator);
-                dudaG = num(aios, "C4", evaluator);
-                dudaEf = num(aios, "E4", evaluator);
-                dudaNf = num(aios, "G4", evaluator);
-                dudaAc = num(aios, "I4", evaluator);
-                dudaF = num(aios, "K4", evaluator);
-                var ge = num(aios, "O4", evaluator);
-                var efe = num(aios, "Q4", evaluator);
-                var nfe = num(aios, "S4", evaluator);
-                var ace = num(aios, "U4", evaluator);
-                var fe = num(aios, "W4", evaluator);
-                var ste = num(aios, "Y4", evaluator);
-                otros = num(aios, "AA4", evaluator);
+                total1 = num(aios, "AB4", null);
+                dudaG = num(aios, "C4", null);
+                dudaEf = num(aios, "E4", null);
+                dudaNf = num(aios, "G4", null);
+                dudaAc = num(aios, "I4", null);
+                dudaF = num(aios, "K4", null);
+                var ge = num(aios, "O4", null);
+                var efe = num(aios, "Q4", null);
+                var nfe = num(aios, "S4", null);
+                var ace = num(aios, "U4", null);
+                var fe = num(aios, "W4", null);
+                var ste = num(aios, "Y4", null);
+                otros = num(aios, "AA4", null);
                 h17 = ge.add(efe).add(nfe).add(ace).add(fe).add(ste);
             }
         } catch (Exception ignored) {
@@ -223,6 +221,40 @@ public class MensualDataReader {
             }
         }
         return null;
+    }
+
+    private BigDecimal readRentabilidadNominal(Sheet consolidado, LocalDate fechaInicial, LocalDate fechaFinal) {
+        BigDecimal valorInicial = lookupByDate(consolidado, 5, fechaInicial, true);
+        BigDecimal valorFinal = lookupByDate(consolidado, 5, fechaFinal, true);
+        if (valorInicial == null || valorFinal == null || valorInicial.signum() == 0) {
+            return BigDecimal.ZERO;
+        }
+        double dias = Math.max(1d, fechaFinal.toEpochDay() - fechaInicial.toEpochDay());
+        double nominal = Math.pow(valorFinal.doubleValue() / valorInicial.doubleValue(), 365d / dias) - 1d;
+        return BigDecimal.valueOf(nominal);
+    }
+
+    private BigDecimal lookupByDate(Sheet sheet, int valueCol1Based, LocalDate target, boolean allowPrevious) {
+        double objetivo = DateUtil.getExcelDate(java.sql.Date.valueOf(target));
+        BigDecimal exacta = null;
+        BigDecimal anterior = null;
+        double fechaAnterior = Double.NEGATIVE_INFINITY;
+        int last = sheet.getLastRowNum() + 1;
+        for (int r = 14; r <= last; r++) {
+            BigDecimal fecha = num(sheet, r, 1, null);
+            if (fecha.signum() == 0) continue;
+            double excelDate = fecha.doubleValue();
+            BigDecimal valor = num(sheet, r, valueCol1Based, null);
+            if (Math.abs(excelDate - objetivo) < 0.00001d && valor.signum() != 0) {
+                exacta = valor;
+                break;
+            }
+            if (allowPrevious && excelDate <= objetivo && excelDate > fechaAnterior && valor.signum() != 0) {
+                fechaAnterior = excelDate;
+                anterior = valor;
+            }
+        }
+        return exacta != null ? exacta : anterior;
     }
 
     private BigDecimal readRentabilidadReal(Sheet consolidado, LocalDate fechaCorte) {
