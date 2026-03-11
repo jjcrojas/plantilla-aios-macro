@@ -14,6 +14,13 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
 import java.util.Locale;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamReader;
+import java.io.InputStream;
+import java.nio.file.Path;
+import java.util.zip.ZipFile;
 
 @Component
 public class MensualDataReader {
@@ -85,21 +92,25 @@ public class MensualDataReader {
         BigDecimal tmpReal1;
         BigDecimal tmpNominal1;
         var rentFile = locator.findRequired("Rent_Vr_Uni_Moderado", fechaCorte);
-        try (Workbook wb = WorkbookFactory.create(rentFile.toFile(), null, true)) {
-            Sheet consolidado = getSheetIgnoreCase(wb, "Consolidado");
-            if (consolidado == null) consolidado = wb.getSheetAt(0);
-
-            LocalDate fechaInicial = fechaCorte.minusYears(1);
-            // Igual que macro: D5 = fecha final, D4 = fecha inicial.
-            setDate(consolidado, "D5", fechaCorte);
-            setDate(consolidado, "D4", fechaInicial);
-
-            tmpNominal1 = readRentabilidadNominal(consolidado, fechaInicial, fechaCorte);
-            tmpReal1 = readRentabilidadReal(consolidado, fechaCorte);
-            log.info("Rentabilidad moderado con fechaCorte={}: consolidado!D4={}, D5={}, D11(nominal)={}, D10(real)={}",
-                    fechaCorte, fechaInicial, fechaCorte, tmpNominal1, tmpReal1);
-        } catch (Exception e) {
-            throw new IllegalStateException("Error leyendo rentabilidad moderado", e);
+        try {
+            RentResult rent = readRentabilidadDesdeXml(rentFile, fechaCorte);
+            tmpNominal1 = rent.nominal();
+            tmpReal1 = rent.real();
+            log.info("Rentabilidad moderado (stream xml) con fechaCorte={}: D11(nominal)={}, D10(real)={}",
+                    fechaCorte, tmpNominal1, tmpReal1);
+        } catch (Exception fastError) {
+            log.warn("Lectura streaming de rentabilidad falló (se intenta fallback POI): {}", fastError.getMessage());
+            try (Workbook wb = WorkbookFactory.create(rentFile.toFile(), null, true)) {
+                Sheet consolidado = getSheetIgnoreCase(wb, "Consolidado");
+                if (consolidado == null) consolidado = wb.getSheetAt(0);
+                LocalDate fechaInicial = fechaCorte.minusYears(1);
+                setDate(consolidado, "D5", fechaCorte);
+                setDate(consolidado, "D4", fechaInicial);
+                tmpNominal1 = readRentabilidadNominal(consolidado, fechaInicial, fechaCorte);
+                tmpReal1 = readRentabilidadReal(consolidado, fechaCorte);
+            } catch (Exception fallbackError) {
+                throw new IllegalStateException("Error leyendo rentabilidad moderado", fallbackError);
+            }
         }
         log.info("Lectura rentabilidad completada para fechaCorte={}", fechaCorte);
 
@@ -292,6 +303,116 @@ public class MensualDataReader {
         }
         return num(consolidado, "D10", null);
     }
+
+
+    private RentResult readRentabilidadDesdeXml(Path rentFile, LocalDate fechaCorte) throws Exception {
+        double objetivoFinal = DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte));
+        double objetivoInicial = DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte.minusYears(1)));
+
+        try (ZipFile zip = new ZipFile(rentFile.toFile())) {
+            String sheetPath = findConsolidadoSheetPath(zip);
+            if (sheetPath == null) throw new IllegalStateException("No se encontró hoja Consolidado en workbook.xml");
+
+            BigDecimal eIni = null, eFin = null, eIniPrev = null, eFinPrev = null;
+            double eIniPrevDate = Double.NEGATIVE_INFINITY, eFinPrevDate = Double.NEGATIVE_INFINITY;
+            BigDecimal iFin = null, iFinPrev = null;
+            double iFinPrevDate = Double.NEGATIVE_INFINITY;
+
+            XMLInputFactory factory = XMLInputFactory.newFactory();
+            try (InputStream is = zip.getInputStream(zip.getEntry(sheetPath))) {
+                XMLStreamReader xr = factory.createXMLStreamReader(is);
+                int rowNum = -1;
+                Double aVal = null, eVal = null, iVal = null;
+                String cellRef = null;
+                boolean inV = false;
+                while (xr.hasNext()) {
+                    int ev = xr.next();
+                    if (ev == XMLStreamConstants.START_ELEMENT) {
+                        String name = xr.getLocalName();
+                        if ("row".equals(name)) {
+                            String r = xr.getAttributeValue(null, "r");
+                            rowNum = r == null ? -1 : Integer.parseInt(r);
+                            aVal = eVal = iVal = null;
+                        } else if ("c".equals(name)) {
+                            cellRef = xr.getAttributeValue(null, "r");
+                        } else if ("v".equals(name)) {
+                            inV = true;
+                        }
+                    } else if (ev == XMLStreamConstants.CHARACTERS && inV && cellRef != null) {
+                        String t = xr.getText();
+                        if (t != null && !t.isBlank()) {
+                            try {
+                                double n = Double.parseDouble(t.trim());
+                                if (cellRef.startsWith("A")) aVal = n;
+                                else if (cellRef.startsWith("E")) eVal = n;
+                                else if (cellRef.startsWith("I")) iVal = n;
+                            } catch (NumberFormatException ignored) {
+                            }
+                        }
+                    } else if (ev == XMLStreamConstants.END_ELEMENT) {
+                        String name = xr.getLocalName();
+                        if ("v".equals(name)) inV = false;
+                        if ("row".equals(name) && rowNum >= 14 && aVal != null) {
+                            double d = aVal;
+                            if (eVal != null && eVal != 0d) {
+                                if (Math.abs(d - objetivoInicial) < 0.00001d) eIni = BigDecimal.valueOf(eVal);
+                                if (Math.abs(d - objetivoFinal) < 0.00001d) eFin = BigDecimal.valueOf(eVal);
+                                if (d <= objetivoInicial && d > eIniPrevDate) { eIniPrevDate = d; eIniPrev = BigDecimal.valueOf(eVal); }
+                                if (d <= objetivoFinal && d > eFinPrevDate) { eFinPrevDate = d; eFinPrev = BigDecimal.valueOf(eVal); }
+                            }
+                            if (iVal != null && iVal != 0d) {
+                                if (Math.abs(d - objetivoFinal) < 0.00001d) iFin = BigDecimal.valueOf(iVal);
+                                if (d <= objetivoFinal && d > iFinPrevDate) { iFinPrevDate = d; iFinPrev = BigDecimal.valueOf(iVal); }
+                            }
+                        }
+                    }
+                }
+                xr.close();
+            }
+
+            BigDecimal vi = eIni != null ? eIni : eIniPrev;
+            BigDecimal vf = eFin != null ? eFin : eFinPrev;
+            BigDecimal nominal = BigDecimal.ZERO;
+            if (vi != null && vf != null && vi.signum() != 0) {
+                double dias = Math.max(1d, fechaCorte.toEpochDay() - fechaCorte.minusYears(1).toEpochDay());
+                nominal = BigDecimal.valueOf(Math.pow(vf.doubleValue() / vi.doubleValue(), 365d / dias) - 1d);
+            }
+            BigDecimal real = iFin != null ? iFin : iFinPrev;
+            if (real == null) real = BigDecimal.ZERO;
+            return new RentResult(nominal, real);
+        }
+    }
+
+    private String findConsolidadoSheetPath(ZipFile zip) throws Exception {
+        var dbf = DocumentBuilderFactory.newInstance();
+        dbf.setNamespaceAware(true);
+        var db = dbf.newDocumentBuilder();
+        var wb = db.parse(zip.getInputStream(zip.getEntry("xl/workbook.xml")));
+        var sheets = wb.getElementsByTagNameNS("http://schemas.openxmlformats.org/spreadsheetml/2006/main", "sheet");
+        String rid = null;
+        for (int i = 0; i < sheets.getLength(); i++) {
+            var n = sheets.item(i);
+            var name = n.getAttributes().getNamedItem("name");
+            if (name != null && "Consolidado".equalsIgnoreCase(name.getNodeValue())) {
+                var idAttr = n.getAttributes().getNamedItemNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
+                if (idAttr != null) { rid = idAttr.getNodeValue(); break; }
+            }
+        }
+        if (rid == null) return null;
+        var rels = db.parse(zip.getInputStream(zip.getEntry("xl/_rels/workbook.xml.rels")));
+        var relNodes = rels.getElementsByTagNameNS("http://schemas.openxmlformats.org/package/2006/relationships", "Relationship");
+        for (int i = 0; i < relNodes.getLength(); i++) {
+            var n = relNodes.item(i);
+            var id = n.getAttributes().getNamedItem("Id");
+            if (id != null && rid.equals(id.getNodeValue())) {
+                var target = n.getAttributes().getNamedItem("Target");
+                if (target != null) return "xl/" + target.getNodeValue().replace("\\", "/");
+            }
+        }
+        return null;
+    }
+
+    private record RentResult(BigDecimal nominal, BigDecimal real) {}
 
     private LocalDate cellAsDate(Cell cell) {
         if (cell == null) {
