@@ -89,18 +89,16 @@ public class MensualDataReader {
         var rentFile = locator.findRequired("Rent_Vr_Uni_Moderado");
         try (Workbook wb = WorkbookFactory.create(rentFile.toFile(), null, true)) {
             FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-            Sheet consolidado = wb.getSheet("consolidado");
-            if (consolidado == null) {
-                consolidado = wb.getSheetAt(0);
-            }
+            Sheet consolidado = getSheetIgnoreCase(wb, "Consolidado");
+            if (consolidado == null) consolidado = wb.getSheetAt(0);
 
             // Igual que macro: D5 = fecha final, D4 = fecha inicial (fecha final - 1 año)
             setDate(consolidado, "D5", fechaCorte);
             setDate(consolidado, "D4", fechaCorte.minusYears(1));
             evaluator.clearAllCachedResultValues();
 
-            tmpReal1 = num(consolidado, "D10", evaluator);
             tmpNominal1 = num(consolidado, "D11", evaluator);
+            tmpReal1 = readRentabilidadReal(consolidado, evaluator, fechaCorte);
             log.info("Rentabilidad moderado con fechaCorte={}: consolidado!D4={}, D5={}, D11(nominal)={}, D10(real)={}",
                     fechaCorte, fechaCorte.minusYears(1), fechaCorte, tmpNominal1, tmpReal1);
         } catch (Exception e) {
@@ -218,6 +216,51 @@ public class MensualDataReader {
             log.warn("No se pudo leer TRM desde series PIB_PEA_TRM_DG: {}", e.getMessage());
             return BigDecimal.ONE;
         }
+    }
+
+    private Sheet getSheetIgnoreCase(Workbook wb, String name) {
+        for (int i = 0; i < wb.getNumberOfSheets(); i++) {
+            Sheet sheet = wb.getSheetAt(i);
+            if (sheet.getSheetName().equalsIgnoreCase(name)) {
+                return sheet;
+            }
+        }
+        return null;
+    }
+
+    private BigDecimal readRentabilidadReal(Sheet consolidado, FormulaEvaluator evaluator, LocalDate fechaCorte) {
+        // En macro VBA D10 equivale a BUSCARV(fecha_final, A:I, 9, FALSO).
+        // POI puede devolver 0 cuando D10 evalúa error por dependencias externas/caché,
+        // por eso se hace el lookup explícito sobre la tabla base.
+        double objetivo = DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte));
+        BigDecimal exacta = null;
+        BigDecimal anterior = null;
+        double fechaAnterior = Double.NEGATIVE_INFINITY;
+
+        int last = consolidado.getLastRowNum() + 1;
+        for (int r = 14; r <= last; r++) {
+            BigDecimal fecha = num(consolidado, r, 1, evaluator);
+            if (fecha.signum() == 0) {
+                continue;
+            }
+            double excelDate = fecha.doubleValue();
+            BigDecimal real = num(consolidado, r, 9, evaluator);
+            if (Math.abs(excelDate - objetivo) < 0.00001d && real.signum() != 0) {
+                exacta = real;
+                break;
+            }
+            if (excelDate <= objetivo && excelDate > fechaAnterior && real.signum() != 0) {
+                fechaAnterior = excelDate;
+                anterior = real;
+            }
+        }
+
+        if (exacta != null) return exacta;
+        if (anterior != null) {
+            log.info("Rentabilidad real D10 sin match exacto para {}. Se usa fecha hábil anterior (excelDate={})", fechaCorte, fechaAnterior);
+            return anterior;
+        }
+        return num(consolidado, "D10", evaluator);
     }
 
     private LocalDate cellAsDate(Cell cell) {
