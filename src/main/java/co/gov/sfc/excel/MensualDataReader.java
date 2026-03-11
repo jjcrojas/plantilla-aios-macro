@@ -20,14 +20,12 @@ public class MensualDataReader {
 
     private static final Logger log = LoggerFactory.getLogger(MensualDataReader.class);
     private final InsumosLocator locator;
-    private final AiosProperties properties;
 
     public MensualDataReader(InsumosLocator locator, AiosProperties properties) {
         this.locator = locator;
-        this.properties = properties;
-        IOUtils.setByteArrayMaxOverride(300_000_000);
-        System.setProperty("jdk.xml.maxGeneralEntitySizeLimit", "0");
-        System.setProperty("jdk.xml.totalEntitySizeLimit", "0");
+        // Evitar asignaciones gigantes en POI que pueden terminar en OOM con archivos grandes.
+        // 100 MB es suficiente para los insumos actuales y más conservador en memoria.
+        IOUtils.setByteArrayMaxOverride(100_000_000);
     }
 
     public MensualData read(LocalDate fechaCorte) {
