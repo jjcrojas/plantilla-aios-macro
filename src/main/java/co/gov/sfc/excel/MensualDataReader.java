@@ -44,21 +44,17 @@ public class MensualDataReader {
         BigDecimal consFdosAdmon;
 
         var file491 = locator.findRequired("491", fechaCorte);
-        try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
-            Sheet informe = wb.getSheet("informe de prensa");
-            Sheet multifondos = wb.getSheet("multifondos");
+        try {
+            // Lectura ultra-liviana: XML streaming del xlsm (sin WorkbookFactory).
+            hombres = readNumericCellFromSheetXml(file491, "informe de prensa", "C11");
+            mujeres = readNumericCellFromSheetXml(file491, "informe de prensa", "D11");
+            log.info("Afiliados (xml 491) para fechaCorte={}: hombres={}, mujeres={}, total={}", fechaCorte, hombres, mujeres, hombres.add(mujeres));
 
-            // Modo memoria-reducida: evitar evaluator sobre libro grande.
-            // Se toman valores cacheados del archivo para reducir riesgo de OOM.
-            hombres = num(informe, "C11", null);
-            mujeres = num(informe, "D11", null);
-            log.info("Afiliados (cache 491) para fechaCorte={}: hombres={}, mujeres={}, total={}", fechaCorte, hombres, mujeres, hombres.add(mujeres));
-
-            aportantes = num(multifondos, "E25", null);
-            log.info("Aportantes (cache 491) para fechaCorte={}: {}", fechaCorte, aportantes);
-            var j8 = num(multifondos, "J8", null);
-            var j9 = num(multifondos, "J9", null);
-            var j12 = num(multifondos, "J12", null);
+            aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
+            log.info("Aportantes (xml 491) para fechaCorte={}: {}", fechaCorte, aportantes);
+            var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
+            var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
+            var j12 = readNumericCellFromSheetXml(file491, "multifondos", "J12");
             consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
         } catch (Exception e) {
             throw new IllegalStateException("Error leyendo Formato 491", e);
@@ -67,12 +63,8 @@ public class MensualDataReader {
 
         BigDecimal traspasosSistema = BigDecimal.ZERO;
         var file493 = locator.findRequired("493", fechaCorte);
-        try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
-            Sheet tras = wb.getSheet("Traslados Entre AFP");
-            if (tras == null) {
-                throw new IllegalStateException("No existe hoja 'Traslados Entre AFP' en Formato 493");
-            }
-            traspasosSistema = num(tras, "BQ11", null);
+        try {
+            traspasosSistema = readNumericCellFromSheetXml(file493, "Traslados Entre AFP", "BQ11");
         } catch (Exception e) {
             log.warn("No fue posible leer Formato 493; se usará 0 en traspasos_sistema. Causa: {}", e.getMessage());
         }
@@ -299,7 +291,7 @@ public class MensualDataReader {
         double objetivoInicial = DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte.minusYears(1)));
 
         try (ZipFile zip = new ZipFile(rentFile.toFile())) {
-            String sheetPath = findConsolidadoSheetPath(zip);
+            String sheetPath = findSheetPathByName(zip, "Consolidado");
             if (sheetPath == null) throw new IllegalStateException("No se encontró hoja Consolidado en workbook.xml");
 
             BigDecimal eIni = null, eFin = null, eIniPrev = null, eFinPrev = null;
@@ -372,7 +364,7 @@ public class MensualDataReader {
         }
     }
 
-    private String findConsolidadoSheetPath(ZipFile zip) throws Exception {
+    private String findSheetPathByName(ZipFile zip, String sheetName) throws Exception {
         var dbf = DocumentBuilderFactory.newInstance();
         dbf.setNamespaceAware(true);
         var db = dbf.newDocumentBuilder();
@@ -382,7 +374,7 @@ public class MensualDataReader {
         for (int i = 0; i < sheets.getLength(); i++) {
             var n = sheets.item(i);
             var name = n.getAttributes().getNamedItem("name");
-            if (name != null && "Consolidado".equalsIgnoreCase(name.getNodeValue())) {
+            if (name != null && sheetName.equalsIgnoreCase(name.getNodeValue())) {
                 var idAttr = n.getAttributes().getNamedItemNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
                 if (idAttr != null) { rid = idAttr.getNodeValue(); break; }
             }
@@ -402,6 +394,48 @@ public class MensualDataReader {
     }
 
     private record RentResult(BigDecimal nominal, BigDecimal real) {}
+
+
+    private BigDecimal readNumericCellFromSheetXml(Path file, String sheetName, String cellRefWanted) throws Exception {
+        try (ZipFile zip = new ZipFile(file.toFile())) {
+            String sheetPath = findSheetPathByName(zip, sheetName);
+            if (sheetPath == null) {
+                throw new IllegalStateException("No se encontró hoja '" + sheetName + "'");
+            }
+            XMLInputFactory factory = XMLInputFactory.newFactory();
+            try (InputStream is = zip.getInputStream(zip.getEntry(sheetPath))) {
+                XMLStreamReader xr = factory.createXMLStreamReader(is);
+                String cellRef = null;
+                boolean inV = false;
+                while (xr.hasNext()) {
+                    int ev = xr.next();
+                    if (ev == XMLStreamConstants.START_ELEMENT) {
+                        String name = xr.getLocalName();
+                        if ("c".equals(name)) {
+                            cellRef = xr.getAttributeValue(null, "r");
+                        } else if ("v".equals(name) && cellRefWanted.equals(cellRef)) {
+                            inV = true;
+                        }
+                    } else if (ev == XMLStreamConstants.CHARACTERS && inV) {
+                        String t = xr.getText();
+                        if (t != null && !t.isBlank()) {
+                            try {
+                                return BigDecimal.valueOf(Double.parseDouble(t.trim()));
+                            } catch (NumberFormatException ignored) {
+                                return BigDecimal.ZERO;
+                            }
+                        }
+                    } else if (ev == XMLStreamConstants.END_ELEMENT) {
+                        if ("v".equals(xr.getLocalName()) && inV) {
+                            inV = false;
+                        }
+                    }
+                }
+                xr.close();
+            }
+        }
+        return BigDecimal.ZERO;
+    }
 
     private LocalDate cellAsDate(Cell cell) {
         if (cell == null) {
