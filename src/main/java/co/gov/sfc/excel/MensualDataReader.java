@@ -47,14 +47,32 @@ public class MensualDataReader {
         BigDecimal consFdosAdmon;
 
         var file491 = locator.findRequired("491", fechaCorte);
-        try {
-            // Lectura ultra-liviana: XML streaming del xlsm (sin WorkbookFactory).
+        try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
+            Sheet informe = wb.getSheet("informe de prensa");
+            Sheet multifondos = wb.getSheet("multifondos");
+            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+
+            // Igual que macro: informe!C3 = fecha de corte, luego tomar C11 y D11.
+            setDate(informe, "C3", fechaCorte);
+            // Igual que macro: multifondos!C4 = fecha de corte.
+            setDate(multifondos, "C4", fechaCorte);
+            evaluator.clearAllCachedResultValues();
+
+            hombres = num(informe, "C11", evaluator);
+            mujeres = num(informe, "D11", evaluator);
+            log.info("Afiliados (macro 491) para fechaCorte={}: hombres={}, mujeres={}, total={}", fechaCorte, hombres, mujeres, hombres.add(mujeres));
+
+            aportantes = num(multifondos, "E25", evaluator);
+            log.info("Aportantes (macro 491) para fechaCorte={}: {}", fechaCorte, aportantes);
+            var j8 = num(multifondos, "J8", evaluator);
+            var j9 = num(multifondos, "J9", evaluator);
+            var j12 = num(multifondos, "J12", evaluator);
+            consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+        } catch (OutOfMemoryError oom) {
+            log.warn("OOM leyendo 491 con lógica macro; se usa fallback XML cacheado");
             hombres = readNumericCellFromSheetXml(file491, "informe de prensa", "C11");
             mujeres = readNumericCellFromSheetXml(file491, "informe de prensa", "D11");
-            log.info("Afiliados (xml 491) para fechaCorte={}: hombres={}, mujeres={}, total={}", fechaCorte, hombres, mujeres, hombres.add(mujeres));
-
             aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
-            log.info("Aportantes (xml 491) para fechaCorte={}: {}", fechaCorte, aportantes);
             var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
             var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
             var j12 = readNumericCellFromSheetXml(file491, "multifondos", "J12");
@@ -66,7 +84,20 @@ public class MensualDataReader {
 
         BigDecimal traspasosSistema = BigDecimal.ZERO;
         var file493 = locator.findRequired("493", fechaCorte);
-        try {
+        try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
+            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+            Sheet tras = wb.getSheet("Traslados Entre AFP");
+            if (tras == null) {
+                throw new IllegalStateException("No existe hoja 'Traslados Entre AFP' en Formato 493");
+            }
+            // Igual que macro: B11 = fecha_fin; D4 = 99; BQ11.
+            setDate(tras, "B11", fechaCorte);
+            setNumeric(tras, "D4", 99);
+            evaluator.clearAllCachedResultValues();
+            traspasosSistema = num(tras, "BQ11", evaluator);
+            log.info("Traspasos sistema (macro 493) para fechaCorte={}: {}", fechaCorte, traspasosSistema);
+        } catch (OutOfMemoryError oom) {
+            log.warn("OOM leyendo 493 con lógica macro; se usa fallback XML cacheado");
             traspasosSistema = readNumericCellFromSheetXml(file493, "Traslados Entre AFP", "BQ11");
         } catch (Exception e) {
             log.warn("No fue posible leer Formato 493; se usará 0 en traspasos_sistema. Causa: {}", e.getMessage());
@@ -414,11 +445,11 @@ public class MensualDataReader {
     private record RentResult(BigDecimal nominal, BigDecimal real) {}
 
 
-    private BigDecimal readNumericCellFromSheetXml(Path file, String sheetName, String cellRefWanted) throws Exception {
+    private BigDecimal readNumericCellFromSheetXml(Path file, String sheetName, String cellRefWanted) {
         try (ZipFile zip = new ZipFile(file.toFile())) {
             String sheetPath = findSheetPathByName(zip, sheetName);
             if (sheetPath == null) {
-                throw new IllegalStateException("No se encontró hoja '" + sheetName + "'");
+                return BigDecimal.ZERO;
             }
             XMLInputFactory factory = XMLInputFactory.newFactory();
             try (InputStream is = zip.getInputStream(zip.getEntry(sheetPath))) {
@@ -451,6 +482,8 @@ public class MensualDataReader {
                 }
                 xr.close();
             }
+        } catch (Exception ignored) {
+            return BigDecimal.ZERO;
         }
         return BigDecimal.ZERO;
     }
