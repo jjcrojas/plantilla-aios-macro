@@ -2,6 +2,8 @@ package co.gov.sfc.services;
 
 import co.gov.sfc.excel.MensualDataReader;
 import co.gov.sfc.excel.MensualExcelGenerator;
+import co.gov.sfc.excel.TrimestralDataReader;
+import co.gov.sfc.excel.TrimestralExcelGenerator;
 import co.gov.sfc.model.ModoGeneracion;
 import co.gov.sfc.model.ResultadoGeneracion;
 import org.springframework.stereotype.Service;
@@ -21,10 +23,17 @@ public class AiosGeneracionService {
 
     private final MensualDataReader mensualDataReader;
     private final MensualExcelGenerator mensualExcelGenerator;
+    private final TrimestralDataReader trimestralDataReader;
+    private final TrimestralExcelGenerator trimestralExcelGenerator;
 
-    public AiosGeneracionService(MensualDataReader mensualDataReader, MensualExcelGenerator mensualExcelGenerator) {
+    public AiosGeneracionService(MensualDataReader mensualDataReader,
+                                 MensualExcelGenerator mensualExcelGenerator,
+                                 TrimestralDataReader trimestralDataReader,
+                                 TrimestralExcelGenerator trimestralExcelGenerator) {
         this.mensualDataReader = mensualDataReader;
         this.mensualExcelGenerator = mensualExcelGenerator;
+        this.trimestralDataReader = trimestralDataReader;
+        this.trimestralExcelGenerator = trimestralExcelGenerator;
     }
 
     public ResultadoGeneracion generar(LocalDate fechaCorte, ModoGeneracion modo) {
@@ -35,12 +44,21 @@ public class AiosGeneracionService {
                 var mensual = mensualExcelGenerator.generar(mensualDataReader.read(fechaCorte));
                 archivos.add(mensual);
             }
+
+            if (modo == ModoGeneracion.TRIMESTRAL && !isQuarterMonth(fechaCorte)) {
+                throw new IllegalArgumentException("La generación trimestral solo aplica para cortes de marzo, junio, septiembre o diciembre");
+            }
+
+            if (modo == ModoGeneracion.TRIMESTRAL || (modo == ModoGeneracion.TODO && isQuarterMonth(fechaCorte))) {
+                var trimestral = trimestralExcelGenerator.generar(fechaCorte, trimestralDataReader.read(fechaCorte));
+                archivos.add(trimestral);
+            }
         } catch (OutOfMemoryError oom) {
             throw new IllegalStateException("Memoria insuficiente generando AIOS. Intente con más heap (-Xmx) o reduzca insumos cargados.", oom);
         }
 
-        if (modo == ModoGeneracion.TRIMESTRAL || modo == ModoGeneracion.SEMESTRAL) {
-            throw new UnsupportedOperationException("TRIMESTRAL/SEMESTRAL se dejarán para la siguiente iteración de migración");
+        if (modo == ModoGeneracion.SEMESTRAL) {
+            throw new UnsupportedOperationException("SEMESTRAL se dejará para la siguiente iteración de migración");
         }
 
         if (modo == ModoGeneracion.TODO) {
@@ -48,6 +66,11 @@ public class AiosGeneracionService {
             return new ResultadoGeneracion(List.of(zip), true);
         }
         return new ResultadoGeneracion(archivos, false);
+    }
+
+    private boolean isQuarterMonth(LocalDate fechaCorte) {
+        int m = fechaCorte.getMonthValue();
+        return m == 3 || m == 6 || m == 9 || m == 12;
     }
 
     private Path zip(List<Path> archivos) {
