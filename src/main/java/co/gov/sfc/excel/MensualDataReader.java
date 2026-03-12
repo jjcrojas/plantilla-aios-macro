@@ -41,67 +41,81 @@ public class MensualDataReader {
     public MensualData read(LocalDate fechaCorte) {
         log.info("Iniciando lectura de insumos para fechaCorte={}", fechaCorte);
 
-        BigDecimal hombres;
-        BigDecimal mujeres;
-        BigDecimal aportantes;
-        BigDecimal consFdosAdmon;
+        BigDecimal hombres = BigDecimal.ZERO;
+        BigDecimal mujeres = BigDecimal.ZERO;
+        BigDecimal aportantes = BigDecimal.ZERO;
+        BigDecimal consFdosAdmon = BigDecimal.ZERO;
 
         var file491 = locator.findRequired("491", fechaCorte);
-        try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
-            Sheet informe = wb.getSheet("informe de prensa");
-            Sheet multifondos = wb.getSheet("multifondos");
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+        var file493 = locator.findRequired("493", fechaCorte);
+        boolean macroRecalc = Boolean.TRUE.equals(properties.macroRecalc491493());
+        BigDecimal traspasosSistema = BigDecimal.ZERO;
 
-            // Igual que macro: informe!C3 = fecha de corte, luego tomar C11 y D11.
-            setDate(informe, "C3", fechaCorte);
-            // Igual que macro: multifondos!C4 = fecha de corte.
-            setDate(multifondos, "C4", fechaCorte);
-            evaluator.clearAllCachedResultValues();
+        if (macroRecalc) {
+            try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
+                Sheet informe = wb.getSheet("informe de prensa");
+                Sheet multifondos = wb.getSheet("multifondos");
+                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+                setDate(informe, "C3", fechaCorte);
+                setDate(multifondos, "C4", fechaCorte);
+                evaluator.clearAllCachedResultValues();
+                hombres = num(informe, "C11", evaluator);
+                mujeres = num(informe, "D11", evaluator);
+                aportantes = num(multifondos, "E25", evaluator);
+                var j8 = num(multifondos, "J8", evaluator);
+                var j9 = num(multifondos, "J9", evaluator);
+                var j12 = num(multifondos, "J12", evaluator);
+                consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+            } catch (OutOfMemoryError oom) {
+                log.warn("OOM en recálculo macro 491; se usa modo seguro XML cacheado");
+                macroRecalc = false;
+            } catch (Exception e) {
+                throw new IllegalStateException("Error leyendo Formato 491", e);
+            }
 
-            hombres = num(informe, "C11", evaluator);
-            mujeres = num(informe, "D11", evaluator);
-            log.info("Afiliados (macro 491) para fechaCorte={}: hombres={}, mujeres={}, total={}", fechaCorte, hombres, mujeres, hombres.add(mujeres));
+            if (macroRecalc) {
+                try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
+                    FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+                    Sheet tras = wb.getSheet("Traslados Entre AFP");
+                    if (tras == null) {
+                        throw new IllegalStateException("No existe hoja 'Traslados Entre AFP' en Formato 493");
+                    }
+                    setDate(tras, "B11", fechaCorte);
+                    setNumeric(tras, "D4", 99);
+                    evaluator.clearAllCachedResultValues();
+                    traspasosSistema = num(tras, "BQ11", evaluator);
+                } catch (OutOfMemoryError oom) {
+                    log.warn("OOM en recálculo macro 493; se usa modo seguro XML cacheado");
+                    macroRecalc = false;
+                } catch (Exception e) {
+                    log.warn("No fue posible leer Formato 493 con recálculo; se intenta modo seguro. Causa: {}", e.getMessage());
+                    macroRecalc = false;
+                }
+            }
+        }
 
-            aportantes = num(multifondos, "E25", evaluator);
-            log.info("Aportantes (macro 491) para fechaCorte={}: {}", fechaCorte, aportantes);
-            var j8 = num(multifondos, "J8", evaluator);
-            var j9 = num(multifondos, "J9", evaluator);
-            var j12 = num(multifondos, "J12", evaluator);
-            consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
-        } catch (OutOfMemoryError oom) {
-            log.warn("OOM leyendo 491 con lógica macro; se usa fallback XML cacheado");
-            hombres = readNumericCellFromSheetXml(file491, "informe de prensa", "C11");
-            mujeres = readNumericCellFromSheetXml(file491, "informe de prensa", "D11");
-            aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
-            var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
-            var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
-            var j12 = readNumericCellFromSheetXml(file491, "multifondos", "J12");
-            consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
-        } catch (Exception e) {
-            throw new IllegalStateException("Error leyendo Formato 491", e);
+        if (!macroRecalc) {
+            try {
+                hombres = readNumericCellFromSheetXml(file491, "informe de prensa", "C11");
+                mujeres = readNumericCellFromSheetXml(file491, "informe de prensa", "D11");
+                aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
+                var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
+                var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
+                var j12 = readNumericCellFromSheetXml(file491, "multifondos", "J12");
+                consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+                log.info("Lectura 491 en modo seguro XML cacheado para fechaCorte={}", fechaCorte);
+            } catch (Exception e) {
+                throw new IllegalStateException("Error leyendo Formato 491", e);
+            }
+
+            try {
+                traspasosSistema = readNumericCellFromSheetXml(file493, "Traslados Entre AFP", "BQ11");
+                log.info("Lectura 493 en modo seguro XML cacheado para fechaCorte={}", fechaCorte);
+            } catch (Exception e) {
+                log.warn("No fue posible leer Formato 493; se usará 0 en traspasos_sistema. Causa: {}", e.getMessage());
+            }
         }
         log.info("Lectura Formato 491 completada para fechaCorte={}", fechaCorte);
-
-        BigDecimal traspasosSistema = BigDecimal.ZERO;
-        var file493 = locator.findRequired("493", fechaCorte);
-        try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-            Sheet tras = wb.getSheet("Traslados Entre AFP");
-            if (tras == null) {
-                throw new IllegalStateException("No existe hoja 'Traslados Entre AFP' en Formato 493");
-            }
-            // Igual que macro: B11 = fecha_fin; D4 = 99; BQ11.
-            setDate(tras, "B11", fechaCorte);
-            setNumeric(tras, "D4", 99);
-            evaluator.clearAllCachedResultValues();
-            traspasosSistema = num(tras, "BQ11", evaluator);
-            log.info("Traspasos sistema (macro 493) para fechaCorte={}: {}", fechaCorte, traspasosSistema);
-        } catch (OutOfMemoryError oom) {
-            log.warn("OOM leyendo 493 con lógica macro; se usa fallback XML cacheado");
-            traspasosSistema = readNumericCellFromSheetXml(file493, "Traslados Entre AFP", "BQ11");
-        } catch (Exception e) {
-            log.warn("No fue posible leer Formato 493; se usará 0 en traspasos_sistema. Causa: {}", e.getMessage());
-        }
         log.info("Lectura Formato 493 completada para fechaCorte={}", fechaCorte);
 
         BigDecimal tmpReal1;
