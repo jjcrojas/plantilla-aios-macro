@@ -20,6 +20,7 @@ import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamReader;
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.zip.ZipFile;
 
 @Component
@@ -27,9 +28,11 @@ public class MensualDataReader {
 
     private static final Logger log = LoggerFactory.getLogger(MensualDataReader.class);
     private final InsumosLocator locator;
+    private final AiosProperties properties;
 
     public MensualDataReader(InsumosLocator locator, AiosProperties properties) {
         this.locator = locator;
+        this.properties = properties;
         // Evitar asignaciones gigantes en POI que pueden terminar en OOM con archivos grandes.
         // 100 MB es suficiente para los insumos actuales y más conservador en memoria.
         IOUtils.setByteArrayMaxOverride(100_000_000);
@@ -98,7 +101,11 @@ public class MensualDataReader {
         BigDecimal vrFondo = BigDecimal.ZERO;
         BigDecimal porcVrFondo = BigDecimal.ZERO;
         var sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
-        try (Workbook wb = WorkbookFactory.create(sistemaTotal.toFile(), null, true)) {
+        try {
+            if (shouldSkipPoiOpen(sistemaTotal, "SISTEMA TOTAL")) {
+                throw new IllegalStateException("Insumo muy grande para POI en modo seguro");
+            }
+            try (Workbook wb = WorkbookFactory.create(sistemaTotal.toFile(), null, true)) {
             Sheet ws = wb.getSheet("restot");
             int cSistema = findHeaderCol(ws, "SISTEMA");
             int cProt = findHeaderCol(ws, "PROTECCION");
@@ -110,6 +117,9 @@ public class MensualDataReader {
             if (vrFondo.signum() != 0) {
                 porcVrFondo = prot.add(porv).divide(vrFondo, 8, RoundingMode.HALF_UP).divide(BigDecimal.TEN, 8, RoundingMode.HALF_UP);
             }
+            }
+        } catch (OutOfMemoryError oom) {
+            log.warn("OOM leyendo SISTEMA TOTAL; se usarán ceros para este bloque");
         } catch (Exception e) {
             log.warn("No fue posible leer SISTEMA TOTAL: {}", e.getMessage());
         }
@@ -125,6 +135,9 @@ public class MensualDataReader {
         BigDecimal h17 = BigDecimal.ZERO;
         try {
             var limites = locator.findRequired("LIMITES", fechaCorte);
+            if (shouldSkipPoiOpen(limites, "LIMITES")) {
+                throw new IllegalStateException("Insumo LIMITES muy grande para POI en modo seguro");
+            }
             try (Workbook wb = WorkbookFactory.create(limites.toFile(), null, true)) {
                     Sheet aios = wb.getSheet("AIOS");
                 total1 = num(aios, "AB4", null);
@@ -142,6 +155,8 @@ public class MensualDataReader {
                 otros = num(aios, "AA4", null);
                 h17 = ge.add(efe).add(nfe).add(ace).add(fe).add(ste);
             }
+        } catch (OutOfMemoryError oom) {
+            log.warn("OOM leyendo LIMITES; columnas 6-13 del mensual se dejarán en 0");
         } catch (Exception ignored) {
             log.warn("Insumo LIMITES no encontrado; columnas 6-13 del mensual se dejarán en 0");
         }
@@ -179,6 +194,9 @@ public class MensualDataReader {
     private BigDecimal readTrmFromSeries(LocalDate fechaCorte) {
         try {
             var seriesFile = locator.findRequired("PIB_PEA_TRM_DG", fechaCorte);
+            if (shouldSkipPoiOpen(seriesFile, "PIB_PEA_TRM_DG")) {
+                return BigDecimal.ONE;
+            }
             try (Workbook wb = WorkbookFactory.create(seriesFile.toFile(), null, true)) {
                 Sheet sheet = wb.getSheet("Hoja1");
                 if (sheet == null) {
@@ -452,6 +470,21 @@ public class MensualDataReader {
             return java.time.LocalDate.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy"));
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    private boolean shouldSkipPoiOpen(Path file, String tag) {
+        try {
+            long bytes = Files.size(file);
+            int maxMb = properties.maxPoiFileMb() == null ? 40 : properties.maxPoiFileMb();
+            long maxBytes = maxMb * 1024L * 1024L;
+            if (bytes > maxBytes) {
+                log.warn("{} no se abrirá con POI ({} MB > {} MB configurados)", tag, bytes / (1024 * 1024), maxMb);
+                return true;
+            }
+            return false;
+        } catch (Exception e) {
+            return false;
         }
     }
 

@@ -22,7 +22,7 @@ class InsumosLocatorTest {
         Path file = monthDir.resolve("SISTEMA TOTAL junio 2025.xls");
         Files.createFile(file);
 
-        InsumosLocator locator = new InsumosLocator(new AiosProperties(tempDir, tempDir, tempDir));
+        InsumosLocator locator = new InsumosLocator(new AiosProperties(tempDir, tempDir, tempDir, 40));
 
         Path resolved = locator.findRequired("SISTEMA TOTAL", LocalDate.of(2025, 6, 30));
 
@@ -36,7 +36,7 @@ class InsumosLocatorTest {
         Path file = dir491.resolve("Serie_Formato_ 491 AFILIADOS AFP.xlsm");
         Files.createFile(file);
 
-        InsumosLocator locator = new InsumosLocator(new AiosProperties(tempDir, tempDir, tempDir));
+        InsumosLocator locator = new InsumosLocator(new AiosProperties(tempDir, tempDir, tempDir, 40));
 
         Path resolved = locator.findRequired("491", LocalDate.of(2025, 6, 30));
 
@@ -51,7 +51,7 @@ class InsumosLocatorTest {
         Path file = rentDir.resolve("Rent_Vr_Uni_Moderado.xlsm");
         Files.createFile(file);
 
-        InsumosLocator locator = new InsumosLocator(new AiosProperties(tempDir, tempDir, tempDir));
+        InsumosLocator locator = new InsumosLocator(new AiosProperties(tempDir, tempDir, tempDir, 40));
 
         Path resolved = locator.findRequired("Rent_Vr_Uni_Moderado", LocalDate.of(2025, 6, 30));
 
@@ -65,7 +65,7 @@ class InsumosLocatorTest {
         Path file = limitesDir.resolve("LIMITES del nuevo.xlsm");
         Files.createFile(file);
 
-        InsumosLocator locator = new InsumosLocator(new AiosProperties(tempDir, tempDir, tempDir));
+        InsumosLocator locator = new InsumosLocator(new AiosProperties(tempDir, tempDir, tempDir, 40));
 
         Path resolved = locator.findRequired("LIMITES", LocalDate.of(2025, 6, 30));
 
