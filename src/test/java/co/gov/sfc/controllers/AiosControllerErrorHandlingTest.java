@@ -1,9 +1,11 @@
 package co.gov.sfc.controllers;
 
+import co.gov.sfc.AIOSApplication;
 import co.gov.sfc.services.AiosGeneracionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -14,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AiosController.class)
+@ContextConfiguration(classes = AIOSApplication.class)
 class AiosControllerErrorHandlingTest {
 
     @Autowired

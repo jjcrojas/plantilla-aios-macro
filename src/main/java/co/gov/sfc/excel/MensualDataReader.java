@@ -70,8 +70,9 @@ public class MensualDataReader {
                 log.info("491 recalculado con fechaCorte={}: hombres={}, mujeres={}", fechaCorte, hombres, mujeres);
             } catch (OutOfMemoryError oom) {
                 log.warn("OOM en recálculo macro 491; se usa modo seguro XML cacheado");
-                hombres = readNumericCellFromSheetXml(file491, "informe de prensa", "C11");
-                mujeres = readNumericCellFromSheetXml(file491, "informe de prensa", "D11");
+                SexTotals st = readAfiliadosFromDataXml(file491, fechaCorte);
+                hombres = st.hombres();
+                mujeres = st.mujeres();
                 aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
                 var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
                 var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
@@ -82,8 +83,9 @@ public class MensualDataReader {
             }
         } else {
             try {
-                hombres = readNumericCellFromSheetXml(file491, "informe de prensa", "C11");
-                mujeres = readNumericCellFromSheetXml(file491, "informe de prensa", "D11");
+                SexTotals st = readAfiliadosFromDataXml(file491, fechaCorte);
+                hombres = st.hombres();
+                mujeres = st.mujeres();
                 aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
                 var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
                 var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
@@ -464,6 +466,65 @@ public class MensualDataReader {
 
     private record RentResult(BigDecimal nominal, BigDecimal real) {}
 
+
+    private SexTotals readAfiliadosFromDataXml(Path file491, LocalDate fechaCorte) {
+        double fechaObjetivo = DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte));
+        BigDecimal hombres = BigDecimal.ZERO;
+        BigDecimal mujeres = BigDecimal.ZERO;
+        try (ZipFile zip = new ZipFile(file491.toFile())) {
+            String sheetPath = findSheetPathByName(zip, "Data");
+            if (sheetPath == null) {
+                return new SexTotals(BigDecimal.ZERO, BigDecimal.ZERO);
+            }
+            XMLInputFactory factory = XMLInputFactory.newFactory();
+            try (InputStream is = zip.getInputStream(zip.getEntry(sheetPath))) {
+                XMLStreamReader xr = factory.createXMLStreamReader(is);
+                Double e = null, k = null, dv = null, dy = null;
+                String cellRef = null;
+                boolean inV = false;
+                while (xr.hasNext()) {
+                    int ev = xr.next();
+                    if (ev == XMLStreamConstants.START_ELEMENT) {
+                        String name = xr.getLocalName();
+                        if ("row".equals(name)) {
+                            e = k = dv = dy = null;
+                        } else if ("c".equals(name)) {
+                            cellRef = xr.getAttributeValue(null, "r");
+                        } else if ("v".equals(name)) {
+                            inV = true;
+                        }
+                    } else if (ev == XMLStreamConstants.CHARACTERS && inV && cellRef != null) {
+                        String t = xr.getText();
+                        if (t != null && !t.isBlank()) {
+                            try {
+                                double n = Double.parseDouble(t.trim());
+                                if (cellRef.startsWith("E")) e = n;
+                                else if (cellRef.startsWith("K")) k = n;
+                                else if (cellRef.startsWith("DV")) dv = n;
+                                else if (cellRef.startsWith("DY")) dy = n;
+                            } catch (NumberFormatException ignored) {
+                            }
+                        }
+                    } else if (ev == XMLStreamConstants.END_ELEMENT) {
+                        String name = xr.getLocalName();
+                        if ("v".equals(name)) inV = false;
+                        if ("row".equals(name)) {
+                            if (e != null && k != null && Math.abs(e - fechaObjetivo) < 0.00001d && Math.abs(k - 999d) < 0.00001d) {
+                                if (dv != null) hombres = hombres.add(BigDecimal.valueOf(dv));
+                                if (dy != null) mujeres = mujeres.add(BigDecimal.valueOf(dy));
+                            }
+                        }
+                    }
+                }
+                xr.close();
+            }
+        } catch (Exception ignored) {
+            return new SexTotals(BigDecimal.ZERO, BigDecimal.ZERO);
+        }
+        return new SexTotals(hombres, mujeres);
+    }
+
+    private record SexTotals(BigDecimal hombres, BigDecimal mujeres) {}
 
     private BigDecimal readNumericCellFromSheetXml(Path file, String sheetName, String cellRefWanted) {
         try (ZipFile zip = new ZipFile(file.toFile())) {
