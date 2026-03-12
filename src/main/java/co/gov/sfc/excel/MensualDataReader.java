@@ -46,7 +46,7 @@ public class MensualDataReader {
         BigDecimal aportantes = BigDecimal.ZERO;
         BigDecimal consFdosAdmon = BigDecimal.ZERO;
 
-        var file491 = locator.findRequired("491", fechaCorte);
+        var file491 = resolveFormato491Path(fechaCorte);
         var file493 = locator.findRequired("493", fechaCorte);
         boolean macroRecalc = !Boolean.FALSE.equals(properties.macroRecalc491493());
         BigDecimal traspasosSistema = BigDecimal.ZERO;
@@ -243,6 +243,17 @@ public class MensualDataReader {
         );
     }
 
+
+    private Path resolveFormato491Path(LocalDate fechaCorte) {
+        Path local491 = Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm");
+        if (Files.exists(local491) && Files.isRegularFile(local491)) {
+            log.info("Se usará Formato 491 local (insumos_ejemplo) para fechaCorte={}: {}", fechaCorte, local491.toAbsolutePath());
+            return local491;
+        }
+        Path resolved = locator.findRequired("491", fechaCorte);
+        log.info("Formato 491 resuelto por locator para fechaCorte={}: {}", fechaCorte, resolved);
+        return resolved;
+    }
 
     private BigDecimal readTrmFromSeries(LocalDate fechaCorte) {
         try {
