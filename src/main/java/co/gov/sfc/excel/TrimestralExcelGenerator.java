@@ -2,7 +2,9 @@ package co.gov.sfc.excel;
 
 import co.gov.sfc.config.AiosProperties;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -107,12 +109,21 @@ public class TrimestralExcelGenerator {
         if (sheet == null) {
             throw new IllegalStateException("No existe una hoja requerida en Boletin_AIOS TRIMESTRAL.xlsx");
         }
+        DataFormatter formatter = new DataFormatter();
+        String etiquetaNorm = etiqueta == null ? "" : etiqueta.trim().toLowerCase();
+
         for (int r = 0; r <= sheet.getLastRowNum(); r++) {
             Row row = sheet.getRow(r);
             if (row == null) continue;
             Cell c = row.getCell(0);
             if (c == null) continue;
-            if (DateUtil.isCellDateFormatted(c)) {
+
+            String texto = formatter.formatCellValue(c);
+            if (texto != null && texto.trim().toLowerCase().equals(etiquetaNorm)) {
+                return r + 1;
+            }
+
+            if (c.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(c)) {
                 LocalDate d = c.getLocalDateTimeCellValue().toLocalDate();
                 if (d.getYear() == fechaCorte.getYear() && d.getMonth() == fechaCorte.getMonth()) {
                     return r + 1;
@@ -145,4 +156,3 @@ public class TrimestralExcelGenerator {
         cell.setCellValue(value);
     }
 }
-
