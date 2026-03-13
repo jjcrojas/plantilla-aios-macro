@@ -8,6 +8,12 @@ insumos_ejemplo/*.xls*
 # Basura Windows
 Thumbs.db
 
+.classpath
+.settings/
+salidas_referencia/*.xlsx
+salidas_referencia/~$*.xlsx
+
+
 !insumos_ejemplo/Serie_Formato_ 491 AFILIADOS AFP.xlsm
 
 # Build
