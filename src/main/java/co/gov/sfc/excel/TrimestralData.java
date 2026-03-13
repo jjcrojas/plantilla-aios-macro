@@ -9,7 +9,10 @@ public record TrimestralData(
         BigDecimal cotProteccion,
         BigDecimal cotSkandia,
         BigDecimal vrFondoUsd,
-        BigDecimal traspasosSistema,
+        BigDecimal traspasosColfondos,
+        BigDecimal traspasosPorvenir,
+        BigDecimal traspasosProteccion,
+        BigDecimal traspasosSkandia,
         BigDecimal rentNominal12m,
         BigDecimal rentReal12m
 ) {

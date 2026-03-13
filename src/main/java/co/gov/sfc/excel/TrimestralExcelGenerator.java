@@ -63,14 +63,14 @@ public class TrimestralExcelGenerator {
                     write(colombia, filaCol, c, BigDecimal.ZERO);
                 }
 
-                // traspasos: por ahora solo total del sistema en la primera columna de AFP.
+                // traspasos por AFP desde Formato 493 (lógica de macro: D4=10,2,3,9).
                 Sheet traspasos = wb.getSheet("traspasos");
-                write(traspasos, filaTrasp, 2, data.traspasosSistema());
+                write(traspasos, filaTrasp, 2, data.traspasosColfondos());
                 write(traspasos, filaTrasp, 3, BigDecimal.ZERO);
-                write(traspasos, filaTrasp, 4, BigDecimal.ZERO);
-                write(traspasos, filaTrasp, 5, BigDecimal.ZERO);
+                write(traspasos, filaTrasp, 4, data.traspasosPorvenir());
+                write(traspasos, filaTrasp, 5, data.traspasosProteccion());
                 write(traspasos, filaTrasp, 6, BigDecimal.ZERO);
-                write(traspasos, filaTrasp, 7, BigDecimal.ZERO);
+                write(traspasos, filaTrasp, 7, data.traspasosSkandia());
 
                 Sheet gastos = wb.getSheet("gastos");
                 for (int c = 2; c <= 7; c++) write(gastos, filaGast, c, BigDecimal.ZERO);

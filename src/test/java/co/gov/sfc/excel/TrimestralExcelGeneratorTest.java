@@ -24,7 +24,10 @@ class TrimestralExcelGeneratorTest {
                 BigDecimal.valueOf(3_000_000),
                 BigDecimal.valueOf(4_000_000),
                 BigDecimal.valueOf(500_000),
-                BigDecimal.valueOf(120_000),
+                BigDecimal.valueOf(10_000),
+                BigDecimal.valueOf(20_000),
+                BigDecimal.valueOf(30_000),
+                BigDecimal.valueOf(40_000),
                 BigDecimal.valueOf(10.5),
                 BigDecimal.valueOf(5.2)
         );

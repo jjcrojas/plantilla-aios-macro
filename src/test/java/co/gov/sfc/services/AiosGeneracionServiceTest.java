@@ -36,7 +36,7 @@ class AiosGeneracionServiceTest {
 
         LocalDate fecha = LocalDate.of(2025, 6, 30);
         TrimestralData data = new TrimestralData("jun-25", BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE,
-                BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE);
+                BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE);
         when(trimestralDataReader.read(fecha)).thenReturn(data);
         when(trimestralExcelGenerator.generar(fecha, data)).thenReturn(Path.of("target/aios-output/Boletin_AIOS TRIMESTRAL.xlsx"));
 
