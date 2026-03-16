@@ -1,20 +1,17 @@
 package co.gov.sfc.excel;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 public record TrimestralData(
         String etiquetaFecha,
-        BigDecimal cotColfondos,
-        BigDecimal cotPorvenir,
-        BigDecimal cotProteccion,
-        BigDecimal cotSkandia,
-        BigDecimal vrFondoUsd,
-        BigDecimal traspasosColfondos,
-        BigDecimal traspasosPorvenir,
-        BigDecimal traspasosProteccion,
-        BigDecimal traspasosSkandia,
-        BigDecimal rentNominal12m,
-        BigDecimal rentReal12m
+        Map<String, BigDecimal> afiliados,
+        Map<String, BigDecimal> aportantes,
+        Map<String, BigDecimal> traspasos,
+        Map<String, BigDecimal> colombiaUsd,
+        Map<String, BigDecimal> gastosUsd,
+        Map<String, BigDecimal> comisionesPct,
+        Map<String, BigDecimal> rentNominalPct,
+        Map<String, BigDecimal> rentRealPct
 ) {
 }
-

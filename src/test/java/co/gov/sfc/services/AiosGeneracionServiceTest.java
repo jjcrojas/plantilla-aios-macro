@@ -11,12 +11,11 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class AiosGeneracionServiceTest {
 
@@ -27,16 +26,10 @@ class AiosGeneracionServiceTest {
         TrimestralDataReader trimestralDataReader = mock(TrimestralDataReader.class);
         TrimestralExcelGenerator trimestralExcelGenerator = mock(TrimestralExcelGenerator.class);
 
-        AiosGeneracionService service = new AiosGeneracionService(
-                mensualDataReader,
-                mensualExcelGenerator,
-                trimestralDataReader,
-                trimestralExcelGenerator
-        );
+        AiosGeneracionService service = new AiosGeneracionService(mensualDataReader, mensualExcelGenerator, trimestralDataReader, trimestralExcelGenerator);
 
         LocalDate fecha = LocalDate.of(2025, 6, 30);
-        TrimestralData data = new TrimestralData("jun-25", BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE,
-                BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE);
+        TrimestralData data = new TrimestralData("jun-25", Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         when(trimestralDataReader.read(fecha)).thenReturn(data);
         when(trimestralExcelGenerator.generar(fecha, data)).thenReturn(Path.of("target/aios-output/Boletin_AIOS TRIMESTRAL.xlsx"));
 

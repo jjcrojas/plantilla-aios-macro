@@ -1,14 +1,7 @@
 package co.gov.sfc.excel;
 
 import co.gov.sfc.insumos.InsumosLocator;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
-import org.apache.poi.ss.usermodel.DataFormatter;
-import org.apache.poi.ss.usermodel.FormulaEvaluator;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +21,6 @@ import java.util.Map;
 public class TrimestralDataReader {
 
     private static final Logger log = LoggerFactory.getLogger(TrimestralDataReader.class);
-
     private final MensualDataReader mensualDataReader;
     private final InsumosLocator locator;
 
@@ -39,164 +31,321 @@ public class TrimestralDataReader {
 
     public TrimestralData read(LocalDate fechaCorte) {
         MensualData mensual = mensualDataReader.read(fechaCorte);
-        Map<String, BigDecimal> cotizantes = readCotizantesFrom491(fechaCorte);
+
+        Map<String, BigDecimal> afiliados = readAfiliadosFrom491(fechaCorte);
+        Map<String, BigDecimal> aportantes = readCotizantesFrom491(fechaCorte);
         Map<String, BigDecimal> traspasos = readTraspasosFrom493(fechaCorte);
+        Map<String, BigDecimal> colombiaUsd = readColombiaUsd(fechaCorte, mensual.trm());
+        Map<String, BigDecimal> gastosUsd = readGastosUsd(fechaCorte, mensual.trm());
+        Map<String, BigDecimal> comisionesPct = readComisiones(fechaCorte);
+        Map<String, BigDecimal> rentNominalPct = new HashMap<>();
+        Map<String, BigDecimal> rentRealPct = new HashMap<>();
+        readRentabilidad(fechaCorte, rentNominalPct, rentRealPct);
 
         String etiquetaFecha = fechaCorte.getMonth().getDisplayName(TextStyle.SHORT, new Locale("es", "CO"))
                 .replace(".", "")
                 .toLowerCase() + "-" + String.format("%02d", fechaCorte.getYear() % 100);
 
-        return new TrimestralData(
-                etiquetaFecha,
-                cotizantes.getOrDefault("colfondos", BigDecimal.ZERO),
-                cotizantes.getOrDefault("porvenir", BigDecimal.ZERO),
-                cotizantes.getOrDefault("proteccion", BigDecimal.ZERO),
-                cotizantes.getOrDefault("skandia", BigDecimal.ZERO),
-                mensual.vrFondo().max(BigDecimal.ZERO),
-                traspasos.getOrDefault("colfondos", BigDecimal.ZERO),
-                traspasos.getOrDefault("porvenir", BigDecimal.ZERO),
-                traspasos.getOrDefault("proteccion", BigDecimal.ZERO),
-                traspasos.getOrDefault("skandia", BigDecimal.ZERO),
-                mensual.tmpNominal1().multiply(BigDecimal.valueOf(100)),
-                mensual.tmpReal1().multiply(BigDecimal.valueOf(100))
-        );
+        return new TrimestralData(etiquetaFecha, afiliados, aportantes, traspasos, colombiaUsd, gastosUsd, comisionesPct, rentNominalPct, rentRealPct);
     }
 
-    private Map<String, BigDecimal> readTraspasosFrom493(LocalDate fechaCorte) {
-        Path file493 = locator.findRequired("493", fechaCorte);
+    private Map<String, BigDecimal> readAfiliadosFrom491(LocalDate fechaCorte) {
+        Path file491 = Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm");
+        if (!Files.isRegularFile(file491)) {
+            throw new IllegalStateException("No se encontró Formato 491 en ./insumos_ejemplo/Serie_Formato_ 491 AFILIADOS AFP.xlsm");
+        }
         Map<String, BigDecimal> out = new HashMap<>();
+        try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
+            Sheet s = wb.getSheet("multifondos");
+            FormulaEvaluator eval = wb.getCreationHelper().createFormulaEvaluator();
+            setDate(s, "C4", fechaCorte);
+            eval.clearAllCachedResultValues();
 
-        try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
-            Sheet sheet = getSheetIgnoreCase(wb, "Traslados Entre AFP");
-            if (sheet == null) {
-                throw new IllegalStateException("No existe hoja 'Traslados Entre AFP' en Formato 493");
-            }
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-            setDate(sheet, "B11", fechaCorte);
-
-            out.put("colfondos", readTraspasosByCode(sheet, evaluator, 10));
-            out.put("proteccion", readTraspasosByCode(sheet, evaluator, 2));
-            out.put("porvenir", readTraspasosByCode(sheet, evaluator, 3));
-            out.put("skandia", readTraspasosByCode(sheet, evaluator, 9));
-
+            // Row mapping per macro
+            readAfiliadoRow(out, s, eval, "porv", 8);
+            readAfiliadoRow(out, s, eval, "prot", 9);
+            readAfiliadoRow(out, s, eval, "colf", 10);
+            readAfiliadoRow(out, s, eval, "sk", 11);
+            out.put("mod_sk_total", out.getOrDefault("mod_sk", BigDecimal.ZERO).add(out.getOrDefault("alt_sk", BigDecimal.ZERO)));
             return out;
         } catch (Exception e) {
-            throw new IllegalStateException("Error leyendo traspasos por AFP desde Formato 493", e);
+            throw new IllegalStateException("Error leyendo afiliados por fondo desde 491", e);
         }
     }
 
-    private BigDecimal readTraspasosByCode(Sheet sheet, FormulaEvaluator evaluator, int afpCode) {
-        // Macro: D4=codAFP y leer BQ11. Aquí forzamos evaluación de los componentes
-        // (M11, AA11, AO11, BC11) para evitar valores cacheados de BQ11.
-        setNumeric(sheet, "D4", afpCode);
-        evaluator.clearAllCachedResultValues();
-
-        BigDecimal total = num(sheet, "M11", evaluator)
-                .add(num(sheet, "AA11", evaluator))
-                .add(num(sheet, "AO11", evaluator))
-                .add(num(sheet, "BC11", evaluator));
-
-        if (total.signum() != 0) {
-            return total;
-        }
-
-        // Fallback: algunas plantillas pueden almacenar D4 como texto.
-        setText(sheet, "D4", String.valueOf(afpCode));
-        evaluator.clearAllCachedResultValues();
-        total = num(sheet, "M11", evaluator)
-                .add(num(sheet, "AA11", evaluator))
-                .add(num(sheet, "AO11", evaluator))
-                .add(num(sheet, "BC11", evaluator));
-
-        if (total.signum() != 0) {
-            return total;
-        }
-
-        // Último fallback: valor directo en BQ11.
-        return num(sheet, "BQ11", evaluator);
+    private void readAfiliadoRow(Map<String, BigDecimal> out, Sheet s, FormulaEvaluator eval, String p, int row) {
+        out.put("mod_" + p, num(s, "C" + row, eval));
+        out.put("con_" + p, num(s, "D" + row, eval));
+        out.put("mr_" + p, num(s, "E" + row, eval));
+        out.put("con_mod_" + p, num(s, "F" + row, eval));
+        out.put("con_mr_" + p, num(s, "G" + row, eval));
+        out.put("mod_mr_" + p, num(s, "H" + row, eval));
+        if ("sk".equals(p)) out.put("alt_sk", num(s, "I" + row, eval));
     }
 
     private Map<String, BigDecimal> readCotizantesFrom491(LocalDate fechaCorte) {
         Path local491 = Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm");
-        if (!Files.exists(local491) || !Files.isRegularFile(local491)) {
-            throw new IllegalStateException("No se encontró Formato 491 en ./insumos_ejemplo/Serie_Formato_ 491 AFILIADOS AFP.xlsm");
-        }
+        if (!Files.isRegularFile(local491)) throw new IllegalStateException("No se encontró Formato 491 en ./insumos_ejemplo/Serie_Formato_ 491 AFILIADOS AFP.xlsm");
 
         Map<String, BigDecimal> out = new HashMap<>();
         try (Workbook wb = WorkbookFactory.create(local491.toFile(), null, true)) {
             Sheet sheet = wb.getSheet("multifondos");
-            if (sheet == null) {
-                throw new IllegalStateException("No existe hoja 'multifondos' en Formato 491");
-            }
-
-            int entidadCol = -1;
-            int cotizantesCol = -1;
-            int headerRow = -1;
+            int entidadCol = -1, cotizantesCol = -1, headerRow = -1;
             DataFormatter formatter = new DataFormatter();
-
             for (int r = 0; r <= Math.min(sheet.getLastRowNum(), 200); r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
                 for (Cell cell : row) {
                     String txt = normalize(formatter.formatCellValue(cell));
                     if (txt.contains("entidad")) entidadCol = cell.getColumnIndex();
-                    if (txt.contains("cotizantes")) cotizantesCol = cell.getColumnIndex();
+                    if (txt.contains("cotizantes") || txt.contains("aportantes")) cotizantesCol = cell.getColumnIndex();
                 }
-                if (entidadCol >= 0 && cotizantesCol >= 0) {
-                    headerRow = r;
-                    break;
-                }
+                if (entidadCol >= 0 && cotizantesCol >= 0) { headerRow = r; break; }
             }
-
-            if (headerRow < 0) {
-                log.warn("No se ubicaron encabezados ENTIDAD/COTIZANTES en 491 para fechaCorte={}", fechaCorte);
-                return out;
-            }
-
             for (int r = headerRow + 1; r <= Math.min(sheet.getLastRowNum(), headerRow + 150); r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
                 String entidad = normalize(formatter.formatCellValue(row.getCell(entidadCol)));
-                if (entidad.isBlank()) continue;
                 BigDecimal cot = parseNumber(row.getCell(cotizantesCol), formatter);
-                if (entidad.contains("colfond")) out.put("colfondos", cot);
-                else if (entidad.contains("porvenir")) out.put("porvenir", cot);
-                else if (entidad.contains("protec")) out.put("proteccion", cot);
-                else if (entidad.contains("skand")) out.put("skandia", cot);
+                if (entidad.contains("colfond")) out.put("colf", cot);
+                else if (entidad.contains("porvenir")) out.put("porv", cot);
+                else if (entidad.contains("protec")) out.put("prot", cot);
+                else if (entidad.contains("skand")) out.put("sk", cot);
             }
-
             return out;
         } catch (Exception e) {
-            throw new IllegalStateException("Error leyendo cotizantes por AFP desde Formato 491", e);
+            throw new IllegalStateException("Error leyendo cotizantes 491", e);
         }
+    }
+
+    private Map<String, BigDecimal> readTraspasosFrom493(LocalDate fechaCorte) {
+        Path file493 = locator.findRequired("493", fechaCorte);
+        Map<String, BigDecimal> out = new HashMap<>();
+        try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
+            Sheet sheet = getSheetIgnoreCase(wb, "Traslados Entre AFP");
+            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+            setDate(sheet, "B11", fechaCorte);
+            out.put("colf", readTraspasosByCode(sheet, evaluator, 10));
+            out.put("prot", readTraspasosByCode(sheet, evaluator, 2));
+            out.put("porv", readTraspasosByCode(sheet, evaluator, 3));
+            out.put("sk", readTraspasosByCode(sheet, evaluator, 9));
+            return out;
+        } catch (Exception e) {
+            throw new IllegalStateException("Error leyendo traspasos por AFP desde Formato 493", e);
+        }
+    }
+
+    private Map<String, BigDecimal> readColombiaUsd(LocalDate fechaCorte, BigDecimal trm) {
+        Map<String, BigDecimal> out = new HashMap<>();
+        try {
+            Path sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
+            Path dir = sistemaTotal.getParent();
+            readBalanceTo(out, dir, "MODERADO", "mod", true, trm);
+            readBalanceTo(out, dir, "CONSERVADOR", "con", false, trm);
+            readBalanceTo(out, dir, "MAYOR RIESGO", "mr", false, trm);
+            readBalanceTo(out, dir, "RETIRO PROGRAMADO", "rp", false, trm);
+        } catch (Exception e) {
+            log.warn("No se pudo leer bloque colombia trimestral: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    private void readBalanceTo(Map<String, BigDecimal> out, Path dir, String name, String pref, boolean allowAlt, BigDecimal trm) throws Exception {
+        Path f = findInDirContains(dir, name);
+        if (f == null) return;
+        try (Workbook wb = WorkbookFactory.create(f.toFile(), null, true)) {
+            Sheet ws = getSheetIgnoreCase(wb, "restot");
+            if (ws == null) ws = wb.getSheetAt(0);
+            RowData r = readBalanceRow(ws, allowAlt);
+            out.put(pref + "_colf", safeDivide(r.colf, trm));
+            out.put(pref + "_porv", safeDivide(r.porv, trm));
+            out.put(pref + "_prot", safeDivide(r.prot, trm));
+            out.put(pref + "_sk", safeDivide(r.skan, trm));
+            if (allowAlt) out.put(pref + "_alt", safeDivide(r.alt, trm));
+        }
+    }
+
+    private Map<String, BigDecimal> readGastosUsd(LocalDate fechaCorte, BigDecimal trm) {
+        Map<String, BigDecimal> out = new HashMap<>();
+        try {
+            Path sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
+            Path mod = findInDirContains(sistemaTotal.getParent(), "MODERADO");
+            if (mod == null) return out;
+            try (Workbook wb = WorkbookFactory.create(mod.toFile(), null, true)) {
+                Sheet cuentas = getSheetIgnoreCase(wb, "cuentas");
+                out.put("prot", safeDivide(num(cuentas, "C50", null).subtract(num(cuentas, "D57", null)), trm));
+                out.put("porv", safeDivide(num(cuentas, "C51", null).subtract(num(cuentas, "D69", null)), trm));
+                out.put("sk", safeDivide(num(cuentas, "C52", null).subtract(num(cuentas, "D81", null)), trm));
+                out.put("colf", safeDivide(num(cuentas, "C53", null).subtract(num(cuentas, "D93", null)), trm));
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo leer gastos trimestrales: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    private Map<String, BigDecimal> readComisiones(LocalDate fechaCorte) {
+        Map<String, BigDecimal> out = new HashMap<>();
+        try {
+            Path file = findComisionesFile(fechaCorte);
+            try (Workbook wb = WorkbookFactory.create(file.toFile(), null, true)) {
+                Sheet ws = getSheetIgnoreCase(wb, "COTIZACION CORTE ANUAL");
+                FormulaEvaluator eval = wb.getCreationHelper().createFormulaEvaluator();
+                setDate(ws, "A1", fechaCorte);
+                eval.clearAllCachedResultValues();
+                out.put("ska_obl", num(ws, "B1", eval).multiply(BigDecimal.valueOf(100)));
+                out.put("ska_seg", num(ws, "C1", eval).multiply(BigDecimal.valueOf(100)));
+                out.put("por_obl", num(ws, "F1", eval).multiply(BigDecimal.valueOf(100)));
+                out.put("por_seg", num(ws, "G1", eval).multiply(BigDecimal.valueOf(100)));
+                out.put("pro_obl", num(ws, "N1", eval).multiply(BigDecimal.valueOf(100)));
+                out.put("pro_seg", num(ws, "O1", eval).multiply(BigDecimal.valueOf(100)));
+                out.put("col_obl", num(ws, "R1", eval).multiply(BigDecimal.valueOf(100)));
+                out.put("col_seg", num(ws, "S1", eval).multiply(BigDecimal.valueOf(100)));
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo leer comisiones trimestrales: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    private void readRentabilidad(LocalDate fechaCorte, Map<String, BigDecimal> nom, Map<String, BigDecimal> real) {
+        try {
+            Path file = locator.findRequired("Rent_Vr_Uni_Moderado", fechaCorte);
+            try (Workbook wb = WorkbookFactory.create(file.toFile(), null, true)) {
+                FormulaEvaluator eval = wb.getCreationHelper().createFormulaEvaluator();
+                readRentSheet(wb, eval, fechaCorte, "Colfondos", "colf", nom, real);
+                readRentSheet(wb, eval, fechaCorte, "Porvenir", "porv", nom, real);
+                readRentSheet(wb, eval, fechaCorte, "Protección", "prot", nom, real);
+                if (getSheetIgnoreCase(wb, "Protección") == null) readRentSheet(wb, eval, fechaCorte, "Proteccion", "prot", nom, real);
+                readRentSheet(wb, eval, fechaCorte, "oldmutual", "oldm", nom, real);
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo leer rentabilidad trimestral: {}", e.getMessage());
+        }
+    }
+
+    private void readRentSheet(Workbook wb, FormulaEvaluator eval, LocalDate fecha, String sheetName, String key, Map<String, BigDecimal> nom, Map<String, BigDecimal> real) {
+        Sheet s = getSheetIgnoreCase(wb, sheetName);
+        if (s == null) return;
+        setDate(s, "D5", fecha);
+        setDate(s, "D4", fecha.minusYears(1));
+        eval.clearAllCachedResultValues();
+        real.put(key, num(s, "D10", eval).multiply(BigDecimal.valueOf(100)));
+        nom.put(key, num(s, "D11", eval).multiply(BigDecimal.valueOf(100)));
+    }
+
+    private BigDecimal readTraspasosByCode(Sheet sheet, FormulaEvaluator evaluator, int afpCode) {
+        setNumeric(sheet, "D4", afpCode);
+        evaluator.clearAllCachedResultValues();
+        BigDecimal total = num(sheet, "M11", evaluator).add(num(sheet, "AA11", evaluator)).add(num(sheet, "AO11", evaluator)).add(num(sheet, "BC11", evaluator));
+        if (total.signum() != 0) return total;
+        setText(sheet, "D4", String.valueOf(afpCode));
+        evaluator.clearAllCachedResultValues();
+        total = num(sheet, "M11", evaluator).add(num(sheet, "AA11", evaluator)).add(num(sheet, "AO11", evaluator)).add(num(sheet, "BC11", evaluator));
+        return total.signum() == 0 ? num(sheet, "BQ11", evaluator) : total;
+    }
+
+    private Path findComisionesFile(LocalDate fechaCorte) {
+        String[] contains = {"comisión fpo", "comision fpo", "comisión fpo desde 2003", "comision fpo desde 2003"};
+        for (String c : contains) {
+            try { return locator.findRequired(c, fechaCorte); } catch (Exception ignored) {}
+            try { return locator.findRequired(c); } catch (Exception ignored) {}
+        }
+        throw new IllegalArgumentException("No se encontró archivo de Comisión FPO desde 2003");
+    }
+
+    private Path findInDirContains(Path dir, String contains) throws Exception {
+        try (var s = Files.list(dir)) {
+            return s.filter(Files::isRegularFile)
+                    .filter(p -> normalize(p.getFileName().toString()).contains(normalize(contains)))
+                    .findFirst().orElse(null);
+        }
+    }
+
+    private RowData readBalanceRow(Sheet ws, boolean allowAlt) {
+        int cProt = findHeaderCol(ws, "PROTECCION");
+        if (cProt < 0) cProt = findHeaderCol(ws, "PROTECCIÓN");
+        int cPorv = findHeaderCol(ws, "PORVENIR");
+        int cSkan = findHeaderCol(ws, "SKANDIA");
+        int cAlt = findHeaderCol(ws, "SKANDIA_ALT");
+        int cColf = findHeaderCol(ws, "CITI COLFONDOS");
+        if (cColf < 0) cColf = findHeaderCol(ws, "COLFONDOS");
+        int cSis = findHeaderCol(ws, "SISTEMA");
+        if (cProt < 0 || cPorv < 0 || cSkan < 0 || cColf < 0 || cSis < 0) return new RowData();
+
+        int headerRow = findHeaderRow(ws, cSis);
+        int last = ws.getLastRowNum();
+        int start = headerRow + 1;
+        int end = Math.min(headerRow + 60, last);
+        int bestRow = -1;
+        BigDecimal max = BigDecimal.valueOf(-1);
+        for (int r = start; r <= end; r++) {
+            BigDecimal v = num(ws, r + 1, cSis + 1, null);
+            if (v.compareTo(max) > 0) { max = v; bestRow = r; }
+        }
+        if (bestRow < 0) return new RowData();
+        RowData d = new RowData();
+        d.colf = num(ws, bestRow + 1, cColf + 1, null);
+        d.porv = num(ws, bestRow + 1, cPorv + 1, null);
+        d.prot = num(ws, bestRow + 1, cProt + 1, null);
+        d.skan = num(ws, bestRow + 1, cSkan + 1, null);
+        d.alt = (allowAlt && cAlt >= 0) ? num(ws, bestRow + 1, cAlt + 1, null) : BigDecimal.ZERO;
+        return d;
+    }
+
+    private int findHeaderRow(Sheet ws, int colIdx) {
+        for (int r = 0; r <= Math.min(ws.getLastRowNum(), 100); r++) {
+            Row row = ws.getRow(r);
+            if (row == null) continue;
+            Cell c = row.getCell(colIdx);
+            if (c == null) continue;
+            String t = normalize(new DataFormatter().formatCellValue(c));
+            if (t.contains("sistema")) return r;
+        }
+        return 0;
+    }
+
+    private int findHeaderCol(Sheet ws, String text) {
+        DataFormatter fmt = new DataFormatter();
+        String target = normalize(text);
+        for (int r = 0; r <= Math.min(ws.getLastRowNum(), 100); r++) {
+            Row row = ws.getRow(r);
+            if (row == null) continue;
+            for (Cell c : row) {
+                String v = normalize(fmt.formatCellValue(c));
+                if (v.contains(target)) return c.getColumnIndex();
+            }
+        }
+        return -1;
     }
 
     private Sheet getSheetIgnoreCase(Workbook wb, String name) {
         for (int i = 0; i < wb.getNumberOfSheets(); i++) {
             Sheet sheet = wb.getSheetAt(i);
-            if (sheet.getSheetName().equalsIgnoreCase(name)) {
-                return sheet;
-            }
+            if (sheet.getSheetName().equalsIgnoreCase(name)) return sheet;
         }
         return null;
     }
 
-    private void setDate(Sheet sheet, String ref, LocalDate date) {
-        cell(sheet, ref).setCellValue(java.sql.Date.valueOf(date));
-    }
-
-    private void setNumeric(Sheet sheet, String ref, double value) {
-        cell(sheet, ref).setCellValue(value);
-    }
-
-    private void setText(Sheet sheet, String ref, String value) {
-        cell(sheet, ref).setCellValue(value);
-    }
+    private void setDate(Sheet sheet, String ref, LocalDate date) { cell(sheet, ref).setCellValue(java.sql.Date.valueOf(date)); }
+    private void setNumeric(Sheet sheet, String ref, double value) { cell(sheet, ref).setCellValue(value); }
+    private void setText(Sheet sheet, String ref, String value) { cell(sheet, ref).setCellValue(value); }
 
     private BigDecimal num(Sheet sheet, String ref, FormulaEvaluator eval) {
-        Cell c = cell(sheet, ref);
+        return num(cell(sheet, ref), eval);
+    }
+
+    private BigDecimal num(Sheet sheet, int row1, int col1, FormulaEvaluator eval) {
+        Row r = sheet.getRow(row1 - 1);
+        if (r == null) return BigDecimal.ZERO;
+        Cell c = r.getCell(col1 - 1);
+        if (c == null) return BigDecimal.ZERO;
+        return num(c, eval);
+    }
+
+    private BigDecimal num(Cell c, FormulaEvaluator eval) {
         if (eval != null && c.getCellType() == CellType.FORMULA) {
-            var cv = eval.evaluate(c);
+            CellValue cv = eval.evaluate(c);
             if (cv == null) return BigDecimal.ZERO;
             return switch (cv.getCellType()) {
                 case NUMERIC -> BigDecimal.valueOf(cv.getNumberValue());
@@ -213,15 +362,26 @@ public class TrimestralDataReader {
         };
     }
 
+    private BigDecimal parseNumber(Cell cell, DataFormatter formatter) {
+        if (cell == null) return BigDecimal.ZERO;
+        try { return BigDecimal.valueOf(cell.getNumericCellValue()); }
+        catch (Exception ignored) {
+            String txt = formatter.formatCellValue(cell).replace(".", "").replace(",", ".").trim();
+            if (txt.isBlank()) return BigDecimal.ZERO;
+            try { return new BigDecimal(txt); } catch (Exception e) { return BigDecimal.ZERO; }
+        }
+    }
+
     private BigDecimal parseDecimal(String s) {
         if (s == null) return BigDecimal.ZERO;
         String n = s.trim().replace(".", "").replace(",", ".");
         if (n.isBlank()) return BigDecimal.ZERO;
-        try {
-            return new BigDecimal(n);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
+        try { return new BigDecimal(n); } catch (Exception e) { return BigDecimal.ZERO; }
+    }
+
+    private BigDecimal safeDivide(BigDecimal n, BigDecimal d) {
+        if (n == null || d == null || d.signum() == 0) return BigDecimal.ZERO;
+        return n.divide(d, 8, java.math.RoundingMode.HALF_UP);
     }
 
     private Cell cell(Sheet sheet, String ref) {
@@ -233,24 +393,17 @@ public class TrimestralDataReader {
         return cell;
     }
 
-    private BigDecimal parseNumber(Cell cell, DataFormatter formatter) {
-        if (cell == null) return BigDecimal.ZERO;
-        try {
-            return BigDecimal.valueOf(cell.getNumericCellValue());
-        } catch (Exception ignored) {
-            String txt = formatter.formatCellValue(cell).replace(".", "").replace(",", ".").trim();
-            if (txt.isBlank()) return BigDecimal.ZERO;
-            try {
-                return new BigDecimal(txt);
-            } catch (Exception e) {
-                return BigDecimal.ZERO;
-            }
-        }
-    }
-
     private String normalize(String value) {
         if (value == null) return "";
         String n = Normalizer.normalize(value, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
         return n.toLowerCase(Locale.ROOT).trim();
+    }
+
+    private static class RowData {
+        BigDecimal colf = BigDecimal.ZERO;
+        BigDecimal porv = BigDecimal.ZERO;
+        BigDecimal prot = BigDecimal.ZERO;
+        BigDecimal skan = BigDecimal.ZERO;
+        BigDecimal alt = BigDecimal.ZERO;
     }
 }
