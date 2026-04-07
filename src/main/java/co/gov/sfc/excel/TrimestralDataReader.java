@@ -204,14 +204,15 @@ public class TrimestralDataReader {
                     log.warn("No se encontró la hoja 'base anual' en {}", plantilla.getFileName());
                     return out;
                 }
+                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
                 LocalDate fechaBase = fechaCorte.withDayOfMonth(1);
                 int serialFecha = (int) Math.round(DateUtil.getExcelDate(java.sql.Date.valueOf(fechaBase)));
                 log.info("Gastos trimestrales: fechaCorte={}, fechaBase={}, serialExcel={}, TRM={}", fechaCorte, fechaBase, serialFecha, trm);
 
-                putGastoUsd(out, "prot", "proteccion", baseAnual, serialFecha, trm);
-                putGastoUsd(out, "porv", "porvenir", baseAnual, serialFecha, trm);
-                putGastoUsd(out, "sk", "skandia", baseAnual, serialFecha, trm);
-                putGastoUsd(out, "colf", "colfondos", baseAnual, serialFecha, trm);
+                putGastoUsd(out, "prot", "proteccion", baseAnual, evaluator, serialFecha, trm);
+                putGastoUsd(out, "porv", "porvenir", baseAnual, evaluator, serialFecha, trm);
+                putGastoUsd(out, "sk", "skandia", baseAnual, evaluator, serialFecha, trm);
+                putGastoUsd(out, "colf", "colfondos", baseAnual, evaluator, serialFecha, trm);
             }
         } catch (Exception e) {
             log.warn("No se pudo leer gastos trimestrales: {}", e.getMessage());
@@ -235,31 +236,30 @@ public class TrimestralDataReader {
         }
     }
 
-    private void putGastoUsd(Map<String, BigDecimal> out, String key, String administradora, Sheet baseAnual, int serialFecha, BigDecimal trm) {
-        BigDecimal gastoMillonesCop = gastoNetoCop(baseAnual, administradora, serialFecha);
+    private void putGastoUsd(Map<String, BigDecimal> out, String key, String administradora, Sheet baseAnual, FormulaEvaluator evaluator, int serialFecha, BigDecimal trm) {
+        BigDecimal gastoMillonesCop = gastoNetoCop(baseAnual, evaluator, administradora, serialFecha);
         BigDecimal gastoUsd = safeDivide(gastoMillonesCop, trm);
         out.put(key, gastoUsd);
         log.info("Gastos {}: neto_MCOP={} -> USD={}", administradora, gastoMillonesCop, gastoUsd);
     }
 
-    private BigDecimal gastoNetoCop(Sheet baseAnual, String administradora, int serialFecha) {
+    private BigDecimal gastoNetoCop(Sheet baseAnual, FormulaEvaluator evaluator, String administradora, int serialFecha) {
         Set<String> cuentasDescuento = new HashSet<>(Arrays.asList(
                 "510300", "510400", "510600", "510700", "510800", "512500", "512800", "512900", "513900"
         ));
         Set<String> cuentasObjetivo = new HashSet<>(cuentasDescuento);
         cuentasObjetivo.add("510000");
 
-        String prefijo = normalize(administradora) + "-" + serialFecha + "-";
         DataFormatter fmt = new DataFormatter();
         Map<String, BigDecimal> valores = new HashMap<>();
 
         for (int r = 1; r <= baseAnual.getLastRowNum(); r++) {
             Row row = baseAnual.getRow(r);
             if (row == null) continue;
-            String llave = normalize(fmt.formatCellValue(row.getCell(0)));
-            if (!llave.startsWith(prefijo)) continue;
-
-            String cuenta = llave.substring(prefijo.length());
+            String adminFila = normalize(fmt.formatCellValue(row.getCell(2), evaluator)); // col C
+            int serialFila = excelSerial(row.getCell(1), evaluator); // col B
+            String cuenta = normalize(fmt.formatCellValue(row.getCell(3), evaluator)).replace(".0", ""); // col D
+            if (!normalize(administradora).equals(adminFila) || serialFila != serialFecha) continue;
             if (!cuentasObjetivo.contains(cuenta) || valores.containsKey(cuenta)) continue;
             valores.put(cuenta, num(row.getCell(6), null)); // columna G
             if (valores.size() == cuentasObjetivo.size()) break;
@@ -271,10 +271,28 @@ public class TrimestralDataReader {
         gasto = gasto.subtract(descuentos);
 
         if (!valores.containsKey("510000")) {
-            log.warn("Gastos {}: no se encontró cuenta 510000 para serial {} (prefijo {}).", administradora, serialFecha, prefijo);
+            log.warn("Gastos {}: no se encontró cuenta 510000 para serial {}.", administradora, serialFecha);
         }
         log.info("Gastos {} serial {}: 510000={}, descuentos={}, cuentas_encontradas={}", administradora, serialFecha, valores.getOrDefault("510000", BigDecimal.ZERO), descuentos, valores.keySet());
         return gasto.divide(BigDecimal.valueOf(1_000_000), 8, java.math.RoundingMode.HALF_UP);
+    }
+
+    private int excelSerial(Cell c, FormulaEvaluator eval) {
+        if (c == null) return Integer.MIN_VALUE;
+        try {
+            if (c.getCellType() == CellType.NUMERIC) {
+                return (int) Math.round(c.getNumericCellValue());
+            }
+            if (c.getCellType() == CellType.FORMULA && eval != null) {
+                CellValue cv = eval.evaluate(c);
+                if (cv != null && cv.getCellType() == CellType.NUMERIC) return (int) Math.round(cv.getNumberValue());
+            }
+            String txt = new DataFormatter().formatCellValue(c, eval).trim();
+            if (txt.isBlank()) return Integer.MIN_VALUE;
+            return (int) Math.round(Double.parseDouble(txt.replace(",", ".")));
+        } catch (Exception e) {
+            return Integer.MIN_VALUE;
+        }
     }
 
     private Map<String, BigDecimal> readComisiones(LocalDate fechaCorte) {
