@@ -197,6 +197,7 @@ public class TrimestralDataReader {
         Map<String, BigDecimal> out = new HashMap<>();
         try {
             Path plantilla = findPlantillaAiosFile(fechaCorte);
+            log.info("Gastos trimestrales: leyendo plantilla {}", plantilla.toAbsolutePath());
             try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
                 Sheet baseAnual = getSheetIgnoreCase(wb, "base anual");
                 if (baseAnual == null) {
@@ -205,11 +206,12 @@ public class TrimestralDataReader {
                 }
                 LocalDate fechaBase = fechaCorte.withDayOfMonth(1);
                 int serialFecha = (int) Math.round(DateUtil.getExcelDate(java.sql.Date.valueOf(fechaBase)));
+                log.info("Gastos trimestrales: fechaCorte={}, fechaBase={}, serialExcel={}, TRM={}", fechaCorte, fechaBase, serialFecha, trm);
 
-                out.put("prot", safeDivide(gastoNetoCop(baseAnual, "proteccion", serialFecha), trm));
-                out.put("porv", safeDivide(gastoNetoCop(baseAnual, "porvenir", serialFecha), trm));
-                out.put("sk", safeDivide(gastoNetoCop(baseAnual, "skandia", serialFecha), trm));
-                out.put("colf", safeDivide(gastoNetoCop(baseAnual, "colfondos", serialFecha), trm));
+                putGastoUsd(out, "prot", "proteccion", baseAnual, serialFecha, trm);
+                putGastoUsd(out, "porv", "porvenir", baseAnual, serialFecha, trm);
+                putGastoUsd(out, "sk", "skandia", baseAnual, serialFecha, trm);
+                putGastoUsd(out, "colf", "colfondos", baseAnual, serialFecha, trm);
             }
         } catch (Exception e) {
             log.warn("No se pudo leer gastos trimestrales: {}", e.getMessage());
@@ -220,13 +222,24 @@ public class TrimestralDataReader {
     private Path findPlantillaAiosFile(LocalDate fechaCorte) {
         try {
             return locator.findRequired("Plantilla AIOS-probable", fechaCorte);
-        } catch (Exception ignore) {
+        } catch (Exception ignore1) {
+            try {
+                return locator.findRequired("Plantilla_AIOS", fechaCorte);
+            } catch (Exception ignore2) {
             Path repoPath = Path.of("plantillas", "Plantilla AIOS-probable.xlsm");
             if (Files.isRegularFile(repoPath)) return repoPath;
             Path localPath = Path.of("Plantilla AIOS-probable.xlsm");
             if (Files.isRegularFile(localPath)) return localPath;
             throw new IllegalStateException("No se encontró Plantilla AIOS-probable.xlsm para lectura de gastos.");
+            }
         }
+    }
+
+    private void putGastoUsd(Map<String, BigDecimal> out, String key, String administradora, Sheet baseAnual, int serialFecha, BigDecimal trm) {
+        BigDecimal gastoMillonesCop = gastoNetoCop(baseAnual, administradora, serialFecha);
+        BigDecimal gastoUsd = safeDivide(gastoMillonesCop, trm);
+        out.put(key, gastoUsd);
+        log.info("Gastos {}: neto_MCOP={} -> USD={}", administradora, gastoMillonesCop, gastoUsd);
     }
 
     private BigDecimal gastoNetoCop(Sheet baseAnual, String administradora, int serialFecha) {
@@ -253,7 +266,14 @@ public class TrimestralDataReader {
         }
 
         BigDecimal gasto = valores.getOrDefault("510000", BigDecimal.ZERO);
-        for (String c : cuentasDescuento) gasto = gasto.subtract(valores.getOrDefault(c, BigDecimal.ZERO));
+        BigDecimal descuentos = BigDecimal.ZERO;
+        for (String c : cuentasDescuento) descuentos = descuentos.add(valores.getOrDefault(c, BigDecimal.ZERO));
+        gasto = gasto.subtract(descuentos);
+
+        if (!valores.containsKey("510000")) {
+            log.warn("Gastos {}: no se encontró cuenta 510000 para serial {} (prefijo {}).", administradora, serialFecha, prefijo);
+        }
+        log.info("Gastos {} serial {}: 510000={}, descuentos={}, cuentas_encontradas={}", administradora, serialFecha, valores.getOrDefault("510000", BigDecimal.ZERO), descuentos, valores.keySet());
         return gasto.divide(BigDecimal.valueOf(1_000_000), 8, java.math.RoundingMode.HALF_UP);
     }
 

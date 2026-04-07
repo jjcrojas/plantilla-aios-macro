@@ -81,6 +81,10 @@ public class InsumosLocator {
         } else if (normalized.contains("formato_136_meses")) {
             dirs.add(base.resolve("FORMATOS ACTUALIZADOS"));
             dirs.add(base);
+        } else if (normalized.contains("plantilla aios") || normalized.contains("plantilla_aios")) {
+            dirs.add(base.resolve("plantillas"));
+            dirs.add(base.resolve("FORMATOS ACTUALIZADOS"));
+            dirs.add(base);
         } else if (normalized.contains("pib_pea_trm_dg")) {
             dirs.add(base);
         } else if (normalized.contains("493")) {
