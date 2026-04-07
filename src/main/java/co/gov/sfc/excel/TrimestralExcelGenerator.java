@@ -74,14 +74,18 @@ public class TrimestralExcelGenerator {
     }
 
     private void writeColombia(Sheet s, int r, Map<String, BigDecimal> c) {
+        writeText(s, r, 10, text(s, r, 1));  // J = misma etiqueta fecha
+        writeText(s, r, 19, text(s, r, 1));  // S = misma etiqueta fecha
+        writeText(s, r, 28, text(s, r, 1));  // AB = misma etiqueta fecha
+
         write(s, r, 2, v(c, "mod_colf")); write(s, r, 3, BigDecimal.ZERO); write(s, r, 4, v(c, "mod_porv"));
         write(s, r, 5, v(c, "mod_prot")); write(s, r, 6, BigDecimal.ZERO); write(s, r, 7, v(c, "mod_sk").add(v(c, "mod_alt")));
-        write(s, r, 9, v(c, "con_colf")); write(s, r, 10, BigDecimal.ZERO); write(s, r, 11, v(c, "con_porv"));
-        write(s, r, 12, v(c, "con_prot")); write(s, r, 13, BigDecimal.ZERO); write(s, r, 14, v(c, "con_sk"));
-        write(s, r, 16, v(c, "mr_colf")); write(s, r, 17, BigDecimal.ZERO); write(s, r, 18, v(c, "mr_porv"));
-        write(s, r, 19, v(c, "mr_prot")); write(s, r, 20, BigDecimal.ZERO); write(s, r, 21, v(c, "mr_sk"));
-        write(s, r, 23, v(c, "rp_colf")); write(s, r, 24, BigDecimal.ZERO); write(s, r, 25, v(c, "rp_porv"));
-        write(s, r, 26, v(c, "rp_prot")); write(s, r, 27, BigDecimal.ZERO); write(s, r, 28, v(c, "rp_sk"));
+        write(s, r, 11, v(c, "con_colf")); write(s, r, 12, BigDecimal.ZERO); write(s, r, 13, v(c, "con_porv"));
+        write(s, r, 14, v(c, "con_prot")); write(s, r, 15, BigDecimal.ZERO); write(s, r, 16, v(c, "con_sk"));
+        write(s, r, 20, v(c, "mr_colf")); write(s, r, 21, BigDecimal.ZERO); write(s, r, 22, v(c, "mr_porv"));
+        write(s, r, 23, v(c, "mr_prot")); write(s, r, 24, BigDecimal.ZERO); write(s, r, 25, v(c, "mr_sk"));
+        write(s, r, 29, v(c, "rp_colf")); write(s, r, 30, BigDecimal.ZERO); write(s, r, 31, v(c, "rp_porv"));
+        write(s, r, 32, v(c, "rp_prot")); write(s, r, 33, BigDecimal.ZERO); write(s, r, 34, v(c, "rp_sk"));
     }
 
     private void writeTraspasos(Sheet s, int r, Map<String, BigDecimal> t) {
@@ -142,5 +146,13 @@ public class TrimestralExcelGenerator {
         Row row = sheet.getRow(row1 - 1); if (row == null) row = sheet.createRow(row1 - 1);
         Cell cell = row.getCell(col1 - 1); if (cell == null) cell = row.createCell(col1 - 1);
         cell.setCellValue(value);
+    }
+
+    private String text(Sheet sheet, int row1, int col1) {
+        Row row = sheet.getRow(row1 - 1);
+        if (row == null) return "";
+        Cell cell = row.getCell(col1 - 1);
+        if (cell == null) return "";
+        return new DataFormatter().formatCellValue(cell);
     }
 }
