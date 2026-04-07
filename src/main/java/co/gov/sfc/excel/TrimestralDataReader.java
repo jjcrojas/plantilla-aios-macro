@@ -13,9 +13,12 @@ import java.nio.file.Path;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 public class TrimestralDataReader {
@@ -193,24 +196,65 @@ public class TrimestralDataReader {
     private Map<String, BigDecimal> readGastosUsd(LocalDate fechaCorte, BigDecimal trm) {
         Map<String, BigDecimal> out = new HashMap<>();
         try {
-            Path sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
-            Path mod = findInDirContains(sistemaTotal.getParent(), "MODERADO");
-            if (mod == null) return out;
-            try (Workbook wb = WorkbookFactory.create(mod.toFile(), null, true)) {
-                Sheet cuentas = getSheetIgnoreCase(wb, "cuentas");
-                if (cuentas == null) {
-                    log.warn("No se encontró la hoja 'cuentas' en {}", mod.getFileName());
+            Path plantilla = findPlantillaAiosFile(fechaCorte);
+            try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
+                Sheet baseAnual = getSheetIgnoreCase(wb, "base anual");
+                if (baseAnual == null) {
+                    log.warn("No se encontró la hoja 'base anual' en {}", plantilla.getFileName());
                     return out;
                 }
-                out.put("prot", safeDivide(num(cuentas, "C50", null).subtract(num(cuentas, "D57", null)), trm));
-                out.put("porv", safeDivide(num(cuentas, "C51", null).subtract(num(cuentas, "D69", null)), trm));
-                out.put("sk", safeDivide(num(cuentas, "C52", null).subtract(num(cuentas, "D81", null)), trm));
-                out.put("colf", safeDivide(num(cuentas, "C53", null).subtract(num(cuentas, "D93", null)), trm));
+                LocalDate fechaBase = fechaCorte.withDayOfMonth(1);
+                int serialFecha = (int) Math.round(DateUtil.getExcelDate(java.sql.Date.valueOf(fechaBase)));
+
+                out.put("prot", safeDivide(gastoNetoCop(baseAnual, "proteccion", serialFecha), trm));
+                out.put("porv", safeDivide(gastoNetoCop(baseAnual, "porvenir", serialFecha), trm));
+                out.put("sk", safeDivide(gastoNetoCop(baseAnual, "skandia", serialFecha), trm));
+                out.put("colf", safeDivide(gastoNetoCop(baseAnual, "colfondos", serialFecha), trm));
             }
         } catch (Exception e) {
             log.warn("No se pudo leer gastos trimestrales: {}", e.getMessage());
         }
         return out;
+    }
+
+    private Path findPlantillaAiosFile(LocalDate fechaCorte) {
+        try {
+            return locator.findRequired("Plantilla AIOS-probable", fechaCorte);
+        } catch (Exception ignore) {
+            Path repoPath = Path.of("plantillas", "Plantilla AIOS-probable.xlsm");
+            if (Files.isRegularFile(repoPath)) return repoPath;
+            Path localPath = Path.of("Plantilla AIOS-probable.xlsm");
+            if (Files.isRegularFile(localPath)) return localPath;
+            throw new IllegalStateException("No se encontró Plantilla AIOS-probable.xlsm para lectura de gastos.");
+        }
+    }
+
+    private BigDecimal gastoNetoCop(Sheet baseAnual, String administradora, int serialFecha) {
+        Set<String> cuentasDescuento = new HashSet<>(Arrays.asList(
+                "510300", "510400", "510600", "510700", "510800", "512500", "512800", "512900", "513900"
+        ));
+        Set<String> cuentasObjetivo = new HashSet<>(cuentasDescuento);
+        cuentasObjetivo.add("510000");
+
+        String prefijo = normalize(administradora) + "-" + serialFecha + "-";
+        DataFormatter fmt = new DataFormatter();
+        Map<String, BigDecimal> valores = new HashMap<>();
+
+        for (int r = 1; r <= baseAnual.getLastRowNum(); r++) {
+            Row row = baseAnual.getRow(r);
+            if (row == null) continue;
+            String llave = normalize(fmt.formatCellValue(row.getCell(0)));
+            if (!llave.startsWith(prefijo)) continue;
+
+            String cuenta = llave.substring(prefijo.length());
+            if (!cuentasObjetivo.contains(cuenta) || valores.containsKey(cuenta)) continue;
+            valores.put(cuenta, num(row.getCell(6), null)); // columna G
+            if (valores.size() == cuentasObjetivo.size()) break;
+        }
+
+        BigDecimal gasto = valores.getOrDefault("510000", BigDecimal.ZERO);
+        for (String c : cuentasDescuento) gasto = gasto.subtract(valores.getOrDefault(c, BigDecimal.ZERO));
+        return gasto.divide(BigDecimal.valueOf(1_000_000), 8, java.math.RoundingMode.HALF_UP);
     }
 
     private Map<String, BigDecimal> readComisiones(LocalDate fechaCorte) {
