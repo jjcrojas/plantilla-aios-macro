@@ -198,6 +198,10 @@ public class TrimestralDataReader {
             if (mod == null) return out;
             try (Workbook wb = WorkbookFactory.create(mod.toFile(), null, true)) {
                 Sheet cuentas = getSheetIgnoreCase(wb, "cuentas");
+                if (cuentas == null) {
+                    log.warn("No se encontró la hoja 'cuentas' en {}", mod.getFileName());
+                    return out;
+                }
                 out.put("prot", safeDivide(num(cuentas, "C50", null).subtract(num(cuentas, "D57", null)), trm));
                 out.put("porv", safeDivide(num(cuentas, "C51", null).subtract(num(cuentas, "D69", null)), trm));
                 out.put("sk", safeDivide(num(cuentas, "C52", null).subtract(num(cuentas, "D81", null)), trm));
@@ -370,14 +374,20 @@ public class TrimestralDataReader {
 
     private BigDecimal num(Cell c, FormulaEvaluator eval) {
         if (eval != null && c.getCellType() == CellType.FORMULA) {
-            CellValue cv = eval.evaluate(c);
-            if (cv == null) return BigDecimal.ZERO;
-            return switch (cv.getCellType()) {
-                case NUMERIC -> BigDecimal.valueOf(cv.getNumberValue());
-                case STRING -> parseDecimal(cv.getStringValue());
-                case BOOLEAN -> cv.getBooleanValue() ? BigDecimal.ONE : BigDecimal.ZERO;
-                default -> BigDecimal.ZERO;
-            };
+            try {
+                CellValue cv = eval.evaluate(c);
+                if (cv != null) {
+                    return switch (cv.getCellType()) {
+                        case NUMERIC -> BigDecimal.valueOf(cv.getNumberValue());
+                        case STRING -> parseDecimal(cv.getStringValue());
+                        case BOOLEAN -> cv.getBooleanValue() ? BigDecimal.ONE : BigDecimal.ZERO;
+                        default -> formulaCachedValue(c);
+                    };
+                }
+            } catch (RuntimeException ex) {
+                return formulaCachedValue(c);
+            }
+            return formulaCachedValue(c);
         }
         return switch (c.getCellType()) {
             case NUMERIC -> BigDecimal.valueOf(c.getNumericCellValue());
@@ -385,6 +395,19 @@ public class TrimestralDataReader {
             case BOOLEAN -> c.getBooleanCellValue() ? BigDecimal.ONE : BigDecimal.ZERO;
             default -> BigDecimal.ZERO;
         };
+    }
+
+    private BigDecimal formulaCachedValue(Cell c) {
+        try {
+            return switch (c.getCachedFormulaResultType()) {
+                case NUMERIC -> BigDecimal.valueOf(c.getNumericCellValue());
+                case STRING -> parseDecimal(c.getStringCellValue());
+                case BOOLEAN -> c.getBooleanCellValue() ? BigDecimal.ONE : BigDecimal.ZERO;
+                default -> BigDecimal.ZERO;
+            };
+        } catch (RuntimeException ignored) {
+            return BigDecimal.ZERO;
+        }
     }
 
     private BigDecimal parseNumber(Cell cell, DataFormatter formatter) {
