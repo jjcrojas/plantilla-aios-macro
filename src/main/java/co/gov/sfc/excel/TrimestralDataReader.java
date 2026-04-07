@@ -13,9 +13,12 @@ import java.nio.file.Path;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 public class TrimestralDataReader {
@@ -138,16 +141,41 @@ public class TrimestralDataReader {
     private Map<String, BigDecimal> readColombiaUsd(LocalDate fechaCorte, BigDecimal trm) {
         Map<String, BigDecimal> out = new HashMap<>();
         try {
-            Path sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
-            Path dir = sistemaTotal.getParent();
-            readBalanceTo(out, dir, "MODERADO", "mod", true, trm);
-            readBalanceTo(out, dir, "CONSERVADOR", "con", false, trm);
-            readBalanceTo(out, dir, "MAYOR RIESGO", "mr", false, trm);
-            readBalanceTo(out, dir, "RETIRO PROGRAMADO", "rp", false, trm);
+            Path formato136 = locator.findRequired("Formato_136_Meses", fechaCorte);
+            try (Workbook wb = WorkbookFactory.create(formato136.toFile(), null, true)) {
+                Sheet hojaObl = getSheetIgnoreCase(wb, "FORMATO OBL");
+                if (hojaObl == null) {
+                    throw new IllegalStateException("No existe la hoja FORMATO OBL en Formato_136_Meses");
+                }
+                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+                setDate(hojaObl, "D7", fechaCorte);
+                evaluator.clearAllCachedResultValues();
+
+                readColombiaFondoFromFormatoObl(out, hojaObl, evaluator, "mod", "D", trm, true);
+                readColombiaFondoFromFormatoObl(out, hojaObl, evaluator, "con", "E", trm, false);
+                readColombiaFondoFromFormatoObl(out, hojaObl, evaluator, "mr", "F", trm, false);
+                readColombiaFondoFromFormatoObl(out, hojaObl, evaluator, "rp", "G", trm, false);
+            }
         } catch (Exception e) {
             log.warn("No se pudo leer bloque colombia trimestral: {}", e.getMessage());
         }
         return out;
+    }
+
+    private void readColombiaFondoFromFormatoObl(Map<String, BigDecimal> out, Sheet hojaObl, FormulaEvaluator evaluator, String prefijo, String columna, BigDecimal trm, boolean separarSkandiaAlt) {
+        BigDecimal proteccion = num(hojaObl, columna + "20", evaluator);
+        BigDecimal porvenir = num(hojaObl, columna + "21", evaluator);
+        BigDecimal skandia = num(hojaObl, columna + "22", evaluator);
+        BigDecimal skandiaAlt = num(hojaObl, columna + "23", evaluator);
+        BigDecimal colfondos = num(hojaObl, columna + "24", evaluator);
+
+        out.put(prefijo + "_colf", safeDivide(colfondos, trm));
+        out.put(prefijo + "_porv", safeDivide(porvenir, trm));
+        out.put(prefijo + "_prot", safeDivide(proteccion, trm));
+        out.put(prefijo + "_sk", safeDivide(skandia.add(separarSkandiaAlt ? BigDecimal.ZERO : skandiaAlt), trm));
+        if (separarSkandiaAlt) {
+            out.put(prefijo + "_alt", safeDivide(skandiaAlt, trm));
+        }
     }
 
     private void readBalanceTo(Map<String, BigDecimal> out, Path dir, String name, String pref, boolean allowAlt, BigDecimal trm) throws Exception {
@@ -168,20 +196,103 @@ public class TrimestralDataReader {
     private Map<String, BigDecimal> readGastosUsd(LocalDate fechaCorte, BigDecimal trm) {
         Map<String, BigDecimal> out = new HashMap<>();
         try {
-            Path sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
-            Path mod = findInDirContains(sistemaTotal.getParent(), "MODERADO");
-            if (mod == null) return out;
-            try (Workbook wb = WorkbookFactory.create(mod.toFile(), null, true)) {
-                Sheet cuentas = getSheetIgnoreCase(wb, "cuentas");
-                out.put("prot", safeDivide(num(cuentas, "C50", null).subtract(num(cuentas, "D57", null)), trm));
-                out.put("porv", safeDivide(num(cuentas, "C51", null).subtract(num(cuentas, "D69", null)), trm));
-                out.put("sk", safeDivide(num(cuentas, "C52", null).subtract(num(cuentas, "D81", null)), trm));
-                out.put("colf", safeDivide(num(cuentas, "C53", null).subtract(num(cuentas, "D93", null)), trm));
+            Path plantilla = findPlantillaAiosFile(fechaCorte);
+            log.info("Gastos trimestrales: leyendo plantilla {}", plantilla.toAbsolutePath());
+            try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
+                Sheet baseAnual = getSheetIgnoreCase(wb, "base anual");
+                if (baseAnual == null) {
+                    log.warn("No se encontró la hoja 'base anual' en {}", plantilla.getFileName());
+                    return out;
+                }
+                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+                LocalDate fechaBase = fechaCorte.withDayOfMonth(1);
+                int serialFecha = (int) Math.round(DateUtil.getExcelDate(java.sql.Date.valueOf(fechaBase)));
+                log.info("Gastos trimestrales: fechaCorte={}, fechaBase={}, serialExcel={}, TRM={}", fechaCorte, fechaBase, serialFecha, trm);
+
+                putGastoUsd(out, "prot", "proteccion", baseAnual, evaluator, serialFecha, trm);
+                putGastoUsd(out, "porv", "porvenir", baseAnual, evaluator, serialFecha, trm);
+                putGastoUsd(out, "sk", "skandia", baseAnual, evaluator, serialFecha, trm);
+                putGastoUsd(out, "colf", "colfondos", baseAnual, evaluator, serialFecha, trm);
             }
         } catch (Exception e) {
             log.warn("No se pudo leer gastos trimestrales: {}", e.getMessage());
         }
         return out;
+    }
+
+    private Path findPlantillaAiosFile(LocalDate fechaCorte) {
+        try {
+            return locator.findRequired("Plantilla AIOS-probable", fechaCorte);
+        } catch (Exception ignore1) {
+            try {
+                return locator.findRequired("Plantilla_AIOS", fechaCorte);
+            } catch (Exception ignore2) {
+            Path repoPath = Path.of("plantillas", "Plantilla AIOS-probable.xlsm");
+            if (Files.isRegularFile(repoPath)) return repoPath;
+            Path localPath = Path.of("Plantilla AIOS-probable.xlsm");
+            if (Files.isRegularFile(localPath)) return localPath;
+            throw new IllegalStateException("No se encontró Plantilla AIOS-probable.xlsm para lectura de gastos.");
+            }
+        }
+    }
+
+    private void putGastoUsd(Map<String, BigDecimal> out, String key, String administradora, Sheet baseAnual, FormulaEvaluator evaluator, int serialFecha, BigDecimal trm) {
+        BigDecimal gastoMillonesCop = gastoNetoCop(baseAnual, evaluator, administradora, serialFecha);
+        BigDecimal gastoUsd = safeDivide(gastoMillonesCop, trm);
+        out.put(key, gastoUsd);
+        log.info("Gastos {}: neto_MCOP={} -> USD={}", administradora, gastoMillonesCop, gastoUsd);
+    }
+
+    private BigDecimal gastoNetoCop(Sheet baseAnual, FormulaEvaluator evaluator, String administradora, int serialFecha) {
+        Set<String> cuentasDescuento = new HashSet<>(Arrays.asList(
+                "510300", "510400", "510600", "510700", "510800", "512500", "512800", "512900", "513900"
+        ));
+        Set<String> cuentasObjetivo = new HashSet<>(cuentasDescuento);
+        cuentasObjetivo.add("510000");
+
+        DataFormatter fmt = new DataFormatter();
+        Map<String, BigDecimal> valores = new HashMap<>();
+
+        for (int r = 1; r <= baseAnual.getLastRowNum(); r++) {
+            Row row = baseAnual.getRow(r);
+            if (row == null) continue;
+            String adminFila = normalize(fmt.formatCellValue(row.getCell(2), evaluator)); // col C
+            int serialFila = excelSerial(row.getCell(1), evaluator); // col B
+            String cuenta = normalize(fmt.formatCellValue(row.getCell(3), evaluator)).replace(".0", ""); // col D
+            if (!normalize(administradora).equals(adminFila) || serialFila != serialFecha) continue;
+            if (!cuentasObjetivo.contains(cuenta) || valores.containsKey(cuenta)) continue;
+            valores.put(cuenta, num(row.getCell(6), null)); // columna G
+            if (valores.size() == cuentasObjetivo.size()) break;
+        }
+
+        BigDecimal gasto = valores.getOrDefault("510000", BigDecimal.ZERO);
+        BigDecimal descuentos = BigDecimal.ZERO;
+        for (String c : cuentasDescuento) descuentos = descuentos.add(valores.getOrDefault(c, BigDecimal.ZERO));
+        gasto = gasto.subtract(descuentos);
+
+        if (!valores.containsKey("510000")) {
+            log.warn("Gastos {}: no se encontró cuenta 510000 para serial {}.", administradora, serialFecha);
+        }
+        log.info("Gastos {} serial {}: 510000={}, descuentos={}, cuentas_encontradas={}", administradora, serialFecha, valores.getOrDefault("510000", BigDecimal.ZERO), descuentos, valores.keySet());
+        return gasto.divide(BigDecimal.valueOf(1_000_000), 8, java.math.RoundingMode.HALF_UP);
+    }
+
+    private int excelSerial(Cell c, FormulaEvaluator eval) {
+        if (c == null) return Integer.MIN_VALUE;
+        try {
+            if (c.getCellType() == CellType.NUMERIC) {
+                return (int) Math.round(c.getNumericCellValue());
+            }
+            if (c.getCellType() == CellType.FORMULA && eval != null) {
+                CellValue cv = eval.evaluate(c);
+                if (cv != null && cv.getCellType() == CellType.NUMERIC) return (int) Math.round(cv.getNumberValue());
+            }
+            String txt = new DataFormatter().formatCellValue(c, eval).trim();
+            if (txt.isBlank()) return Integer.MIN_VALUE;
+            return (int) Math.round(Double.parseDouble(txt.replace(",", ".")));
+        } catch (Exception e) {
+            return Integer.MIN_VALUE;
+        }
     }
 
     private Map<String, BigDecimal> readComisiones(LocalDate fechaCorte) {
@@ -345,14 +456,20 @@ public class TrimestralDataReader {
 
     private BigDecimal num(Cell c, FormulaEvaluator eval) {
         if (eval != null && c.getCellType() == CellType.FORMULA) {
-            CellValue cv = eval.evaluate(c);
-            if (cv == null) return BigDecimal.ZERO;
-            return switch (cv.getCellType()) {
-                case NUMERIC -> BigDecimal.valueOf(cv.getNumberValue());
-                case STRING -> parseDecimal(cv.getStringValue());
-                case BOOLEAN -> cv.getBooleanValue() ? BigDecimal.ONE : BigDecimal.ZERO;
-                default -> BigDecimal.ZERO;
-            };
+            try {
+                CellValue cv = eval.evaluate(c);
+                if (cv != null) {
+                    return switch (cv.getCellType()) {
+                        case NUMERIC -> BigDecimal.valueOf(cv.getNumberValue());
+                        case STRING -> parseDecimal(cv.getStringValue());
+                        case BOOLEAN -> cv.getBooleanValue() ? BigDecimal.ONE : BigDecimal.ZERO;
+                        default -> formulaCachedValue(c);
+                    };
+                }
+            } catch (RuntimeException ex) {
+                return formulaCachedValue(c);
+            }
+            return formulaCachedValue(c);
         }
         return switch (c.getCellType()) {
             case NUMERIC -> BigDecimal.valueOf(c.getNumericCellValue());
@@ -360,6 +477,19 @@ public class TrimestralDataReader {
             case BOOLEAN -> c.getBooleanCellValue() ? BigDecimal.ONE : BigDecimal.ZERO;
             default -> BigDecimal.ZERO;
         };
+    }
+
+    private BigDecimal formulaCachedValue(Cell c) {
+        try {
+            return switch (c.getCachedFormulaResultType()) {
+                case NUMERIC -> BigDecimal.valueOf(c.getNumericCellValue());
+                case STRING -> parseDecimal(c.getStringCellValue());
+                case BOOLEAN -> c.getBooleanCellValue() ? BigDecimal.ONE : BigDecimal.ZERO;
+                default -> BigDecimal.ZERO;
+            };
+        } catch (RuntimeException ignored) {
+            return BigDecimal.ZERO;
+        }
     }
 
     private BigDecimal parseNumber(Cell cell, DataFormatter formatter) {
