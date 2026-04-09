@@ -1,7 +1,9 @@
 package co.gov.sfc.services;
 
+import co.gov.sfc.excel.MensualData;
 import co.gov.sfc.excel.MensualDataReader;
 import co.gov.sfc.excel.MensualExcelGenerator;
+import co.gov.sfc.excel.SemestralExcelGenerator;
 import co.gov.sfc.excel.TrimestralData;
 import co.gov.sfc.excel.TrimestralDataReader;
 import co.gov.sfc.excel.TrimestralExcelGenerator;
@@ -24,8 +26,9 @@ class AiosGeneracionServiceTest {
         MensualExcelGenerator mensualExcelGenerator = mock(MensualExcelGenerator.class);
         TrimestralDataReader trimestralDataReader = mock(TrimestralDataReader.class);
         TrimestralExcelGenerator trimestralExcelGenerator = mock(TrimestralExcelGenerator.class);
+        SemestralExcelGenerator semestralExcelGenerator = mock(SemestralExcelGenerator.class);
 
-        AiosGeneracionService service = new AiosGeneracionService(mensualDataReader, mensualExcelGenerator, trimestralDataReader, trimestralExcelGenerator);
+        AiosGeneracionService service = new AiosGeneracionService(mensualDataReader, mensualExcelGenerator, semestralExcelGenerator, trimestralDataReader, trimestralExcelGenerator);
 
         LocalDate fecha = LocalDate.of(2025, 6, 30);
         TrimestralData data = new TrimestralData("jun-25", Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
@@ -45,6 +48,7 @@ class AiosGeneracionServiceTest {
         AiosGeneracionService service = new AiosGeneracionService(
                 mock(MensualDataReader.class),
                 mock(MensualExcelGenerator.class),
+                mock(SemestralExcelGenerator.class),
                 mock(TrimestralDataReader.class),
                 mock(TrimestralExcelGenerator.class)
         );
@@ -61,20 +65,29 @@ class AiosGeneracionServiceTest {
         MensualExcelGenerator mensualExcelGenerator = mock(MensualExcelGenerator.class);
         TrimestralDataReader trimestralDataReader = mock(TrimestralDataReader.class);
         TrimestralExcelGenerator trimestralExcelGenerator = mock(TrimestralExcelGenerator.class);
+        SemestralExcelGenerator semestralExcelGenerator = mock(SemestralExcelGenerator.class);
 
-        AiosGeneracionService service = new AiosGeneracionService(mensualDataReader, mensualExcelGenerator, trimestralDataReader, trimestralExcelGenerator);
+        AiosGeneracionService service = new AiosGeneracionService(mensualDataReader, mensualExcelGenerator, semestralExcelGenerator, trimestralDataReader, trimestralExcelGenerator);
 
         LocalDate fecha = LocalDate.of(2025, 6, 30);
+        MensualData mensual = new MensualData("jun-25", java.math.BigDecimal.ONE, java.math.BigDecimal.ONE,
+                java.math.BigDecimal.ONE, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE,
+                java.math.BigDecimal.ONE, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE,
+                java.math.BigDecimal.ONE, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE,
+                java.math.BigDecimal.ONE, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE,
+                java.math.BigDecimal.ONE, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE);
         TrimestralData data = new TrimestralData("jun-25", Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        when(mensualDataReader.read(fecha)).thenReturn(mensual);
         when(trimestralDataReader.read(fecha)).thenReturn(data);
-        when(trimestralExcelGenerator.generarSemestral(fecha, data)).thenReturn(Path.of("target/aios-output/Boletin_AIOS SEMESTRAL.xlsx"));
+        when(semestralExcelGenerator.generar(fecha, mensual, data)).thenReturn(Path.of("target/aios-output/semestral.xlsx"));
 
         var resultado = service.generar(fecha, ModoGeneracion.SEMESTRAL);
 
         assertEquals(1, resultado.archivosGenerados().size());
-        assertEquals("Boletin_AIOS SEMESTRAL.xlsx", resultado.archivosGenerados().getFirst().getFileName().toString());
+        assertEquals("semestral.xlsx", resultado.archivosGenerados().getFirst().getFileName().toString());
+        verify(mensualDataReader).read(fecha);
         verify(trimestralDataReader).read(fecha);
-        verify(trimestralExcelGenerator).generarSemestral(fecha, data);
+        verify(semestralExcelGenerator).generar(fecha, mensual, data);
     }
 
     @Test
@@ -82,6 +95,7 @@ class AiosGeneracionServiceTest {
         AiosGeneracionService service = new AiosGeneracionService(
                 mock(MensualDataReader.class),
                 mock(MensualExcelGenerator.class),
+                mock(SemestralExcelGenerator.class),
                 mock(TrimestralDataReader.class),
                 mock(TrimestralExcelGenerator.class)
         );

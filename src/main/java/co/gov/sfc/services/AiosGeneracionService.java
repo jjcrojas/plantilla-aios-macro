@@ -2,6 +2,7 @@ package co.gov.sfc.services;
 
 import co.gov.sfc.excel.MensualDataReader;
 import co.gov.sfc.excel.MensualExcelGenerator;
+import co.gov.sfc.excel.SemestralExcelGenerator;
 import co.gov.sfc.excel.TrimestralDataReader;
 import co.gov.sfc.excel.TrimestralExcelGenerator;
 import co.gov.sfc.model.ModoGeneracion;
@@ -23,15 +24,18 @@ public class AiosGeneracionService {
 
     private final MensualDataReader mensualDataReader;
     private final MensualExcelGenerator mensualExcelGenerator;
+    private final SemestralExcelGenerator semestralExcelGenerator;
     private final TrimestralDataReader trimestralDataReader;
     private final TrimestralExcelGenerator trimestralExcelGenerator;
 
     public AiosGeneracionService(MensualDataReader mensualDataReader,
                                  MensualExcelGenerator mensualExcelGenerator,
+                                 SemestralExcelGenerator semestralExcelGenerator,
                                  TrimestralDataReader trimestralDataReader,
                                  TrimestralExcelGenerator trimestralExcelGenerator) {
         this.mensualDataReader = mensualDataReader;
         this.mensualExcelGenerator = mensualExcelGenerator;
+        this.semestralExcelGenerator = semestralExcelGenerator;
         this.trimestralDataReader = trimestralDataReader;
         this.trimestralExcelGenerator = trimestralExcelGenerator;
     }
@@ -59,7 +63,9 @@ public class AiosGeneracionService {
             }
 
             if (modo == ModoGeneracion.SEMESTRAL || (modo == ModoGeneracion.TODO && isSemesterMonth(fechaCorte))) {
-                var semestral = trimestralExcelGenerator.generarSemestral(fechaCorte, trimestralDataReader.read(fechaCorte));
+                var mensual = mensualDataReader.read(fechaCorte);
+                var trimestral = trimestralDataReader.read(fechaCorte);
+                var semestral = semestralExcelGenerator.generar(fechaCorte, mensual, trimestral);
                 archivos.add(semestral);
             }
         } catch (OutOfMemoryError oom) {

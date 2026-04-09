@@ -221,7 +221,7 @@ public class TrimestralDataReader {
     }
 
     private LocalDate fechaBusquedaGastos(LocalDate fechaCorte) {
-        return fechaCorte.minusYears(1).withDayOfMonth(1);
+        return fechaCorte.withDayOfMonth(1);
     }
 
     private Path findPlantillaAiosFile(LocalDate fechaCorte) {
