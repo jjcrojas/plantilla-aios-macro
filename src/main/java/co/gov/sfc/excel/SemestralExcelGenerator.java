@@ -44,9 +44,17 @@ public class SemestralExcelGenerator {
                 write(hoja, 6, col, pct(safeDivide(mensual.afiliados45a59(), mensual.afiliados())));
                 write(hoja, 7, col, pct(safeDivide(mensual.afiliadosMayor60(), mensual.afiliados())));
                 write(hoja, 8, col, BigDecimal.valueOf(100));
+                write(hoja, 9, col, divide(mensual.afiliados(), BigDecimal.valueOf(1000)));
                 write(hoja, 10, col, pct(safeDivide(mensual.mujeres(), mensual.afiliados())));
                 write(hoja, 11, col, mensual.aportantes());
+                write(hoja, 12, col, pct(safeDivide(mensual.afiliados(), mensual.pea())));
+                write(hoja, 13, col, pct(safeDivide(mensual.aportantes(), mensual.pea())));
                 write(hoja, 14, col, pct(safeDivide(mensual.aportantes(), mensual.afiliados())));
+                write(hoja, 15, col, mensual.smColombiaUsd());
+                write(hoja, 16, col, mensual.totalPen());
+                write(hoja, 17, col, pct(safeDivide(mensual.totalInv(), mensual.totalPen())));
+                write(hoja, 18, col, pct(safeDivide(mensual.totalVej(), mensual.totalPen())));
+                write(hoja, 19, col, pct(safeDivide(mensual.totalSob(), mensual.totalPen())));
                 write(hoja, 26, col, mensual.traspasosSistema());
                 write(hoja, 28, col, divide(mensual.vrFondo(), trm(mensual)));
 
@@ -57,8 +65,17 @@ public class SemestralExcelGenerator {
                 write(hoja, 33, col, mensual.dudaNf());
                 write(hoja, 34, col, mensual.dudaAc());
                 write(hoja, 35, col, mensual.dudaF());
+                write(hoja, 37, col, mensual.dudaGe());
+                write(hoja, 38, col, mensual.dudaEfe());
+                write(hoja, 39, col, mensual.dudaNfe());
+                write(hoja, 40, col, mensual.dudaAce());
+                write(hoja, 41, col, mensual.dudaFe());
+                write(hoja, 42, col, BigDecimal.valueOf(2));
                 write(hoja, 43, col, mensual.otros());
                 write(hoja, 44, col, mensual.h17());
+                write(hoja, 45, col, safeDivide(divide(mensual.vrFondo(), trm(mensual)), mensual.deudaG()));
+                write(hoja, 46, col, BigDecimal.valueOf(4));
+                write(hoja, 47, col, mensual.porcVrFondo());
 
                 // Bloque C/D - uso de datos disponibles del flujo Java
                 BigDecimal gastosUsdTotal = trimestral.gastosUsd().values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);

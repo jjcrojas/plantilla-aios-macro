@@ -26,6 +26,19 @@ public record MensualData(
         BigDecimal dudaAc,
         BigDecimal dudaF,
         BigDecimal h17,
-        BigDecimal otros
+        BigDecimal otros,
+        BigDecimal dudaGe,
+        BigDecimal dudaEfe,
+        BigDecimal dudaNfe,
+        BigDecimal dudaAce,
+        BigDecimal dudaFe,
+        BigDecimal dudaSte,
+        BigDecimal pea,
+        BigDecimal deudaG,
+        BigDecimal smColombiaUsd,
+        BigDecimal totalPen,
+        BigDecimal totalInv,
+        BigDecimal totalVej,
+        BigDecimal totalSob
 ) {
 }

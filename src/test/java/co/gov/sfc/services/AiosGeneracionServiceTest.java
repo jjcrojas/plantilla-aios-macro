@@ -70,14 +70,14 @@ class AiosGeneracionServiceTest {
         AiosGeneracionService service = new AiosGeneracionService(mensualDataReader, mensualExcelGenerator, semestralExcelGenerator, trimestralDataReader, trimestralExcelGenerator);
 
         LocalDate fecha = LocalDate.of(2025, 6, 30);
-        MensualData mensual = new MensualData("jun-25", java.math.BigDecimal.ONE, java.math.BigDecimal.ONE,
-                java.math.BigDecimal.ONE, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE,
-                java.math.BigDecimal.ONE, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE,
-                java.math.BigDecimal.ONE, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE,
-                java.math.BigDecimal.ONE, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE,
-                java.math.BigDecimal.ONE, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE,
-                java.math.BigDecimal.ONE, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE,
-                java.math.BigDecimal.ONE, java.math.BigDecimal.ONE, java.math.BigDecimal.ONE);
+        java.math.BigDecimal one = java.math.BigDecimal.ONE;
+        MensualData mensual = new MensualData("jun-25",
+                one, one, one, one, one, one,
+                one, one, one, one, one, one,
+                one, one, one, one, one, one,
+                one, one, one, one, one, one,
+                one, one, one, one, one, one,
+                one, one, one, one, one, one);
         TrimestralData data = new TrimestralData("jun-25", Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         when(mensualDataReader.read(fecha)).thenReturn(mensual);
         when(trimestralDataReader.read(fecha)).thenReturn(data);

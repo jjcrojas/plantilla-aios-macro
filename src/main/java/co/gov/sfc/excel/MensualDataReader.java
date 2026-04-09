@@ -49,6 +49,11 @@ public class MensualDataReader {
         BigDecimal afiliadosMayor60 = BigDecimal.ZERO;
         BigDecimal aportantes = BigDecimal.ZERO;
         BigDecimal consFdosAdmon = BigDecimal.ZERO;
+        BigDecimal smColombiaCop = BigDecimal.ZERO;
+        BigDecimal totalPen = BigDecimal.ZERO;
+        BigDecimal totalInv = BigDecimal.ZERO;
+        BigDecimal totalVej = BigDecimal.ZERO;
+        BigDecimal totalSob = BigDecimal.ZERO;
 
         var file491 = resolveFormato491Path(fechaCorte);
         var file493 = locator.findRequired("493", fechaCorte);
@@ -71,6 +76,8 @@ public class MensualDataReader {
                 afiliados45a59 = num(informe, "C83", evaluator).add(num(informe, "D83", evaluator));
                 afiliadosMayor60 = num(informe, "C84", evaluator).add(num(informe, "D84", evaluator));
                 aportantes = num(multifondos, "E25", evaluator);
+                Sheet smColombia = getSheetIgnoreCase(wb, "SM COLOMBIA");
+                if (smColombia != null) smColombiaCop = num(smColombia, "E8", evaluator);
                 var j8 = num(multifondos, "J8", evaluator);
                 var j9 = num(multifondos, "J9", evaluator);
                 var j12 = num(multifondos, "J12", evaluator);
@@ -90,6 +97,7 @@ public class MensualDataReader {
                 afiliadosMayor60 = readNumericCellFromSheetXml(file491, "informe de prensa", "C84")
                         .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D84"));
                 aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
+                smColombiaCop = readNumericCellFromSheetXml(file491, "SM COLOMBIA", "E8");
                 var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
                 var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
                 var j12 = readNumericCellFromSheetXml(file491, "multifondos", "J12");
@@ -111,6 +119,7 @@ public class MensualDataReader {
                 afiliadosMayor60 = readNumericCellFromSheetXml(file491, "informe de prensa", "C84")
                         .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D84"));
                 aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
+                smColombiaCop = readNumericCellFromSheetXml(file491, "SM COLOMBIA", "E8");
                 var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
                 var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
                 var j12 = readNumericCellFromSheetXml(file491, "multifondos", "J12");
@@ -208,6 +217,12 @@ public class MensualDataReader {
         BigDecimal dudaNf = BigDecimal.ZERO;
         BigDecimal dudaAc = BigDecimal.ZERO;
         BigDecimal dudaF = BigDecimal.ZERO;
+        BigDecimal dudaGe = BigDecimal.ZERO;
+        BigDecimal dudaEfe = BigDecimal.ZERO;
+        BigDecimal dudaNfe = BigDecimal.ZERO;
+        BigDecimal dudaAce = BigDecimal.ZERO;
+        BigDecimal dudaFe = BigDecimal.ZERO;
+        BigDecimal dudaSte = BigDecimal.ZERO;
         BigDecimal otros = BigDecimal.ZERO;
         BigDecimal h17 = BigDecimal.ZERO;
         try {
@@ -229,6 +244,12 @@ public class MensualDataReader {
                 var ace = num(aios, "U4", null);
                 var fe = num(aios, "W4", null);
                 var ste = num(aios, "Y4", null);
+                dudaGe = ge;
+                dudaEfe = efe;
+                dudaNfe = nfe;
+                dudaAce = ace;
+                dudaFe = fe;
+                dudaSte = ste;
                 otros = num(aios, "AA4", null);
                 h17 = ge.add(efe).add(nfe).add(ace).add(fe).add(ste);
             }
@@ -243,6 +264,13 @@ public class MensualDataReader {
         String textoFecha = mes + "-" + String.format("%02d", fechaCorte.getYear() % 100);
 
         BigDecimal trm = readTrmFromSeries(fechaCorte);
+        BigDecimal pea = readFromFormatoPlantilla(fechaCorte, "V11");
+        BigDecimal deudaG = readFromFormatoPlantilla(fechaCorte, "V16");
+        PensionadosData pensionados = readPensionados495(fechaCorte);
+        totalPen = pensionados.totalPen();
+        totalInv = pensionados.totalInv();
+        totalVej = pensionados.totalVej();
+        totalSob = pensionados.totalSob();
         log.info("TRM seleccionada para fechaCorte={}: {}", fechaCorte, trm);
 
         return new MensualData(
@@ -269,9 +297,71 @@ public class MensualDataReader {
                 dudaAc,
                 dudaF,
                 h17,
-                otros
+                otros,
+                dudaGe,
+                dudaEfe,
+                dudaNfe,
+                dudaAce,
+                dudaFe,
+                dudaSte,
+                pea,
+                deudaG,
+                trm.signum() == 0 ? BigDecimal.ZERO : smColombiaCop.divide(trm, 8, RoundingMode.HALF_UP),
+                totalPen,
+                totalInv,
+                totalVej,
+                totalSob
         );
     }
+
+    private PensionadosData readPensionados495(LocalDate fechaCorte) {
+        BigDecimal totalPen = BigDecimal.ZERO;
+        BigDecimal totalInv = BigDecimal.ZERO;
+        BigDecimal totalVej = BigDecimal.ZERO;
+        BigDecimal totalSob = BigDecimal.ZERO;
+        try {
+            var file495 = locator.findRequired("495", fechaCorte);
+            try (Workbook wb = WorkbookFactory.create(file495.toFile(), null, true)) {
+                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+                Sheet porEntidad = getSheetIgnoreCase(wb, "por entidad");
+                if (porEntidad != null) {
+                    setDate(porEntidad, "C6", fechaCorte);
+                    evaluator.clearAllCachedResultValues();
+                    totalPen = num(porEntidad, "BJ67", evaluator);
+                    totalVej = num(porEntidad, "BH66", evaluator);
+                    totalInv = num(porEntidad, "BI66", evaluator);
+                    totalSob = num(porEntidad, "BJ66", evaluator);
+                }
+                if (totalPen.signum() == 0) {
+                    Sheet totalPensionados = getSheetIgnoreCase(wb, "Total pensionados");
+                    if (totalPensionados != null) {
+                        totalPen = num(totalPensionados, "B5", evaluator);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo leer Formato 495 para total de pensionados: {}", e.getMessage());
+        }
+        return new PensionadosData(totalPen, totalInv, totalVej, totalSob);
+    }
+
+    private BigDecimal readFromFormatoPlantilla(LocalDate fechaCorte, String cellRef) {
+        try {
+            Path plantilla = Path.of("plantillas", "Plantilla AIOS-probable.xlsm");
+            if (!Files.isRegularFile(plantilla)) {
+                plantilla = locator.findRequired("Plantilla AIOS-probable", fechaCorte);
+            }
+            try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
+                Sheet formato = getSheetIgnoreCase(wb, "formato");
+                if (formato == null) return BigDecimal.ZERO;
+                return num(formato, cellRef, null);
+            }
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private record PensionadosData(BigDecimal totalPen, BigDecimal totalInv, BigDecimal totalVej, BigDecimal totalSob) {}
 
 
 
