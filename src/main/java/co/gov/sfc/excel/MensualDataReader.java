@@ -43,6 +43,10 @@ public class MensualDataReader {
 
         BigDecimal hombres = BigDecimal.ZERO;
         BigDecimal mujeres = BigDecimal.ZERO;
+        BigDecimal afiliadosMenor30 = BigDecimal.ZERO;
+        BigDecimal afiliados30a44 = BigDecimal.ZERO;
+        BigDecimal afiliados45a59 = BigDecimal.ZERO;
+        BigDecimal afiliadosMayor60 = BigDecimal.ZERO;
         BigDecimal aportantes = BigDecimal.ZERO;
         BigDecimal consFdosAdmon = BigDecimal.ZERO;
 
@@ -62,6 +66,10 @@ public class MensualDataReader {
                 evaluator.clearAllCachedResultValues();
                 hombres = num(informe, "C11", evaluator);
                 mujeres = num(informe, "D11", evaluator);
+                afiliadosMenor30 = num(informe, "C81", evaluator).add(num(informe, "D81", evaluator));
+                afiliados30a44 = num(informe, "C82", evaluator).add(num(informe, "D82", evaluator));
+                afiliados45a59 = num(informe, "C83", evaluator).add(num(informe, "D83", evaluator));
+                afiliadosMayor60 = num(informe, "C84", evaluator).add(num(informe, "D84", evaluator));
                 aportantes = num(multifondos, "E25", evaluator);
                 var j8 = num(multifondos, "J8", evaluator);
                 var j9 = num(multifondos, "J9", evaluator);
@@ -73,6 +81,14 @@ public class MensualDataReader {
                 SexTotals st = readAfiliadosFromDataXml(file491, fechaCorte);
                 hombres = st.hombres();
                 mujeres = st.mujeres();
+                afiliadosMenor30 = readNumericCellFromSheetXml(file491, "informe de prensa", "C81")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D81"));
+                afiliados30a44 = readNumericCellFromSheetXml(file491, "informe de prensa", "C82")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D82"));
+                afiliados45a59 = readNumericCellFromSheetXml(file491, "informe de prensa", "C83")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D83"));
+                afiliadosMayor60 = readNumericCellFromSheetXml(file491, "informe de prensa", "C84")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D84"));
                 aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
                 var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
                 var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
@@ -86,6 +102,14 @@ public class MensualDataReader {
                 SexTotals st = readAfiliadosFromDataXml(file491, fechaCorte);
                 hombres = st.hombres();
                 mujeres = st.mujeres();
+                afiliadosMenor30 = readNumericCellFromSheetXml(file491, "informe de prensa", "C81")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D81"));
+                afiliados30a44 = readNumericCellFromSheetXml(file491, "informe de prensa", "C82")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D82"));
+                afiliados45a59 = readNumericCellFromSheetXml(file491, "informe de prensa", "C83")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D83"));
+                afiliadosMayor60 = readNumericCellFromSheetXml(file491, "informe de prensa", "C84")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D84"));
                 aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
                 var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
                 var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
@@ -223,6 +247,12 @@ public class MensualDataReader {
 
         return new MensualData(
                 textoFecha,
+                hombres,
+                mujeres,
+                afiliadosMenor30,
+                afiliados30a44,
+                afiliados45a59,
+                afiliadosMayor60,
                 hombres.add(mujeres),
                 aportantes,
                 traspasosSistema,
