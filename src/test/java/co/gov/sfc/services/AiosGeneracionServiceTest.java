@@ -8,7 +8,6 @@ import co.gov.sfc.excel.TrimestralExcelGenerator;
 import co.gov.sfc.model.ModoGeneracion;
 import org.junit.jupiter.api.Test;
 
-import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.Map;
@@ -54,5 +53,42 @@ class AiosGeneracionServiceTest {
                 () -> service.generar(LocalDate.of(2025, 5, 31), ModoGeneracion.TRIMESTRAL));
 
         assertEquals("La generación trimestral solo aplica para cortes de marzo, junio, septiembre o diciembre", ex.getMessage());
+    }
+
+    @Test
+    void shouldGenerateSemestralWhenModeIsSemestral() {
+        MensualDataReader mensualDataReader = mock(MensualDataReader.class);
+        MensualExcelGenerator mensualExcelGenerator = mock(MensualExcelGenerator.class);
+        TrimestralDataReader trimestralDataReader = mock(TrimestralDataReader.class);
+        TrimestralExcelGenerator trimestralExcelGenerator = mock(TrimestralExcelGenerator.class);
+
+        AiosGeneracionService service = new AiosGeneracionService(mensualDataReader, mensualExcelGenerator, trimestralDataReader, trimestralExcelGenerator);
+
+        LocalDate fecha = LocalDate.of(2025, 6, 30);
+        TrimestralData data = new TrimestralData("jun-25", Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        when(trimestralDataReader.read(fecha)).thenReturn(data);
+        when(trimestralExcelGenerator.generarSemestral(fecha, data)).thenReturn(Path.of("target/aios-output/Boletin_AIOS SEMESTRAL.xlsx"));
+
+        var resultado = service.generar(fecha, ModoGeneracion.SEMESTRAL);
+
+        assertEquals(1, resultado.archivosGenerados().size());
+        assertEquals("Boletin_AIOS SEMESTRAL.xlsx", resultado.archivosGenerados().getFirst().getFileName().toString());
+        verify(trimestralDataReader).read(fecha);
+        verify(trimestralExcelGenerator).generarSemestral(fecha, data);
+    }
+
+    @Test
+    void shouldRejectSemestralForNonSemesterMonth() {
+        AiosGeneracionService service = new AiosGeneracionService(
+                mock(MensualDataReader.class),
+                mock(MensualExcelGenerator.class),
+                mock(TrimestralDataReader.class),
+                mock(TrimestralExcelGenerator.class)
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.generar(LocalDate.of(2025, 9, 30), ModoGeneracion.SEMESTRAL));
+
+        assertEquals("La generación semestral solo aplica para cortes de junio o diciembre", ex.getMessage());
     }
 }
