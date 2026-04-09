@@ -26,7 +26,9 @@ class TrimestralDataReaderTest {
         when(locator.findRequired("Rent_Vr_Uni_Moderado", fecha)).thenReturn(Path.of("insumos_ejemplo", "Rent_Vr_Uni_Moderado.xlsm"));
         when(locator.findRequired("comision fpo desde 2003", fecha)).thenReturn(Path.of("insumos_ejemplo", "comisión FPO desde 2003.xls"));
         when(mensualDataReader.read(fecha)).thenReturn(new MensualData(
-                "jun-25", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                "jun-25",
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.valueOf(4000), BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,

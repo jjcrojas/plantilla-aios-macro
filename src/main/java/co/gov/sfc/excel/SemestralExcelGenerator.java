@@ -39,7 +39,14 @@ public class SemestralExcelGenerator {
 
                 // Bloque A - principales (según EscribirSemestral_Integral)
                 write(hoja, 3, col, mensual.afiliados());
+                write(hoja, 4, col, pct(safeDivide(mensual.afiliadosMenor30(), mensual.afiliados())));
+                write(hoja, 5, col, pct(safeDivide(mensual.afiliados30a44(), mensual.afiliados())));
+                write(hoja, 6, col, pct(safeDivide(mensual.afiliados45a59(), mensual.afiliados())));
+                write(hoja, 7, col, pct(safeDivide(mensual.afiliadosMayor60(), mensual.afiliados())));
+                write(hoja, 8, col, BigDecimal.valueOf(100));
+                write(hoja, 10, col, pct(safeDivide(mensual.mujeres(), mensual.afiliados())));
                 write(hoja, 11, col, mensual.aportantes());
+                write(hoja, 14, col, pct(safeDivide(mensual.aportantes(), mensual.afiliados())));
                 write(hoja, 26, col, mensual.traspasosSistema());
                 write(hoja, 28, col, divide(mensual.vrFondo(), trm(mensual)));
 
@@ -136,6 +143,17 @@ public class SemestralExcelGenerator {
     private BigDecimal divide(BigDecimal a, BigDecimal b) {
         if (b.signum() == 0) return BigDecimal.ZERO;
         return a.divide(b, 8, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal safeDivide(BigDecimal numerator, BigDecimal denominator) {
+        if (denominator == null || denominator.signum() == 0) {
+            return BigDecimal.ZERO;
+        }
+        return (numerator == null ? BigDecimal.ZERO : numerator).divide(denominator, 8, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal pct(BigDecimal value) {
+        return (value == null ? BigDecimal.ZERO : value).multiply(BigDecimal.valueOf(100));
     }
 
     private void write(Sheet sheet, int row1Based, int col1Based, BigDecimal value) {
