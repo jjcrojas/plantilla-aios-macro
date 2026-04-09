@@ -53,12 +53,17 @@ public class AiosGeneracionService {
                 var trimestral = trimestralExcelGenerator.generar(fechaCorte, trimestralDataReader.read(fechaCorte));
                 archivos.add(trimestral);
             }
+
+            if (modo == ModoGeneracion.SEMESTRAL && !isSemesterMonth(fechaCorte)) {
+                throw new IllegalArgumentException("La generación semestral solo aplica para cortes de junio o diciembre");
+            }
+
+            if (modo == ModoGeneracion.SEMESTRAL || (modo == ModoGeneracion.TODO && isSemesterMonth(fechaCorte))) {
+                var semestral = trimestralExcelGenerator.generarSemestral(fechaCorte, trimestralDataReader.read(fechaCorte));
+                archivos.add(semestral);
+            }
         } catch (OutOfMemoryError oom) {
             throw new IllegalStateException("Memoria insuficiente generando AIOS. Intente con más heap (-Xmx) o reduzca insumos cargados.", oom);
-        }
-
-        if (modo == ModoGeneracion.SEMESTRAL) {
-            throw new UnsupportedOperationException("SEMESTRAL se dejará para la siguiente iteración de migración");
         }
 
         if (modo == ModoGeneracion.TODO) {
@@ -71,6 +76,11 @@ public class AiosGeneracionService {
     private boolean isQuarterMonth(LocalDate fechaCorte) {
         int m = fechaCorte.getMonthValue();
         return m == 3 || m == 6 || m == 9 || m == 12;
+    }
+
+    private boolean isSemesterMonth(LocalDate fechaCorte) {
+        int m = fechaCorte.getMonthValue();
+        return m == 6 || m == 12;
     }
 
     private Path zip(List<Path> archivos) {
