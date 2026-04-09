@@ -2,6 +2,7 @@ package co.gov.sfc.excel;
 
 import co.gov.sfc.config.AiosProperties;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -14,13 +15,10 @@ import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
-import java.time.YearMonth;
+import java.util.Locale;
 
 @Component
 public class SemestralExcelGenerator {
-
-    private static final YearMonth BASE_PERIODO = YearMonth.of(2017, 12);
-    private static final int BASE_COLUMNA = 3;
 
     private final AiosProperties properties;
 
@@ -37,7 +35,7 @@ public class SemestralExcelGenerator {
             Files.createDirectories(outDir);
             try (InputStream in = Files.newInputStream(base); Workbook wb = WorkbookFactory.create(in)) {
                 Sheet hoja = resolveSheet(wb);
-                int col = columnaSemestral(fechaCorte);
+                int col = columnaSemestral(hoja, fechaCorte);
 
                 // Bloque A - principales (según EscribirSemestral_Integral)
                 write(hoja, 3, col, mensual.afiliados());
@@ -99,19 +97,36 @@ public class SemestralExcelGenerator {
         return wb.getSheetAt(0);
     }
 
-    private int columnaSemestral(LocalDate fechaCorte) {
+    private int columnaSemestral(Sheet hoja, LocalDate fechaCorte) {
         int month = fechaCorte.getMonthValue();
         if (month != 6 && month != 12) {
             throw new IllegalArgumentException("La generación semestral solo aplica para junio o diciembre");
         }
-        YearMonth period = YearMonth.of(fechaCorte.getYear(), month);
-        int baseIndex = BASE_PERIODO.getYear() * 2 + (BASE_PERIODO.getMonthValue() == 12 ? 1 : 0);
-        int targetIndex = period.getYear() * 2 + (period.getMonthValue() == 12 ? 1 : 0);
-        int offset = targetIndex - baseIndex;
-        if (offset < 0) {
-            throw new IllegalArgumentException("La plantilla semestral no soporta periodos anteriores a diciembre de 2017");
+
+        String mesObjetivo = month == 6 ? "junio" : "diciembre";
+        String anioObjetivo = String.valueOf(fechaCorte.getYear());
+        DataFormatter fmt = new DataFormatter(Locale.forLanguageTag("es-CO"));
+
+        Row rowMes = hoja.getRow(0);
+        Row rowAnio = hoja.getRow(1);
+        if (rowMes == null || rowAnio == null) {
+            throw new IllegalStateException("La plantilla semestral no contiene encabezados de periodo en filas 1 y 2");
         }
-        return BASE_COLUMNA + offset;
+
+        int last = Math.max(rowMes.getLastCellNum(), rowAnio.getLastCellNum());
+        for (int c = 2; c < Math.max(last, 3); c++) {
+            String mes = normalize(fmt.formatCellValue(rowMes.getCell(c)));
+            String anio = normalize(fmt.formatCellValue(rowAnio.getCell(c))).replace(".0", "");
+            if (mes.equals(mesObjetivo) && anio.equals(anioObjetivo)) {
+                return c + 1;
+            }
+        }
+
+        throw new IllegalArgumentException("No se encontró la columna para " + mesObjetivo + " " + anioObjetivo + " en la plantilla semestral");
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     private BigDecimal trm(MensualData data) {
