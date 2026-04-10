@@ -320,10 +320,11 @@ public class MensualDataReader {
         BigDecimal totalVej = BigDecimal.ZERO;
         BigDecimal totalSob = BigDecimal.ZERO;
         try {
-            var file495 = locator.findRequired("495", fechaCorte);
+            var file495 = findPensionados495File(fechaCorte);
             try (Workbook wb = WorkbookFactory.create(file495.toFile(), null, true)) {
                 FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
                 Sheet porEntidad = getSheetIgnoreCase(wb, "por entidad");
+                if (porEntidad == null) porEntidad = findSheetContainsIgnoreCase(wb, "por entidad");
                 if (porEntidad != null) {
                     setDate(porEntidad, "C6", fechaCorte);
                     evaluator.clearAllCachedResultValues();
@@ -333,6 +334,7 @@ public class MensualDataReader {
                     totalSob = num(porEntidad, "BJ66", evaluator);
                 }
                 Sheet totalPensionados = getSheetIgnoreCase(wb, "Total pensionados");
+                if (totalPensionados == null) totalPensionados = findSheetContainsIgnoreCase(wb, "total pensionados");
                 if (totalPensionados != null) {
                     BigDecimal totalDesdeSerie = readTotalPensionadosSerie(totalPensionados, fechaCorte, evaluator);
                     if (totalDesdeSerie.signum() != 0) {
@@ -348,15 +350,50 @@ public class MensualDataReader {
         return new PensionadosData(totalPen, totalInv, totalVej, totalSob);
     }
 
+    private Path findPensionados495File(LocalDate fechaCorte) {
+        try {
+            return locator.findRequired("495", fechaCorte);
+        } catch (Exception ignored) {
+            try {
+                return locator.findRequired("PENSIONADOS", fechaCorte);
+            } catch (Exception ignored2) {
+                Path local = Path.of("insumos_ejemplo", "Series_Formato-495 PENSIONADOS.xlsm");
+                if (Files.isRegularFile(local)) return local;
+                throw ignored;
+            }
+        }
+    }
+
     private BigDecimal readTotalPensionadosSerie(Sheet totalPensionados, LocalDate fechaCorte, FormulaEvaluator evaluator) {
+        BigDecimal mejor = BigDecimal.ZERO;
+        LocalDate mejorFecha = LocalDate.MIN;
         for (int r = 0; r <= totalPensionados.getLastRowNum(); r++) {
             Row row = totalPensionados.getRow(r);
             if (row == null) continue;
             LocalDate fechaFila = cellAsDate(row.getCell(1)); // columna B
-            if (fechaFila == null || !fechaFila.equals(fechaCorte)) continue;
-            return num(totalPensionados, r + 1, 9, evaluator); // columna I
+            if (fechaFila == null) continue;
+            BigDecimal valor = num(totalPensionados, r + 1, 9, evaluator); // columna I
+            if (valor.signum() == 0) continue;
+            if (fechaFila.equals(fechaCorte)) return valor;
+            if (fechaFila.getYear() == fechaCorte.getYear() && fechaFila.getMonth() == fechaCorte.getMonth()) {
+                return valor;
+            }
+            if (!fechaFila.isAfter(fechaCorte) && fechaFila.isAfter(mejorFecha)) {
+                mejorFecha = fechaFila;
+                mejor = valor;
+            }
         }
-        return BigDecimal.ZERO;
+        return mejor;
+    }
+
+    private Sheet findSheetContainsIgnoreCase(Workbook wb, String fragment) {
+        for (int i = 0; i < wb.getNumberOfSheets(); i++) {
+            Sheet sheet = wb.getSheetAt(i);
+            if (sheet.getSheetName().toLowerCase().contains(fragment.toLowerCase())) {
+                return sheet;
+            }
+        }
+        return null;
     }
 
     private BigDecimal readFromFormatoPlantilla(LocalDate fechaCorte, String cellRef) {
