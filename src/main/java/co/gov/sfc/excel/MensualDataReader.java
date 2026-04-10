@@ -321,6 +321,7 @@ public class MensualDataReader {
         BigDecimal totalSob = BigDecimal.ZERO;
         try {
             var file495 = findPensionados495File(fechaCorte);
+            log.info("495: archivo seleccionado={} para fechaCorte={}", file495.toAbsolutePath(), fechaCorte);
             try (Workbook wb = WorkbookFactory.create(file495.toFile(), null, true)) {
                 FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
                 Sheet porEntidad = getSheetIgnoreCase(wb, "por entidad");
@@ -332,21 +333,26 @@ public class MensualDataReader {
                     totalVej = num(porEntidad, "BH66", evaluator);
                     totalInv = num(porEntidad, "BI66", evaluator);
                     totalSob = num(porEntidad, "BJ66", evaluator);
+                    log.info("495: por entidad -> totalPen(BJ67)={}, totalVej(BH66)={}, totalInv(BI66)={}, totalSob(BJ66)={}",
+                            totalPen, totalVej, totalInv, totalSob);
                 }
                 Sheet totalPensionados = getSheetIgnoreCase(wb, "Total pensionados");
                 if (totalPensionados == null) totalPensionados = findSheetContainsIgnoreCase(wb, "total pensionados");
                 if (totalPensionados != null) {
                     BigDecimal totalDesdeSerie = readTotalPensionadosSerie(totalPensionados, fechaCorte, evaluator);
+                    log.info("495: total pensionados serie -> valor encontrado columna I={}", totalDesdeSerie);
                     if (totalDesdeSerie.signum() != 0) {
                         totalPen = totalDesdeSerie;
                     } else if (totalPen.signum() == 0) {
                         totalPen = num(totalPensionados, "B5", evaluator);
+                        log.info("495: fallback B5 en Total pensionados -> {}", totalPen);
                     }
                 }
             }
         } catch (Exception e) {
             log.warn("No se pudo leer Formato 495 para total de pensionados: {}", e.getMessage());
         }
+        log.info("495: resultado final -> totalPen={}, totalInv={}, totalVej={}, totalSob={}", totalPen, totalInv, totalVej, totalSob);
         return new PensionadosData(totalPen, totalInv, totalVej, totalSob);
     }
 
@@ -374,14 +380,23 @@ public class MensualDataReader {
             if (fechaFila == null) continue;
             BigDecimal valor = num(totalPensionados, r + 1, 9, evaluator); // columna I
             if (valor.signum() == 0) continue;
-            if (fechaFila.equals(fechaCorte)) return valor;
+            if (fechaFila.equals(fechaCorte)) {
+                log.info("495 serie: match exacto en fila {} fecha={} valor(I)={}", r + 1, fechaFila, valor);
+                return valor;
+            }
             if (fechaFila.getYear() == fechaCorte.getYear() && fechaFila.getMonth() == fechaCorte.getMonth()) {
+                log.info("495 serie: match mismo mes/año en fila {} fecha={} valor(I)={}", r + 1, fechaFila, valor);
                 return valor;
             }
             if (!fechaFila.isAfter(fechaCorte) && fechaFila.isAfter(mejorFecha)) {
                 mejorFecha = fechaFila;
                 mejor = valor;
             }
+        }
+        if (mejor.signum() != 0) {
+            log.info("495 serie: usando mejor fecha anterior {} con valor(I)={}", mejorFecha, mejor);
+        } else {
+            log.warn("495 serie: no se encontró valor en columna I para fecha {}", fechaCorte);
         }
         return mejor;
     }
@@ -762,7 +777,20 @@ public class MensualDataReader {
             if (txt == null || txt.isBlank()) {
                 return null;
             }
-            return java.time.LocalDate.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy"));
+            txt = txt.trim();
+            try {
+                return java.time.LocalDate.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy"));
+            } catch (Exception ignored) {
+            }
+            try {
+                return java.time.LocalDateTime.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy H:mm")).toLocalDate();
+            } catch (Exception ignored) {
+            }
+            try {
+                return java.time.LocalDateTime.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy HH:mm")).toLocalDate();
+            } catch (Exception ignored) {
+            }
+            return null;
         } catch (Exception e) {
             return null;
         }

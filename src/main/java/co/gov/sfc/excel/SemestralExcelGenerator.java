@@ -7,6 +7,8 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
@@ -19,6 +21,8 @@ import java.util.Locale;
 
 @Component
 public class SemestralExcelGenerator {
+
+    private static final Logger log = LoggerFactory.getLogger(SemestralExcelGenerator.class);
 
     private final AiosProperties properties;
 
@@ -55,6 +59,12 @@ public class SemestralExcelGenerator {
                 write(hoja, 17, col, pct(safeDivide(mensual.totalInv(), mensual.totalPen())));
                 write(hoja, 18, col, pct(safeDivide(mensual.totalVej(), mensual.totalPen())));
                 write(hoja, 19, col, pct(safeDivide(mensual.totalSob(), mensual.totalPen())));
+                log.info("Semestral: fila16(total_pen)={}, fila17(inv%)={}, fila18(vej%)={}, fila19(sob%)={} para fecha={} col={}.",
+                        mensual.totalPen(),
+                        pct(safeDivide(mensual.totalInv(), mensual.totalPen())),
+                        pct(safeDivide(mensual.totalVej(), mensual.totalPen())),
+                        pct(safeDivide(mensual.totalSob(), mensual.totalPen())),
+                        fechaCorte, col);
                 write(hoja, 26, col, mensual.traspasosSistema());
                 write(hoja, 28, col, divide(mensual.vrFondo(), trm(mensual)));
 
