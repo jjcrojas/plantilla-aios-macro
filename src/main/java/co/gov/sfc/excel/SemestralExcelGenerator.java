@@ -97,6 +97,7 @@ public class SemestralExcelGenerator {
                 try (var os = Files.newOutputStream(out)) {
                     wb.write(os);
                 }
+                log.info("Semestral generado correctamente: archivo={} fecha={} columnaDestino={}", out.toAbsolutePath(), fechaCorte, col);
             }
             return out;
         } catch (Exception e) {

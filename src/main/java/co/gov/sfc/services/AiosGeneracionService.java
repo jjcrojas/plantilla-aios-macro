@@ -7,6 +7,8 @@ import co.gov.sfc.excel.TrimestralDataReader;
 import co.gov.sfc.excel.TrimestralExcelGenerator;
 import co.gov.sfc.model.ModoGeneracion;
 import co.gov.sfc.model.ResultadoGeneracion;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -21,6 +23,8 @@ import java.util.zip.ZipOutputStream;
 
 @Service
 public class AiosGeneracionService {
+
+    private static final Logger log = LoggerFactory.getLogger(AiosGeneracionService.class);
 
     private final MensualDataReader mensualDataReader;
     private final MensualExcelGenerator mensualExcelGenerator;
@@ -41,6 +45,8 @@ public class AiosGeneracionService {
     }
 
     public ResultadoGeneracion generar(LocalDate fechaCorte, ModoGeneracion modo) {
+        long start = System.currentTimeMillis();
+        log.info("Inicio generación AIOS: fechaCorte={}, modo={}", fechaCorte, modo);
         List<Path> archivos = new ArrayList<>();
 
         try {
@@ -74,8 +80,10 @@ public class AiosGeneracionService {
 
         if (modo == ModoGeneracion.TODO) {
             Path zip = zip(archivos);
+            log.info("Generación AIOS finalizada en {} ms. Archivo ZIP={}", (System.currentTimeMillis() - start), zip.toAbsolutePath());
             return new ResultadoGeneracion(List.of(zip), true);
         }
+        log.info("Generación AIOS finalizada en {} ms. Archivos generados={}", (System.currentTimeMillis() - start), archivos);
         return new ResultadoGeneracion(archivos, false);
     }
 

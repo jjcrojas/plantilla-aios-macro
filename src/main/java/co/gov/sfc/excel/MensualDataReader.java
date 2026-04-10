@@ -368,7 +368,7 @@ public class MensualDataReader {
             try {
                 Path p = locator.findRequired("PENSIONADOS", fechaCorte);
                 if (p.getFileName().toString().toLowerCase().contains("495")) return p;
-                log.warn("495: se descartó archivo de pensionados por no ser 495: {}", p);
+                log.info("495: se descartó archivo de pensionados por no ser 495: {}", p);
             } catch (Exception ignored3) {
             }
             Path local = Path.of("insumos_ejemplo", "Series_Formato-495 PENSIONADOS.xlsm");
