@@ -80,7 +80,7 @@ class AiosGeneracionServiceTest {
                 one, one, one, one, one, one);
         TrimestralData data = new TrimestralData("jun-25", Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         when(mensualDataReader.read(fecha)).thenReturn(mensual);
-        when(trimestralDataReader.read(fecha)).thenReturn(data);
+        when(trimestralDataReader.read(fecha, mensual)).thenReturn(data);
         when(semestralExcelGenerator.generar(fecha, mensual, data)).thenReturn(Path.of("target/aios-output/semestral.xlsx"));
 
         var resultado = service.generar(fecha, ModoGeneracion.SEMESTRAL);
@@ -88,7 +88,7 @@ class AiosGeneracionServiceTest {
         assertEquals(1, resultado.archivosGenerados().size());
         assertEquals("semestral.xlsx", resultado.archivosGenerados().getFirst().getFileName().toString());
         verify(mensualDataReader).read(fecha);
-        verify(trimestralDataReader).read(fecha);
+        verify(trimestralDataReader).read(fecha, mensual);
         verify(semestralExcelGenerator).generar(fecha, mensual, data);
     }
 

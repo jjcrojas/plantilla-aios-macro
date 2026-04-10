@@ -33,7 +33,10 @@ public class TrimestralDataReader {
     }
 
     public TrimestralData read(LocalDate fechaCorte) {
-        MensualData mensual = mensualDataReader.read(fechaCorte);
+        return read(fechaCorte, mensualDataReader.read(fechaCorte));
+    }
+
+    public TrimestralData read(LocalDate fechaCorte, MensualData mensual) {
 
         Map<String, BigDecimal> afiliados = readAfiliadosFrom491(fechaCorte);
         Map<String, BigDecimal> aportantes = readCotizantesFrom491(fechaCorte);

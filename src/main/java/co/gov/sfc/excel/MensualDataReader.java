@@ -358,15 +358,22 @@ public class MensualDataReader {
 
     private Path findPensionados495File(LocalDate fechaCorte) {
         try {
-            return locator.findRequired("495", fechaCorte);
+            return locator.findRequired("Series_Formato-495", fechaCorte);
         } catch (Exception ignored) {
             try {
-                return locator.findRequired("PENSIONADOS", fechaCorte);
+                Path p = locator.findRequired("495 PENSIONADOS", fechaCorte);
+                if (p.getFileName().toString().toLowerCase().contains("495")) return p;
             } catch (Exception ignored2) {
-                Path local = Path.of("insumos_ejemplo", "Series_Formato-495 PENSIONADOS.xlsm");
-                if (Files.isRegularFile(local)) return local;
-                throw ignored;
             }
+            try {
+                Path p = locator.findRequired("PENSIONADOS", fechaCorte);
+                if (p.getFileName().toString().toLowerCase().contains("495")) return p;
+                log.warn("495: se descartó archivo de pensionados por no ser 495: {}", p);
+            } catch (Exception ignored3) {
+            }
+            Path local = Path.of("insumos_ejemplo", "Series_Formato-495 PENSIONADOS.xlsm");
+            if (Files.isRegularFile(local)) return local;
+            throw new IllegalStateException("No se encontró archivo de pensionados 495 (se evitó usar 494 por precisión de total_pen)");
         }
     }
 
