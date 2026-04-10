@@ -339,7 +339,7 @@ public class MensualDataReader {
                 Sheet totalPensionados = getSheetIgnoreCase(wb, "Total pensionados");
                 if (totalPensionados == null) totalPensionados = findSheetContainsIgnoreCase(wb, "total pensionados");
                 if (totalPensionados != null) {
-                    BigDecimal totalDesdeSerie = readTotalPensionadosSerie(totalPensionados, fechaCorte, evaluator);
+                    BigDecimal totalDesdeSerie = readTotalPensionadosSerie(totalPensionados, fechaCorte);
                     log.info("495: total pensionados serie -> valor encontrado columna I={}", totalDesdeSerie);
                     if (totalDesdeSerie.signum() != 0) {
                         totalPen = totalDesdeSerie;
@@ -365,19 +365,13 @@ public class MensualDataReader {
                 if (p.getFileName().toString().toLowerCase().contains("495")) return p;
             } catch (Exception ignored2) {
             }
-            try {
-                Path p = locator.findRequired("PENSIONADOS", fechaCorte);
-                if (p.getFileName().toString().toLowerCase().contains("495")) return p;
-                log.info("495: se descartó archivo de pensionados por no ser 495: {}", p);
-            } catch (Exception ignored3) {
-            }
             Path local = Path.of("insumos_ejemplo", "Series_Formato-495 PENSIONADOS.xlsm");
             if (Files.isRegularFile(local)) return local;
-            throw new IllegalStateException("No se encontró archivo de pensionados 495 (se evitó usar 494 por precisión de total_pen)");
+            throw new IllegalStateException("No se encontró archivo de pensionados 495");
         }
     }
 
-    private BigDecimal readTotalPensionadosSerie(Sheet totalPensionados, LocalDate fechaCorte, FormulaEvaluator evaluator) {
+    private BigDecimal readTotalPensionadosSerie(Sheet totalPensionados, LocalDate fechaCorte) {
         BigDecimal mejor = BigDecimal.ZERO;
         LocalDate mejorFecha = LocalDate.MIN;
         for (int r = 0; r <= totalPensionados.getLastRowNum(); r++) {
@@ -385,7 +379,7 @@ public class MensualDataReader {
             if (row == null) continue;
             LocalDate fechaFila = cellAsDate(row.getCell(1)); // columna B
             if (fechaFila == null) continue;
-            BigDecimal valor = num(totalPensionados, r + 1, 9, evaluator); // columna I
+            BigDecimal valor = parseNumber(row.getCell(8), new DataFormatter()); // columna I
             if (valor.signum() == 0) continue;
             if (fechaFila.equals(fechaCorte)) {
                 log.info("495 serie: match exacto en fila {} fecha={} valor(I)={}", r + 1, fechaFila, valor);
@@ -728,6 +722,21 @@ public class MensualDataReader {
     }
 
     private record SexTotals(BigDecimal hombres, BigDecimal mujeres) {}
+
+    private BigDecimal parseNumber(Cell cell, DataFormatter formatter) {
+        if (cell == null) return BigDecimal.ZERO;
+        try {
+            if (cell.getCellType() == CellType.NUMERIC) {
+                return BigDecimal.valueOf(cell.getNumericCellValue());
+            }
+            String text = formatter.formatCellValue(cell);
+            if (text == null || text.isBlank()) return BigDecimal.ZERO;
+            String normalized = text.replace(".", "").replace(",", ".").replace(" ", "").trim();
+            return new BigDecimal(normalized);
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
 
     private BigDecimal readNumericCellFromSheetXml(Path file, String sheetName, String cellRefWanted) {
         try (ZipFile zip = new ZipFile(file.toFile())) {
