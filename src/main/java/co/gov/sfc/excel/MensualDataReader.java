@@ -332,9 +332,12 @@ public class MensualDataReader {
                     totalInv = num(porEntidad, "BI66", evaluator);
                     totalSob = num(porEntidad, "BJ66", evaluator);
                 }
-                if (totalPen.signum() == 0) {
-                    Sheet totalPensionados = getSheetIgnoreCase(wb, "Total pensionados");
-                    if (totalPensionados != null) {
+                Sheet totalPensionados = getSheetIgnoreCase(wb, "Total pensionados");
+                if (totalPensionados != null) {
+                    BigDecimal totalDesdeSerie = readTotalPensionadosSerie(totalPensionados, fechaCorte, evaluator);
+                    if (totalDesdeSerie.signum() != 0) {
+                        totalPen = totalDesdeSerie;
+                    } else if (totalPen.signum() == 0) {
                         totalPen = num(totalPensionados, "B5", evaluator);
                     }
                 }
@@ -343,6 +346,17 @@ public class MensualDataReader {
             log.warn("No se pudo leer Formato 495 para total de pensionados: {}", e.getMessage());
         }
         return new PensionadosData(totalPen, totalInv, totalVej, totalSob);
+    }
+
+    private BigDecimal readTotalPensionadosSerie(Sheet totalPensionados, LocalDate fechaCorte, FormulaEvaluator evaluator) {
+        for (int r = 0; r <= totalPensionados.getLastRowNum(); r++) {
+            Row row = totalPensionados.getRow(r);
+            if (row == null) continue;
+            LocalDate fechaFila = cellAsDate(row.getCell(1)); // columna B
+            if (fechaFila == null || !fechaFila.equals(fechaCorte)) continue;
+            return num(totalPensionados, r + 1, 9, evaluator); // columna I
+        }
+        return BigDecimal.ZERO;
     }
 
     private BigDecimal readFromFormatoPlantilla(LocalDate fechaCorte, String cellRef) {
