@@ -43,8 +43,17 @@ public class MensualDataReader {
 
         BigDecimal hombres = BigDecimal.ZERO;
         BigDecimal mujeres = BigDecimal.ZERO;
+        BigDecimal afiliadosMenor30 = BigDecimal.ZERO;
+        BigDecimal afiliados30a44 = BigDecimal.ZERO;
+        BigDecimal afiliados45a59 = BigDecimal.ZERO;
+        BigDecimal afiliadosMayor60 = BigDecimal.ZERO;
         BigDecimal aportantes = BigDecimal.ZERO;
         BigDecimal consFdosAdmon = BigDecimal.ZERO;
+        BigDecimal smColombiaCop = BigDecimal.ZERO;
+        BigDecimal totalPen = BigDecimal.ZERO;
+        BigDecimal totalInv = BigDecimal.ZERO;
+        BigDecimal totalVej = BigDecimal.ZERO;
+        BigDecimal totalSob = BigDecimal.ZERO;
 
         var file491 = resolveFormato491Path(fechaCorte);
         var file493 = locator.findRequired("493", fechaCorte);
@@ -62,7 +71,13 @@ public class MensualDataReader {
                 evaluator.clearAllCachedResultValues();
                 hombres = num(informe, "C11", evaluator);
                 mujeres = num(informe, "D11", evaluator);
+                afiliadosMenor30 = num(informe, "C81", evaluator).add(num(informe, "D81", evaluator));
+                afiliados30a44 = num(informe, "C82", evaluator).add(num(informe, "D82", evaluator));
+                afiliados45a59 = num(informe, "C83", evaluator).add(num(informe, "D83", evaluator));
+                afiliadosMayor60 = num(informe, "C84", evaluator).add(num(informe, "D84", evaluator));
                 aportantes = num(multifondos, "E25", evaluator);
+                Sheet smColombia = getSheetIgnoreCase(wb, "SM COLOMBIA");
+                if (smColombia != null) smColombiaCop = num(smColombia, "E8", evaluator);
                 var j8 = num(multifondos, "J8", evaluator);
                 var j9 = num(multifondos, "J9", evaluator);
                 var j12 = num(multifondos, "J12", evaluator);
@@ -73,7 +88,16 @@ public class MensualDataReader {
                 SexTotals st = readAfiliadosFromDataXml(file491, fechaCorte);
                 hombres = st.hombres();
                 mujeres = st.mujeres();
+                afiliadosMenor30 = readNumericCellFromSheetXml(file491, "informe de prensa", "C81")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D81"));
+                afiliados30a44 = readNumericCellFromSheetXml(file491, "informe de prensa", "C82")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D82"));
+                afiliados45a59 = readNumericCellFromSheetXml(file491, "informe de prensa", "C83")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D83"));
+                afiliadosMayor60 = readNumericCellFromSheetXml(file491, "informe de prensa", "C84")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D84"));
                 aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
+                smColombiaCop = readNumericCellFromSheetXml(file491, "SM COLOMBIA", "E8");
                 var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
                 var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
                 var j12 = readNumericCellFromSheetXml(file491, "multifondos", "J12");
@@ -86,7 +110,16 @@ public class MensualDataReader {
                 SexTotals st = readAfiliadosFromDataXml(file491, fechaCorte);
                 hombres = st.hombres();
                 mujeres = st.mujeres();
+                afiliadosMenor30 = readNumericCellFromSheetXml(file491, "informe de prensa", "C81")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D81"));
+                afiliados30a44 = readNumericCellFromSheetXml(file491, "informe de prensa", "C82")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D82"));
+                afiliados45a59 = readNumericCellFromSheetXml(file491, "informe de prensa", "C83")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D83"));
+                afiliadosMayor60 = readNumericCellFromSheetXml(file491, "informe de prensa", "C84")
+                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D84"));
                 aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
+                smColombiaCop = readNumericCellFromSheetXml(file491, "SM COLOMBIA", "E8");
                 var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
                 var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
                 var j12 = readNumericCellFromSheetXml(file491, "multifondos", "J12");
@@ -184,6 +217,12 @@ public class MensualDataReader {
         BigDecimal dudaNf = BigDecimal.ZERO;
         BigDecimal dudaAc = BigDecimal.ZERO;
         BigDecimal dudaF = BigDecimal.ZERO;
+        BigDecimal dudaGe = BigDecimal.ZERO;
+        BigDecimal dudaEfe = BigDecimal.ZERO;
+        BigDecimal dudaNfe = BigDecimal.ZERO;
+        BigDecimal dudaAce = BigDecimal.ZERO;
+        BigDecimal dudaFe = BigDecimal.ZERO;
+        BigDecimal dudaSte = BigDecimal.ZERO;
         BigDecimal otros = BigDecimal.ZERO;
         BigDecimal h17 = BigDecimal.ZERO;
         try {
@@ -205,6 +244,12 @@ public class MensualDataReader {
                 var ace = num(aios, "U4", null);
                 var fe = num(aios, "W4", null);
                 var ste = num(aios, "Y4", null);
+                dudaGe = ge;
+                dudaEfe = efe;
+                dudaNfe = nfe;
+                dudaAce = ace;
+                dudaFe = fe;
+                dudaSte = ste;
                 otros = num(aios, "AA4", null);
                 h17 = ge.add(efe).add(nfe).add(ace).add(fe).add(ste);
             }
@@ -219,10 +264,23 @@ public class MensualDataReader {
         String textoFecha = mes + "-" + String.format("%02d", fechaCorte.getYear() % 100);
 
         BigDecimal trm = readTrmFromSeries(fechaCorte);
+        BigDecimal pea = readFromFormatoPlantilla(fechaCorte, "V11");
+        BigDecimal deudaG = readFromFormatoPlantilla(fechaCorte, "V16");
+        PensionadosData pensionados = readPensionados495(fechaCorte);
+        totalPen = pensionados.totalPen();
+        totalInv = pensionados.totalInv();
+        totalVej = pensionados.totalVej();
+        totalSob = pensionados.totalSob();
         log.info("TRM seleccionada para fechaCorte={}: {}", fechaCorte, trm);
 
         return new MensualData(
                 textoFecha,
+                hombres,
+                mujeres,
+                afiliadosMenor30,
+                afiliados30a44,
+                afiliados45a59,
+                afiliadosMayor60,
                 hombres.add(mujeres),
                 aportantes,
                 traspasosSistema,
@@ -239,9 +297,137 @@ public class MensualDataReader {
                 dudaAc,
                 dudaF,
                 h17,
-                otros
+                otros,
+                dudaGe,
+                dudaEfe,
+                dudaNfe,
+                dudaAce,
+                dudaFe,
+                dudaSte,
+                pea,
+                deudaG,
+                trm.signum() == 0 ? BigDecimal.ZERO : smColombiaCop.divide(trm, 8, RoundingMode.HALF_UP),
+                totalPen,
+                totalInv,
+                totalVej,
+                totalSob
         );
     }
+
+    private PensionadosData readPensionados495(LocalDate fechaCorte) {
+        BigDecimal totalPen = BigDecimal.ZERO;
+        BigDecimal totalInv = BigDecimal.ZERO;
+        BigDecimal totalVej = BigDecimal.ZERO;
+        BigDecimal totalSob = BigDecimal.ZERO;
+        try {
+            var file495 = findPensionados495File(fechaCorte);
+            log.info("495: archivo seleccionado={} para fechaCorte={}", file495.toAbsolutePath(), fechaCorte);
+            try (Workbook wb = WorkbookFactory.create(file495.toFile(), null, true)) {
+                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+                Sheet porEntidad = getSheetIgnoreCase(wb, "por entidad");
+                if (porEntidad == null) porEntidad = findSheetContainsIgnoreCase(wb, "por entidad");
+                if (porEntidad != null) {
+                    setDate(porEntidad, "C6", fechaCorte);
+                    evaluator.clearAllCachedResultValues();
+                    totalPen = num(porEntidad, "BJ67", evaluator);
+                    totalVej = num(porEntidad, "BH66", evaluator);
+                    totalInv = num(porEntidad, "BI66", evaluator);
+                    totalSob = num(porEntidad, "BJ66", evaluator);
+                    log.info("495: por entidad -> totalPen(BJ67)={}, totalVej(BH66)={}, totalInv(BI66)={}, totalSob(BJ66)={}",
+                            totalPen, totalVej, totalInv, totalSob);
+                }
+                Sheet totalPensionados = getSheetIgnoreCase(wb, "Total pensionados");
+                if (totalPensionados == null) totalPensionados = findSheetContainsIgnoreCase(wb, "total pensionados");
+                if (totalPensionados != null) {
+                    BigDecimal totalDesdeSerie = readTotalPensionadosSerie(totalPensionados, fechaCorte, evaluator);
+                    log.info("495: total pensionados serie -> valor encontrado columna I={}", totalDesdeSerie);
+                    if (totalDesdeSerie.signum() != 0) {
+                        totalPen = totalDesdeSerie;
+                    } else if (totalPen.signum() == 0) {
+                        totalPen = num(totalPensionados, "B5", evaluator);
+                        log.info("495: fallback B5 en Total pensionados -> {}", totalPen);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo leer Formato 495 para total de pensionados: {}", e.getMessage());
+        }
+        log.info("495: resultado final -> totalPen={}, totalInv={}, totalVej={}, totalSob={}", totalPen, totalInv, totalVej, totalSob);
+        return new PensionadosData(totalPen, totalInv, totalVej, totalSob);
+    }
+
+    private Path findPensionados495File(LocalDate fechaCorte) {
+        try {
+            return locator.findRequired("495", fechaCorte);
+        } catch (Exception ignored) {
+            try {
+                return locator.findRequired("PENSIONADOS", fechaCorte);
+            } catch (Exception ignored2) {
+                Path local = Path.of("insumos_ejemplo", "Series_Formato-495 PENSIONADOS.xlsm");
+                if (Files.isRegularFile(local)) return local;
+                throw ignored;
+            }
+        }
+    }
+
+    private BigDecimal readTotalPensionadosSerie(Sheet totalPensionados, LocalDate fechaCorte, FormulaEvaluator evaluator) {
+        BigDecimal mejor = BigDecimal.ZERO;
+        LocalDate mejorFecha = LocalDate.MIN;
+        for (int r = 0; r <= totalPensionados.getLastRowNum(); r++) {
+            Row row = totalPensionados.getRow(r);
+            if (row == null) continue;
+            LocalDate fechaFila = cellAsDate(row.getCell(1)); // columna B
+            if (fechaFila == null) continue;
+            BigDecimal valor = num(totalPensionados, r + 1, 9, evaluator); // columna I
+            if (valor.signum() == 0) continue;
+            if (fechaFila.equals(fechaCorte)) {
+                log.info("495 serie: match exacto en fila {} fecha={} valor(I)={}", r + 1, fechaFila, valor);
+                return valor;
+            }
+            if (fechaFila.getYear() == fechaCorte.getYear() && fechaFila.getMonth() == fechaCorte.getMonth()) {
+                log.info("495 serie: match mismo mes/año en fila {} fecha={} valor(I)={}", r + 1, fechaFila, valor);
+                return valor;
+            }
+            if (!fechaFila.isAfter(fechaCorte) && fechaFila.isAfter(mejorFecha)) {
+                mejorFecha = fechaFila;
+                mejor = valor;
+            }
+        }
+        if (mejor.signum() != 0) {
+            log.info("495 serie: usando mejor fecha anterior {} con valor(I)={}", mejorFecha, mejor);
+        } else {
+            log.warn("495 serie: no se encontró valor en columna I para fecha {}", fechaCorte);
+        }
+        return mejor;
+    }
+
+    private Sheet findSheetContainsIgnoreCase(Workbook wb, String fragment) {
+        for (int i = 0; i < wb.getNumberOfSheets(); i++) {
+            Sheet sheet = wb.getSheetAt(i);
+            if (sheet.getSheetName().toLowerCase().contains(fragment.toLowerCase())) {
+                return sheet;
+            }
+        }
+        return null;
+    }
+
+    private BigDecimal readFromFormatoPlantilla(LocalDate fechaCorte, String cellRef) {
+        try {
+            Path plantilla = Path.of("plantillas", "Plantilla AIOS-probable.xlsm");
+            if (!Files.isRegularFile(plantilla)) {
+                plantilla = locator.findRequired("Plantilla AIOS-probable", fechaCorte);
+            }
+            try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
+                Sheet formato = getSheetIgnoreCase(wb, "formato");
+                if (formato == null) return BigDecimal.ZERO;
+                return num(formato, cellRef, null);
+            }
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private record PensionadosData(BigDecimal totalPen, BigDecimal totalInv, BigDecimal totalVej, BigDecimal totalSob) {}
 
 
 
@@ -591,7 +777,20 @@ public class MensualDataReader {
             if (txt == null || txt.isBlank()) {
                 return null;
             }
-            return java.time.LocalDate.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy"));
+            txt = txt.trim();
+            try {
+                return java.time.LocalDate.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy"));
+            } catch (Exception ignored) {
+            }
+            try {
+                return java.time.LocalDateTime.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy H:mm")).toLocalDate();
+            } catch (Exception ignored) {
+            }
+            try {
+                return java.time.LocalDateTime.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy HH:mm")).toLocalDate();
+            } catch (Exception ignored) {
+            }
+            return null;
         } catch (Exception e) {
             return null;
         }
