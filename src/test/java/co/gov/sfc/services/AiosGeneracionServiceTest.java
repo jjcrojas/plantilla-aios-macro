@@ -77,7 +77,8 @@ class AiosGeneracionServiceTest {
                 one, one, one, one, one, one,
                 one, one, one, one, one, one,
                 one, one, one, one, one, one,
-                one, one, one, one, one, one);
+                one, one, one, one, one, one,
+                one);
         TrimestralData data = new TrimestralData("jun-25", Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         when(mensualDataReader.read(fecha)).thenReturn(mensual);
         when(trimestralDataReader.read(fecha, mensual)).thenReturn(data);

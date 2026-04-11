@@ -266,6 +266,7 @@ public class MensualDataReader {
         BigDecimal trm = readTrmFromSeries(fechaCorte);
         BigDecimal pea = readFromFormatoPlantilla(fechaCorte, "V11");
         BigDecimal deudaG = readFromFormatoPlantilla(fechaCorte, "V16");
+        BigDecimal pibSemestral = readPibSemestral(fechaCorte);
         PensionadosData pensionados = readPensionados495(fechaCorte);
         totalPen = pensionados.totalPen();
         totalInv = pensionados.totalInv();
@@ -306,6 +307,7 @@ public class MensualDataReader {
                 dudaSte,
                 pea,
                 deudaG,
+                pibSemestral,
                 trm.signum() == 0 ? BigDecimal.ZERO : smColombiaCop.divide(trm, 8, RoundingMode.HALF_UP),
                 totalPen,
                 totalInv,
@@ -424,6 +426,33 @@ public class MensualDataReader {
                 Sheet formato = getSheetIgnoreCase(wb, "formato");
                 if (formato == null) return BigDecimal.ZERO;
                 return num(formato, cellRef, null);
+            }
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private BigDecimal readPibSemestral(LocalDate fechaCorte) {
+        try {
+            var seriesFile = locator.findRequired("PIB_PEA_TRM_DG", fechaCorte);
+            try (Workbook wb = WorkbookFactory.create(seriesFile.toFile(), null, true)) {
+                Sheet sheet = getSheetIgnoreCase(wb, "Indicadores");
+                if (sheet == null) return BigDecimal.ZERO;
+                BigDecimal mejor = BigDecimal.ZERO;
+                LocalDate mejorFecha = LocalDate.MIN;
+                for (Row row : sheet) {
+                    LocalDate fecha = cellAsDate(row.getCell(1)); // columna B
+                    if (fecha == null) continue;
+                    BigDecimal pib = num(sheet, row.getRowNum() + 1, 6, null); // columna F
+                    if (pib.signum() == 0) continue;
+                    if (fecha.equals(fechaCorte)) return pib;
+                    if (fecha.getYear() == fechaCorte.getYear() && fecha.getMonth() == fechaCorte.getMonth()) return pib;
+                    if (!fecha.isAfter(fechaCorte) && fecha.isAfter(mejorFecha)) {
+                        mejorFecha = fecha;
+                        mejor = pib;
+                    }
+                }
+                return mejor;
             }
         } catch (Exception e) {
             return BigDecimal.ZERO;

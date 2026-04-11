@@ -56,17 +56,19 @@ public class SemestralExcelGenerator {
                 write(hoja, 14, col, pct(safeDivide(mensual.aportantes(), mensual.afiliados())));
                 write(hoja, 15, col, mensual.smColombiaUsd());
                 write(hoja, 16, col, mensual.totalPen());
-                write(hoja, 17, col, pct(safeDivide(mensual.totalInv(), mensual.totalPen())));
-                write(hoja, 18, col, pct(safeDivide(mensual.totalVej(), mensual.totalPen())));
-                write(hoja, 19, col, pct(safeDivide(mensual.totalSob(), mensual.totalPen())));
+                write(hoja, 17, col, safeDivide(mensual.totalInv(), mensual.totalPen()));
+                write(hoja, 18, col, safeDivide(mensual.totalVej(), mensual.totalPen()));
+                write(hoja, 19, col, safeDivide(mensual.totalSob(), mensual.totalPen()));
                 log.info("Semestral: fila16(total_pen)={}, fila17(inv%)={}, fila18(vej%)={}, fila19(sob%)={} para fecha={} col={}.",
                         mensual.totalPen(),
-                        pct(safeDivide(mensual.totalInv(), mensual.totalPen())),
-                        pct(safeDivide(mensual.totalVej(), mensual.totalPen())),
-                        pct(safeDivide(mensual.totalSob(), mensual.totalPen())),
+                        safeDivide(mensual.totalInv(), mensual.totalPen()),
+                        safeDivide(mensual.totalVej(), mensual.totalPen()),
+                        safeDivide(mensual.totalSob(), mensual.totalPen()),
                         fechaCorte, col);
                 write(hoja, 26, col, mensual.traspasosSistema());
+                write(hoja, 27, col, safeDivide(mensual.traspasosSistema(), mensual.afiliados()));
                 write(hoja, 28, col, divide(mensual.vrFondo(), trm(mensual)));
+                write(hoja, 29, col, safeDivide(mensual.vrFondo(), mensual.pibSemestral()));
 
                 // Bloque B - límites
                 write(hoja, 30, col, divide(mensual.total1(), trm(mensual)));

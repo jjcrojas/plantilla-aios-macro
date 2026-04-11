@@ -35,6 +35,7 @@ public record MensualData(
         BigDecimal dudaSte,
         BigDecimal pea,
         BigDecimal deudaG,
+        BigDecimal pibSemestral,
         BigDecimal smColombiaUsd,
         BigDecimal totalPen,
         BigDecimal totalInv,
