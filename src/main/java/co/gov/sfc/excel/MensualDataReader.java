@@ -318,7 +318,9 @@ public class MensualDataReader {
                 totalVej,
                 totalSob,
                 fondoSistemaJ14,
-                deudaGobB4
+                deudaGobB4,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO
         );
     }
 
