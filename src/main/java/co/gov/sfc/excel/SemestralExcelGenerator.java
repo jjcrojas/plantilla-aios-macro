@@ -3,6 +3,7 @@ package co.gov.sfc.excel;
 import co.gov.sfc.config.AiosProperties;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.DataFormat;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -67,10 +68,19 @@ public class SemestralExcelGenerator {
                         fechaCorte, col);
                 write(hoja, 26, col, mensual.traspasosSistema());
                 write(hoja, 27, col, safeDivide(mensual.traspasosSistema(), mensual.afiliados()));
+                setNumberFormat(hoja, 27, col, "#,##0.00%");
                 BigDecimal fondoCop = mensual.fondoSistemaJ14().multiply(BigDecimal.valueOf(1000));
                 BigDecimal fondoUsdMM = safeDivide(safeDivide(fondoCop, trm(mensual)), BigDecimal.valueOf(1_000_000));
                 write(hoja, 28, col, fondoUsdMM);
-                write(hoja, 29, col, safeDivide(fondoCop, mensual.pibSemestral()).divide(BigDecimal.valueOf(1_000_000), 8, RoundingMode.HALF_UP));
+                BigDecimal ratioFondosPib = safeDivide(fondoCop, mensual.pibSemestral());
+                write(hoja, 29, col, ratioFondosPib);
+                setNumberFormat(hoja, 29, col, "#,##0.00%");
+                log.info("Semestral traza fila29: fondoCop={} pibSemestral={} ratioFondosPib={} fecha={} col={}",
+                        fondoCop, mensual.pibSemestral(), ratioFondosPib, fechaCorte, col);
+                if (mensual.pibSemestral() == null || mensual.pibSemestral().signum() == 0) {
+                    log.warn("Semestral fila29 en 0 por PIB nulo/cero; en la plantilla puede mostrarse '-' por formato contable. fecha={} col={}",
+                            fechaCorte, col);
+                }
 
                 // Bloque B - límites
                 write(hoja, 30, col, divide(mensual.total1(), trm(mensual)));
@@ -92,6 +102,19 @@ public class SemestralExcelGenerator {
                 write(hoja, 45, col, safeDivide(safeDivide(fondoCop, trm(mensual)), deudaGobUsd));
                 write(hoja, 46, col, BigDecimal.valueOf(4));
                 write(hoja, 47, col, mensual.porcVrFondo());
+                BigDecimal activos = mensual.activosCuentas() == null ? BigDecimal.ZERO : mensual.activosCuentas();
+                BigDecimal pasivos = mensual.pasivosCuentas() == null ? BigDecimal.ZERO : mensual.pasivosCuentas();
+                BigDecimal activosUsd = safeDivide(activos, trm(mensual));
+                BigDecimal pasivosUsd = safeDivide(pasivos, trm(mensual));
+                BigDecimal patrimonioUsd = safeDivide(activos.subtract(pasivos), trm(mensual));
+                write(hoja, 48, col, activosUsd);
+                write(hoja, 49, col, pasivosUsd);
+                write(hoja, 50, col, patrimonioUsd);
+                setNumberFormat(hoja, 48, col, "#,##0.00");
+                setNumberFormat(hoja, 49, col, "#,##0.00");
+                setNumberFormat(hoja, 50, col, "#,##0.00");
+                log.info("Semestral traza filas48-50: activosCuentas(MM COP)={} pasivosCuentas(MM COP)={} trm={} -> activosUsd(MM USD)={} pasivosUsd(MM USD)={} patrimonioUsd(MM USD)={}",
+                        activos, pasivos, trm(mensual), activosUsd, pasivosUsd, patrimonioUsd);
 
                 // Bloque C/D - uso de datos disponibles del flujo Java
                 BigDecimal gastosUsdTotal = trimestral.gastosUsd().values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -196,5 +219,19 @@ public class SemestralExcelGenerator {
         Cell cell = row.getCell(col1Based - 1);
         if (cell == null) cell = row.createCell(col1Based - 1);
         cell.setCellValue(value == null ? 0d : value.doubleValue());
+    }
+
+    private void setNumberFormat(Sheet sheet, int row1Based, int col1Based, String excelFormat) {
+        Row row = sheet.getRow(row1Based - 1);
+        if (row == null) row = sheet.createRow(row1Based - 1);
+        Cell cell = row.getCell(col1Based - 1);
+        if (cell == null) cell = row.createCell(col1Based - 1);
+        var style = sheet.getWorkbook().createCellStyle();
+        if (cell.getCellStyle() != null) {
+            style.cloneStyleFrom(cell.getCellStyle());
+        }
+        DataFormat dataFormat = sheet.getWorkbook().createDataFormat();
+        style.setDataFormat(dataFormat.getFormat(excelFormat));
+        cell.setCellStyle(style);
     }
 }

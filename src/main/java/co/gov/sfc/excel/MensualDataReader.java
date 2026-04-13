@@ -270,6 +270,8 @@ public class MensualDataReader {
         BigDecimal trm = readTrmFromSeries(fechaCorte);
         BigDecimal pea = readFromFormatoPlantilla(fechaCorte, "V11");
         BigDecimal deudaG = readFromFormatoPlantilla(fechaCorte, "V16");
+        BigDecimal activosCuentas = readFromPlantillaSheet(fechaCorte, "CUENTAS", "C6");
+        BigDecimal pasivosCuentas = readFromPlantillaSheet(fechaCorte, "CUENTAS", "C4");
         BigDecimal pibSemestral = readPibSemestral(fechaCorte);
         PensionadosData pensionados = readPensionados495(fechaCorte);
         totalPen = pensionados.totalPen();
@@ -319,8 +321,8 @@ public class MensualDataReader {
                 totalSob,
                 fondoSistemaJ14,
                 deudaGobB4,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO
+                activosCuentas,
+                pasivosCuentas
         );
     }
 
@@ -438,6 +440,23 @@ public class MensualDataReader {
                 return num(formato, cellRef, null);
             }
         } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private BigDecimal readFromPlantillaSheet(LocalDate fechaCorte, String sheetName, String cellRef) {
+        try {
+            Path plantilla = Path.of("plantillas", "Plantilla AIOS-probable.xlsm");
+            if (!Files.isRegularFile(plantilla)) {
+                plantilla = locator.findRequired("Plantilla AIOS-probable", fechaCorte);
+            }
+            try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
+                Sheet sheet = getSheetIgnoreCase(wb, sheetName);
+                if (sheet == null) return BigDecimal.ZERO;
+                return num(sheet, cellRef, null);
+            }
+        } catch (Exception e) {
+            log.warn("No fue posible leer {}!{} en plantilla: {}", sheetName, cellRef, e.getMessage());
             return BigDecimal.ZERO;
         }
     }
