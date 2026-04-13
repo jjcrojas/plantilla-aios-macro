@@ -6,6 +6,8 @@ import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.DataFormat;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.FormulaEvaluator;
+import org.apache.poi.ss.usermodel.CellValue;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.slf4j.Logger;
@@ -19,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 @Component
 public class SemestralExcelGenerator {
@@ -116,9 +119,44 @@ public class SemestralExcelGenerator {
                 log.info("Semestral traza filas48-50: activosCuentas(MM COP)={} pasivosCuentas(MM COP)={} trm={} -> activosUsd(MM USD)={} pasivosUsd(MM USD)={} patrimonioUsd(MM USD)={}",
                         activos, pasivos, trm(mensual), activosUsd, pasivosUsd, patrimonioUsd);
 
-                // Bloque C/D - uso de datos disponibles del flujo Java
-                BigDecimal gastosUsdTotal = trimestral.gastosUsd().values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-                write(hoja, 52, col, gastosUsdTotal);
+                CuentasData cuentas = readCuentasData(fechaCorte);
+                BigDecimal aportesRecibidos = readAportesRecibidos136(fechaCorte);
+                BigDecimal trm = trm(mensual);
+                BigDecimal p1 = safeDivide(fondoCop, trm);
+
+                write(hoja, 51, col, cuentas.comisiones());
+                write(hoja, 52, col, cuentas.gastos());
+                write(hoja, 53, col, cuentas.resultadoOperacion());
+                write(hoja, 54, col, cuentas.resultadoNeto());
+                write(hoja, 55, col, cuentas.admon());
+                write(hoja, 56, col, cuentas.cuenta511500());
+                write(hoja, 57, col, cuentas.publicidad519015());
+                write(hoja, 58, col, cuentas.cuenta511500().add(cuentas.publicidad519015()));
+                write(hoja, 59, col, cuentas.otros517000());
+                write(hoja, 60, col, cuentas.admon().add(cuentas.otros517000()).add(cuentas.publicidad519015()));
+
+                BigDecimal aportesUsd = safeDivide(aportesRecibidos, trm);
+                BigDecimal aportantesMiles = safeDivide(mensual.aportantes(), BigDecimal.valueOf(1000));
+                BigDecimal fila61 = safeDivide(aportesUsd, aportantesMiles).multiply(BigDecimal.valueOf(1000));
+                write(hoja, 61, col, fila61);
+                write(hoja, 62, col, safeDivide(cuentas.gastos(), aportesUsd).multiply(BigDecimal.valueOf(100)));
+                write(hoja, 63, col, safeDivide(patrimonioUsd, p1).multiply(BigDecimal.valueOf(100)));
+                write(hoja, 64, col, safeDivide(patrimonioUsd, mensual.afiliados()).multiply(BigDecimal.valueOf(1_000_000)));
+                write(hoja, 65, col, safeDivide(cuentas.resultadoNeto(), cuentas.comisiones()).multiply(BigDecimal.valueOf(100)));
+                write(hoja, 66, col, safeDivide(cuentas.resultadoNeto(), patrimonioUsd).multiply(BigDecimal.valueOf(100)));
+                write(hoja, 67, col, safeDivide(cuentas.gastos(), mensual.afiliados()).multiply(BigDecimal.valueOf(1_000_000)));
+                write(hoja, 68, col, safeDivide(cuentas.comisiones(), mensual.aportantes()).multiply(BigDecimal.valueOf(1_000_000)));
+                write(hoja, 69, col, safeDivide(cuentas.admon(), fila61));
+                write(hoja, 70, col, BigDecimal.valueOf(16));
+                write(hoja, 77, col, cuentas.comisiones());
+                write(hoja, 78, col, p1);
+                write(hoja, 79, col, safeDivide(cuentas.comisiones(), p1));
+                write(hoja, 80, col, BigDecimal.valueOf(fechaCorte.getYear() - 1994L));
+
+                log.info("Semestral traza filas51-80: comisiones={} gastos={} resultadoOper={} resultadoNeto={} admon={} cta511500={} publicidad={} otros={} aportesRecibidosCOP={} aportesUsd={} aportantes={} fila61={} p1={}",
+                        cuentas.comisiones(), cuentas.gastos(), cuentas.resultadoOperacion(), cuentas.resultadoNeto(), cuentas.admon(),
+                        cuentas.cuenta511500(), cuentas.publicidad519015(), cuentas.otros517000(),
+                        aportesRecibidos, aportesUsd, mensual.aportantes(), fila61, p1);
                 write(hoja, 71, col, promedioComisionObligatoria(trimestral).multiply(BigDecimal.valueOf(100)));
                 write(hoja, 82, col, mensual.tmpNominal1().multiply(BigDecimal.valueOf(100)));
                 write(hoja, 83, col, mensual.tmpReal1().multiply(BigDecimal.valueOf(100)));
@@ -211,6 +249,134 @@ public class SemestralExcelGenerator {
 
     private BigDecimal pct(BigDecimal value) {
         return (value == null ? BigDecimal.ZERO : value).multiply(BigDecimal.valueOf(100));
+    }
+
+    private CuentasData readCuentasData(LocalDate fechaCorte) {
+        Path plantilla = findPlantillaAiosFile(fechaCorte);
+        try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
+            Sheet cuentas = getSheetIgnoreCase(wb, "CUENTAS");
+            if (cuentas == null) return CuentasData.ZERO;
+            return new CuentasData(
+                    num(cuentas, "E13"),
+                    num(cuentas, "G15"),
+                    num(cuentas, "E41"),
+                    num(cuentas, "E44"),
+                    num(cuentas, "H24"),
+                    num(cuentas, "C21"),
+                    num(cuentas, "C42"),
+                    num(cuentas, "C37")
+            );
+        } catch (Exception e) {
+            log.warn("No fue posible leer CUENTAS para semestral: {}", e.getMessage());
+            return CuentasData.ZERO;
+        }
+    }
+
+    private BigDecimal readAportesRecibidos136(LocalDate fechaCorte) {
+        Path formato136 = findFormato136File(fechaCorte);
+        try (Workbook wb = WorkbookFactory.create(formato136.toFile(), null, true)) {
+            Sheet sheet = getSheetIgnoreCase(wb, "FORMATO OBL");
+            if (sheet == null) sheet = wb.getSheetAt(0);
+            Cell d6 = cell(sheet, "D6");
+            d6.setCellValue(java.sql.Date.valueOf(fechaCorte));
+            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+            evaluator.clearAllCachedResultValues();
+            BigDecimal value = num(sheet, "G6", evaluator);
+            log.info("Semestral: Formato136 G6 (aportes recibidos COP)={} para fecha={}", value, fechaCorte);
+            return value;
+        } catch (Exception e) {
+            log.warn("No fue posible leer aportes recibidos desde Formato_136_Meses: {}", e.getMessage());
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private Path findFormato136File(LocalDate fechaCorte) {
+        try (Stream<Path> paths = Files.walk(properties.insumosDir(), 3)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).contains("136"))
+                    .findFirst()
+                    .orElse(Path.of("insumos_ejemplo", "Formato_136_Meses.xlsm"));
+        } catch (Exception ignore) {
+            return Path.of("insumos_ejemplo", "Formato_136_Meses.xlsm");
+        }
+    }
+
+    private Path findPlantillaAiosFile(LocalDate fechaCorte) {
+        Path repoPath = Path.of("plantillas", "Plantilla AIOS-probable.xlsm");
+        if (Files.isRegularFile(repoPath)) return repoPath;
+        Path base = properties.insumosDir();
+        try (Stream<Path> paths = Files.walk(base, 4)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).contains("plantilla aios"))
+                    .findFirst()
+                    .orElse(repoPath);
+        } catch (Exception ignore) {
+            return repoPath;
+        }
+    }
+
+    private Sheet getSheetIgnoreCase(Workbook wb, String name) {
+        for (int i = 0; i < wb.getNumberOfSheets(); i++) {
+            Sheet sheet = wb.getSheetAt(i);
+            if (sheet.getSheetName().equalsIgnoreCase(name)) {
+                return sheet;
+            }
+        }
+        return null;
+    }
+
+    private BigDecimal num(Sheet sheet, String ref) {
+        return num(sheet, ref, null);
+    }
+
+    private BigDecimal num(Sheet sheet, String ref, FormulaEvaluator evaluator) {
+        Cell c = cell(sheet, ref);
+        if (c == null) return BigDecimal.ZERO;
+        try {
+            if (evaluator != null && c.getCellType() == org.apache.poi.ss.usermodel.CellType.FORMULA) {
+                CellValue ev = evaluator.evaluate(c);
+                if (ev != null && ev.getCellType() == org.apache.poi.ss.usermodel.CellType.NUMERIC) return BigDecimal.valueOf(ev.getNumberValue());
+            }
+            return switch (c.getCellType()) {
+                case NUMERIC -> BigDecimal.valueOf(c.getNumericCellValue());
+                case FORMULA -> {
+                    if (c.getCachedFormulaResultType() == org.apache.poi.ss.usermodel.CellType.NUMERIC) {
+                        yield BigDecimal.valueOf(c.getNumericCellValue());
+                    }
+                    yield BigDecimal.ZERO;
+                }
+                default -> BigDecimal.ZERO;
+            };
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private Cell cell(Sheet sheet, String ref) {
+        var cr = new org.apache.poi.ss.util.CellReference(ref);
+        Row row = sheet.getRow(cr.getRow());
+        if (row == null) row = sheet.createRow(cr.getRow());
+        Cell cell = row.getCell(cr.getCol());
+        if (cell == null) cell = row.createCell(cr.getCol());
+        return cell;
+    }
+
+    private record CuentasData(
+            BigDecimal comisiones,
+            BigDecimal gastos,
+            BigDecimal resultadoOperacion,
+            BigDecimal resultadoNeto,
+            BigDecimal admon,
+            BigDecimal cuenta511500,
+            BigDecimal publicidad519015,
+            BigDecimal otros517000
+    ) {
+        static final CuentasData ZERO = new CuentasData(
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO
+        );
     }
 
     private void write(Sheet sheet, int row1Based, int col1Based, BigDecimal value) {
