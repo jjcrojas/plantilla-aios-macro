@@ -40,6 +40,8 @@ public record MensualData(
         BigDecimal totalPen,
         BigDecimal totalInv,
         BigDecimal totalVej,
-        BigDecimal totalSob
+        BigDecimal totalSob,
+        BigDecimal fondoSistemaJ14,
+        BigDecimal deudaGobB4
 ) {
 }

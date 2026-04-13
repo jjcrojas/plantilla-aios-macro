@@ -185,6 +185,7 @@ public class MensualDataReader {
         log.info("Lectura rentabilidad completada para fechaCorte={}", fechaCorte);
 
         BigDecimal vrFondo = BigDecimal.ZERO;
+        BigDecimal fondoSistemaJ14 = BigDecimal.ZERO;
         BigDecimal porcVrFondo = BigDecimal.ZERO;
         var sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
         try {
@@ -198,6 +199,7 @@ public class MensualDataReader {
             int cPorv = findHeaderCol(ws, "PORVENIR");
             int row = findMaxRow(ws, cSistema + 1, null);
             vrFondo = num(ws, row, cSistema + 1, null).divide(BigDecimal.valueOf(1000), 8, RoundingMode.HALF_UP);
+            fondoSistemaJ14 = num(ws, "J14", null);
             var prot = num(ws, row, cProt + 1, null);
             var porv = num(ws, row, cPorv + 1, null);
             if (vrFondo.signum() != 0) {
@@ -213,6 +215,7 @@ public class MensualDataReader {
 
         BigDecimal total1 = BigDecimal.ZERO;
         BigDecimal dudaG = BigDecimal.ZERO;
+        BigDecimal deudaGobB4 = BigDecimal.ZERO;
         BigDecimal dudaEf = BigDecimal.ZERO;
         BigDecimal dudaNf = BigDecimal.ZERO;
         BigDecimal dudaAc = BigDecimal.ZERO;
@@ -233,6 +236,7 @@ public class MensualDataReader {
             try (Workbook wb = WorkbookFactory.create(limites.toFile(), null, true)) {
                     Sheet aios = wb.getSheet("AIOS");
                 total1 = num(aios, "AB4", null);
+                deudaGobB4 = num(aios, "B4", null);
                 dudaG = num(aios, "C4", null);
                 dudaEf = num(aios, "E4", null);
                 dudaNf = num(aios, "G4", null);
@@ -312,7 +316,9 @@ public class MensualDataReader {
                 totalPen,
                 totalInv,
                 totalVej,
-                totalSob
+                totalSob,
+                fondoSistemaJ14,
+                deudaGobB4
         );
     }
 
@@ -341,6 +347,8 @@ public class MensualDataReader {
                 Sheet totalPensionados = getSheetIgnoreCase(wb, "Total pensionados");
                 if (totalPensionados == null) totalPensionados = findSheetContainsIgnoreCase(wb, "total pensionados");
                 if (totalPensionados != null) {
+                    setDate(totalPensionados, "B5", fechaCorte);
+                    evaluator.clearAllCachedResultValues();
                     BigDecimal totalDesdeSerie = readTotalPensionadosSerie(totalPensionados, fechaCorte);
                     log.info("495: total pensionados serie -> valor encontrado columna I={}", totalDesdeSerie);
                     if (totalDesdeSerie.signum() != 0) {

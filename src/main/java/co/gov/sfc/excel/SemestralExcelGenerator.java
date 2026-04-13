@@ -67,8 +67,10 @@ public class SemestralExcelGenerator {
                         fechaCorte, col);
                 write(hoja, 26, col, mensual.traspasosSistema());
                 write(hoja, 27, col, safeDivide(mensual.traspasosSistema(), mensual.afiliados()));
-                write(hoja, 28, col, divide(mensual.vrFondo(), trm(mensual)));
-                write(hoja, 29, col, safeDivide(mensual.vrFondo(), mensual.pibSemestral()));
+                BigDecimal fondoCop = mensual.fondoSistemaJ14().multiply(BigDecimal.valueOf(1000));
+                BigDecimal fondoUsdMM = safeDivide(safeDivide(fondoCop, trm(mensual)), BigDecimal.valueOf(1_000_000));
+                write(hoja, 28, col, fondoUsdMM);
+                write(hoja, 29, col, safeDivide(fondoCop, mensual.pibSemestral()).divide(BigDecimal.valueOf(1_000_000), 8, RoundingMode.HALF_UP));
 
                 // Bloque B - límites
                 write(hoja, 30, col, divide(mensual.total1(), trm(mensual)));
@@ -77,6 +79,7 @@ public class SemestralExcelGenerator {
                 write(hoja, 33, col, mensual.dudaNf());
                 write(hoja, 34, col, mensual.dudaAc());
                 write(hoja, 35, col, mensual.dudaF());
+                write(hoja, 36, col, BigDecimal.ZERO);
                 write(hoja, 37, col, mensual.dudaGe());
                 write(hoja, 38, col, mensual.dudaEfe());
                 write(hoja, 39, col, mensual.dudaNfe());
@@ -85,7 +88,8 @@ public class SemestralExcelGenerator {
                 write(hoja, 42, col, BigDecimal.valueOf(2));
                 write(hoja, 43, col, mensual.otros());
                 write(hoja, 44, col, mensual.h17());
-                write(hoja, 45, col, safeDivide(divide(mensual.vrFondo(), trm(mensual)), mensual.deudaG()));
+                BigDecimal deudaGobUsd = safeDivide(mensual.deudaGobB4().multiply(BigDecimal.valueOf(1_000_000)), trm(mensual));
+                write(hoja, 45, col, safeDivide(safeDivide(fondoCop, trm(mensual)), deudaGobUsd));
                 write(hoja, 46, col, BigDecimal.valueOf(4));
                 write(hoja, 47, col, mensual.porcVrFondo());
 
