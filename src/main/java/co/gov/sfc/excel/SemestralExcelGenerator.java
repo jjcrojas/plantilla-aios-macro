@@ -317,10 +317,56 @@ public class SemestralExcelGenerator {
         d5.setCellValue(java.sql.Date.valueOf(fechaFinal));
         evaluator.clearAllCachedResultValues();
 
-        BigDecimal real = num(consolidado, "D10", evaluator);
-        BigDecimal nominal = num(consolidado, "D11", evaluator);
-        log.info("Rent moderado: inicio={} fin={} -> D11 nominal={} D10 real={}", fechaInicial, fechaFinal, nominal, real);
+        BigDecimal nominalCell = num(consolidado, "D11", evaluator);
+        BigDecimal realCell = num(consolidado, "D10", evaluator);
+        RentPair tablePair = calcularRentabilidadDesdeTabla(consolidado, fechaInicial, fechaFinal);
+        log.info("Rent moderado: inicio={} fin={} -> D11 nominal={} D10 real={} | tabla nominal={} real={}",
+                fechaInicial, fechaFinal, nominalCell, realCell, tablePair.nominal(), tablePair.real());
+
+        // Con algunos archivos, D10/D11 quedan cacheados iguales para todos los periodos.
+        // Priorizamos cálculo desde tabla histórica para respetar la ventana (10/5/3/1 años).
+        return tablePair;
+    }
+
+    private RentPair calcularRentabilidadDesdeTabla(Sheet consolidado, LocalDate fechaInicial, LocalDate fechaFinal) {
+        BigDecimal eIni = lookupByDate(consolidado, 5, fechaInicial);
+        BigDecimal eFin = lookupByDate(consolidado, 5, fechaFinal);
+        BigDecimal iIni = lookupByDate(consolidado, 9, fechaInicial);
+        BigDecimal iFin = lookupByDate(consolidado, 9, fechaFinal);
+        double dias = Math.max(1d, fechaFinal.toEpochDay() - fechaInicial.toEpochDay());
+
+        BigDecimal nominal = BigDecimal.ZERO;
+        if (eIni.signum() != 0 && eFin.signum() != 0) {
+            nominal = BigDecimal.valueOf(Math.pow(eFin.doubleValue() / eIni.doubleValue(), 365d / dias) - 1d);
+        }
+        BigDecimal real = BigDecimal.ZERO;
+        if (iIni.signum() != 0 && iFin.signum() != 0) {
+            real = BigDecimal.valueOf(Math.pow(iFin.doubleValue() / iIni.doubleValue(), 365d / dias) - 1d);
+        }
         return new RentPair(nominal, real);
+    }
+
+    private BigDecimal lookupByDate(Sheet sheet, int valueCol1Based, LocalDate target) {
+        double objetivo = org.apache.poi.ss.usermodel.DateUtil.getExcelDate(java.sql.Date.valueOf(target));
+        BigDecimal exacta = null;
+        BigDecimal anterior = null;
+        double fechaAnterior = Double.NEGATIVE_INFINITY;
+        int last = sheet.getLastRowNum() + 1;
+        for (int r = 14; r <= last; r++) {
+            BigDecimal fecha = num(sheet, r, 1);
+            if (fecha.signum() == 0) continue;
+            double excelDate = fecha.doubleValue();
+            BigDecimal valor = num(sheet, r, valueCol1Based);
+            if (Math.abs(excelDate - objetivo) < 0.00001d && valor.signum() != 0) {
+                exacta = valor;
+                break;
+            }
+            if (excelDate <= objetivo && excelDate > fechaAnterior && valor.signum() != 0) {
+                fechaAnterior = excelDate;
+                anterior = valor;
+            }
+        }
+        return exacta != null ? exacta : (anterior != null ? anterior : BigDecimal.ZERO);
     }
 
     private BigDecimal readAportesRecibidos136(LocalDate fechaCorte) {
@@ -392,6 +438,24 @@ public class SemestralExcelGenerator {
 
     private BigDecimal num(Sheet sheet, String ref) {
         return num(sheet, ref, null);
+    }
+
+    private BigDecimal num(Sheet sheet, int row1Based, int col1Based) {
+        Row row = sheet.getRow(row1Based - 1);
+        if (row == null) return BigDecimal.ZERO;
+        Cell c = row.getCell(col1Based - 1);
+        if (c == null) return BigDecimal.ZERO;
+        try {
+            return switch (c.getCellType()) {
+                case NUMERIC -> BigDecimal.valueOf(c.getNumericCellValue());
+                case FORMULA -> c.getCachedFormulaResultType() == org.apache.poi.ss.usermodel.CellType.NUMERIC
+                        ? BigDecimal.valueOf(c.getNumericCellValue())
+                        : BigDecimal.ZERO;
+                default -> BigDecimal.ZERO;
+            };
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
     }
 
     private BigDecimal num(Sheet sheet, String ref, FormulaEvaluator evaluator) {
