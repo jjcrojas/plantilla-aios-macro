@@ -157,9 +157,25 @@ public class SemestralExcelGenerator {
                         cuentas.comisiones(), cuentas.gastos(), cuentas.resultadoOperacion(), cuentas.resultadoNeto(), cuentas.admon(),
                         cuentas.cuenta511500(), cuentas.publicidad519015(), cuentas.otros517000(),
                         aportesRecibidos, aportesUsd, mensual.aportantes(), fila61, p1);
-                write(hoja, 71, col, promedioComisionObligatoria(trimestral).multiply(BigDecimal.valueOf(100)));
+                BigDecimal comisionPromedioPct = promedioComisionObligatoria(trimestral).multiply(BigDecimal.valueOf(100));
+                write(hoja, 71, col, comisionPromedioPct);
+                write(hoja, 72, col, BigDecimal.ZERO);
+                write(hoja, 73, col, BigDecimal.ZERO);
+                BigDecimal aporteTrabajador = BigDecimal.valueOf(3).subtract(comisionPromedioPct).multiply(BigDecimal.valueOf(0.25));
+                BigDecimal aporteEmpleador = BigDecimal.valueOf(3).subtract(comisionPromedioPct).multiply(BigDecimal.valueOf(0.75));
+                write(hoja, 74, col, aporteTrabajador);
+                write(hoja, 75, col, aporteEmpleador);
+                write(hoja, 76, col, BigDecimal.ZERO);
+                log.info("Semestral traza filas71-76: comisionPromedioPct={} aporteTrabajador={} aporteEmpleador={}",
+                        comisionPromedioPct, aporteTrabajador, aporteEmpleador);
                 write(hoja, 82, col, mensual.tmpNominal1().multiply(BigDecimal.valueOf(100)));
                 write(hoja, 83, col, mensual.tmpReal1().multiply(BigDecimal.valueOf(100)));
+                write(hoja, 84, col, BigDecimal.ZERO);
+                write(hoja, 85, col, BigDecimal.ZERO);
+                write(hoja, 86, col, BigDecimal.ZERO);
+                write(hoja, 87, col, BigDecimal.ZERO);
+                write(hoja, 88, col, BigDecimal.ZERO);
+                write(hoja, 89, col, BigDecimal.ZERO);
 
                 try (var os = Files.newOutputStream(out)) {
                     wb.write(os);
