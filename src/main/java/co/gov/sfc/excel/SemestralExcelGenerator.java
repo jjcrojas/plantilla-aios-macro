@@ -20,6 +20,8 @@ import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.stream.Stream;
 
@@ -356,26 +358,60 @@ public class SemestralExcelGenerator {
     }
 
     private BigDecimal lookupByDate(Sheet sheet, int valueCol1Based, LocalDate target) {
-        double objetivo = org.apache.poi.ss.usermodel.DateUtil.getExcelDate(java.sql.Date.valueOf(target));
         BigDecimal exacta = null;
         BigDecimal anterior = null;
-        double fechaAnterior = Double.NEGATIVE_INFINITY;
+        LocalDate fechaAnterior = LocalDate.MIN;
         int last = sheet.getLastRowNum() + 1;
         for (int r = 14; r <= last; r++) {
-            BigDecimal fecha = num(sheet, r, 1);
-            if (fecha.signum() == 0) continue;
-            double excelDate = fecha.doubleValue();
+            Row row = sheet.getRow(r - 1);
+            if (row == null) continue;
+            LocalDate fechaFila = cellAsDate(row.getCell(0));
+            if (fechaFila == null) continue;
             BigDecimal valor = num(sheet, r, valueCol1Based);
-            if (Math.abs(excelDate - objetivo) < 0.00001d && valor.signum() != 0) {
+            if (fechaFila.equals(target) && valor.signum() != 0) {
                 exacta = valor;
                 break;
             }
-            if (excelDate <= objetivo && excelDate > fechaAnterior && valor.signum() != 0) {
-                fechaAnterior = excelDate;
+            if (!fechaFila.isAfter(target) && fechaFila.isAfter(fechaAnterior) && valor.signum() != 0) {
+                fechaAnterior = fechaFila;
                 anterior = valor;
             }
         }
         return exacta != null ? exacta : (anterior != null ? anterior : BigDecimal.ZERO);
+    }
+
+    private LocalDate cellAsDate(Cell cell) {
+        if (cell == null) return null;
+        try {
+            if (cell.getCellType() == org.apache.poi.ss.usermodel.CellType.NUMERIC) {
+                if (org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(cell)) {
+                    return cell.getDateCellValue().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+                }
+                double excel = cell.getNumericCellValue();
+                if (excel > 10_000d && excel < 100_000d) {
+                    return org.apache.poi.ss.usermodel.DateUtil.getJavaDate(excel).toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+                }
+            }
+            String txt = new DataFormatter(Locale.forLanguageTag("es-CO")).formatCellValue(cell);
+            if (txt == null || txt.isBlank()) return null;
+            String v = txt.trim().toLowerCase(Locale.ROOT).replace(".", "");
+            DateTimeFormatter[] fmts = new DateTimeFormatter[]{
+                    DateTimeFormatter.ofPattern("d-MMM-yy", new Locale("es", "CO")),
+                    DateTimeFormatter.ofPattern("d-MMM-yyyy", new Locale("es", "CO")),
+                    DateTimeFormatter.ofPattern("d/M/yyyy"),
+                    DateTimeFormatter.ofPattern("d/M/yy"),
+                    DateTimeFormatter.ISO_LOCAL_DATE
+            };
+            for (DateTimeFormatter f : fmts) {
+                try {
+                    return LocalDate.parse(v, f);
+                } catch (Exception ignored) {
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private BigDecimal readAportesRecibidos136(LocalDate fechaCorte) {
