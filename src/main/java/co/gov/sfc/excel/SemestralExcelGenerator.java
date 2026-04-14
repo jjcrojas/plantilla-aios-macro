@@ -326,19 +326,27 @@ public class SemestralExcelGenerator {
         d4.setCellValue(java.sql.Date.valueOf(fechaInicial));
         d5.setCellValue(java.sql.Date.valueOf(fechaFinal));
         evaluator.clearAllCachedResultValues();
-
-        BigDecimal nominalCell = num(consolidado, "D11", evaluator);
-        BigDecimal realCell = num(consolidado, "D10", evaluator);
-        RentPair tablePair = calcularRentabilidadDesdeTabla(consolidado, fechaInicial, fechaFinal);
-        RentPair seriePair = leerRentabilidadDesdeSerieConsolidado(consolidado, fechaInicial, fechaFinal);
-        log.info("Rent moderado: inicio={} fin={} -> D11 nominal={} D10 real={} | serie nominal={} real={} | tabla nominal={} real={}",
-                fechaInicial, fechaFinal, nominalCell, realCell, seriePair.nominal(), seriePair.real(), tablePair.nominal(), tablePair.real());
-
-        // Prioridad: serie histórica (por ventana), luego D10/D11, luego tabla.
-        BigDecimal nominal = seriePair.nominal().signum() != 0 ? seriePair.nominal()
-                : (nominalCell.signum() != 0 ? nominalCell : tablePair.nominal());
-        BigDecimal real = seriePair.real().signum() != 0 ? seriePair.real()
-                : (realCell.signum() != 0 ? realCell : tablePair.real());
+        Cell d10 = cell(consolidado, "D10");
+        Cell d11 = cell(consolidado, "D11");
+        BigDecimal real;
+        BigDecimal nominal;
+        try {
+            CellValue ev10 = evaluator.evaluate(d10);
+            CellValue ev11 = evaluator.evaluate(d11);
+            real = (ev10 != null && ev10.getCellType() == org.apache.poi.ss.usermodel.CellType.NUMERIC)
+                    ? BigDecimal.valueOf(ev10.getNumberValue())
+                    : num(consolidado, "D10");
+            nominal = (ev11 != null && ev11.getCellType() == org.apache.poi.ss.usermodel.CellType.NUMERIC)
+                    ? BigDecimal.valueOf(ev11.getNumberValue())
+                    : num(consolidado, "D11");
+        } catch (Exception e) {
+            real = num(consolidado, "D10");
+            nominal = num(consolidado, "D11");
+            log.warn("Rent moderado: evaluator falló para inicio={} fin={}; se usan valores cacheados D10/D11. Causa={}",
+                    fechaInicial, fechaFinal, e.getMessage());
+        }
+        log.info("Rent moderado (solo D4/D5->D10/D11): D4(inicio)={} D5(fin)={} => D11 nominal={} D10 real={}",
+                fechaInicial, fechaFinal, nominal, real);
         return new RentPair(nominal, real);
     }
 
@@ -347,15 +355,32 @@ public class SemestralExcelGenerator {
         Row rowFin = consolidado.getRow(4);   // fila 5
         if (rowIni == null || rowFin == null) return new RentPair(BigDecimal.ZERO, BigDecimal.ZERO);
         int last = Math.max(rowIni.getLastCellNum(), rowFin.getLastCellNum());
+        int fallbackColByIniOnly = -1;
         for (int c = 3; c < Math.max(last, 4); c++) { // desde columna D
             LocalDate ini = cellAsDate(rowIni.getCell(c));
             LocalDate fin = cellAsDate(rowFin.getCell(c));
+            if (fechaInicial.equals(ini) && fallbackColByIniOnly < 0) {
+                fallbackColByIniOnly = c;
+            }
             if (fechaInicial.equals(ini) && fechaFinal.equals(fin)) {
                 BigDecimal real = num(consolidado, 10, c + 1);     // fila 10
                 BigDecimal nominal = num(consolidado, 11, c + 1);  // fila 11
+                log.info("Rent serie consolidado match exacto: col={} ini={} fin={} nominal(row11)={} real(row10)={}",
+                        c + 1, ini, fin, nominal, real);
                 return new RentPair(nominal, real);
             }
         }
+        if (fallbackColByIniOnly >= 0) {
+            LocalDate ini = cellAsDate(rowIni.getCell(fallbackColByIniOnly));
+            LocalDate fin = cellAsDate(rowFin.getCell(fallbackColByIniOnly));
+            BigDecimal real = num(consolidado, 10, fallbackColByIniOnly + 1);
+            BigDecimal nominal = num(consolidado, 11, fallbackColByIniOnly + 1);
+            log.info("Rent serie consolidado match por fecha inicial: col={} ini={} fin={} nominal(row11)={} real(row10)={}",
+                    fallbackColByIniOnly + 1, ini, fin, nominal, real);
+            return new RentPair(nominal, real);
+        }
+        log.warn("Rent serie consolidado: no hubo match de columna para ini={} fin={}; se usará fallback D10/D11 o tabla.",
+                fechaInicial, fechaFinal);
         return new RentPair(BigDecimal.ZERO, BigDecimal.ZERO);
     }
 
