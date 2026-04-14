@@ -122,7 +122,7 @@ public class SemestralExcelGenerator {
                 CuentasData cuentas = readCuentasData(fechaCorte);
                 BigDecimal aportesRecibidos = readAportesRecibidos136(fechaCorte);
                 BigDecimal trm = trm(mensual);
-                BigDecimal p1 = safeDivide(fondoCop, trm);
+                BigDecimal p1 = safeDivide(mensual.vrFondo(), trm);
 
                 write(hoja, 51, col, cuentas.comisiones());
                 write(hoja, 52, col, cuentas.gastos());
@@ -324,7 +324,6 @@ public class SemestralExcelGenerator {
         d4.setCellValue(java.sql.Date.valueOf(fechaInicial));
         d5.setCellValue(java.sql.Date.valueOf(fechaFinal));
         evaluator.clearAllCachedResultValues();
-        evaluator.evaluateAll();
 
         BigDecimal nominalCell = num(consolidado, "D11", evaluator);
         BigDecimal realCell = num(consolidado, "D10", evaluator);
