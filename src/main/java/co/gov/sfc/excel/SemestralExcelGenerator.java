@@ -330,13 +330,33 @@ public class SemestralExcelGenerator {
         BigDecimal nominalCell = num(consolidado, "D11", evaluator);
         BigDecimal realCell = num(consolidado, "D10", evaluator);
         RentPair tablePair = calcularRentabilidadDesdeTabla(consolidado, fechaInicial, fechaFinal);
-        log.info("Rent moderado: inicio={} fin={} -> D11 nominal={} D10 real={} | tabla nominal={} real={}",
-                fechaInicial, fechaFinal, nominalCell, realCell, tablePair.nominal(), tablePair.real());
+        RentPair seriePair = leerRentabilidadDesdeSerieConsolidado(consolidado, fechaInicial, fechaFinal);
+        log.info("Rent moderado: inicio={} fin={} -> D11 nominal={} D10 real={} | serie nominal={} real={} | tabla nominal={} real={}",
+                fechaInicial, fechaFinal, nominalCell, realCell, seriePair.nominal(), seriePair.real(), tablePair.nominal(), tablePair.real());
 
-        // Priorizar el cálculo directo de la plantilla (macro usa D10/D11). Si no viene dato, usar tabla.
-        BigDecimal nominal = nominalCell.signum() != 0 ? nominalCell : tablePair.nominal();
-        BigDecimal real = realCell.signum() != 0 ? realCell : tablePair.real();
+        // Prioridad: serie histórica (por ventana), luego D10/D11, luego tabla.
+        BigDecimal nominal = seriePair.nominal().signum() != 0 ? seriePair.nominal()
+                : (nominalCell.signum() != 0 ? nominalCell : tablePair.nominal());
+        BigDecimal real = seriePair.real().signum() != 0 ? seriePair.real()
+                : (realCell.signum() != 0 ? realCell : tablePair.real());
         return new RentPair(nominal, real);
+    }
+
+    private RentPair leerRentabilidadDesdeSerieConsolidado(Sheet consolidado, LocalDate fechaInicial, LocalDate fechaFinal) {
+        Row rowIni = consolidado.getRow(3);   // fila 4
+        Row rowFin = consolidado.getRow(4);   // fila 5
+        if (rowIni == null || rowFin == null) return new RentPair(BigDecimal.ZERO, BigDecimal.ZERO);
+        int last = Math.max(rowIni.getLastCellNum(), rowFin.getLastCellNum());
+        for (int c = 3; c < Math.max(last, 4); c++) { // desde columna D
+            LocalDate ini = cellAsDate(rowIni.getCell(c));
+            LocalDate fin = cellAsDate(rowFin.getCell(c));
+            if (fechaInicial.equals(ini) && fechaFinal.equals(fin)) {
+                BigDecimal real = num(consolidado, 10, c + 1);     // fila 10
+                BigDecimal nominal = num(consolidado, 11, c + 1);  // fila 11
+                return new RentPair(nominal, real);
+            }
+        }
+        return new RentPair(BigDecimal.ZERO, BigDecimal.ZERO);
     }
 
     private RentPair calcularRentabilidadDesdeTabla(Sheet consolidado, LocalDate fechaInicial, LocalDate fechaFinal) {
