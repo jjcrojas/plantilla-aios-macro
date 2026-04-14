@@ -33,7 +33,10 @@ public class TrimestralDataReader {
     }
 
     public TrimestralData read(LocalDate fechaCorte) {
-        MensualData mensual = mensualDataReader.read(fechaCorte);
+        return read(fechaCorte, mensualDataReader.read(fechaCorte));
+    }
+
+    public TrimestralData read(LocalDate fechaCorte, MensualData mensual) {
 
         Map<String, BigDecimal> afiliados = readAfiliadosFrom491(fechaCorte);
         Map<String, BigDecimal> aportantes = readCotizantesFrom491(fechaCorte);
@@ -205,9 +208,9 @@ public class TrimestralDataReader {
                     return out;
                 }
                 FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-                LocalDate fechaBase = fechaCorte.withDayOfMonth(1);
+                LocalDate fechaBase = fechaBusquedaGastos(fechaCorte);
                 int serialFecha = (int) Math.round(DateUtil.getExcelDate(java.sql.Date.valueOf(fechaBase)));
-                log.info("Gastos trimestrales: fechaCorte={}, fechaBase={}, serialExcel={}, TRM={}", fechaCorte, fechaBase, serialFecha, trm);
+                log.info("Gastos trimestrales: fechaCorte={}, fechaBaseBusqueda={}, serialExcel={}, TRM={}", fechaCorte, fechaBase, serialFecha, trm);
 
                 putGastoUsd(out, "prot", "proteccion", baseAnual, evaluator, serialFecha, trm);
                 putGastoUsd(out, "porv", "porvenir", baseAnual, evaluator, serialFecha, trm);
@@ -218,6 +221,10 @@ public class TrimestralDataReader {
             log.warn("No se pudo leer gastos trimestrales: {}", e.getMessage());
         }
         return out;
+    }
+
+    private LocalDate fechaBusquedaGastos(LocalDate fechaCorte) {
+        return fechaCorte.withDayOfMonth(1);
     }
 
     private Path findPlantillaAiosFile(LocalDate fechaCorte) {
