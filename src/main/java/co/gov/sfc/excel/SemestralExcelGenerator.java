@@ -168,14 +168,17 @@ public class SemestralExcelGenerator {
                 write(hoja, 76, col, BigDecimal.ZERO);
                 log.info("Semestral traza filas71-76: comisionPromedioPct={} aporteTrabajador={} aporteEmpleador={}",
                         comisionPromedioPct, aporteTrabajador, aporteEmpleador);
-                write(hoja, 82, col, mensual.tmpNominal1().multiply(BigDecimal.valueOf(100)));
-                write(hoja, 83, col, mensual.tmpReal1().multiply(BigDecimal.valueOf(100)));
-                write(hoja, 84, col, BigDecimal.ZERO);
-                write(hoja, 85, col, BigDecimal.ZERO);
-                write(hoja, 86, col, BigDecimal.ZERO);
-                write(hoja, 87, col, BigDecimal.ZERO);
-                write(hoja, 88, col, BigDecimal.ZERO);
-                write(hoja, 89, col, BigDecimal.ZERO);
+                Rentabilidades rent = readRentabilidades(fechaCorte);
+                write(hoja, 82, col, rent.nominal10().multiply(BigDecimal.valueOf(100)));
+                write(hoja, 83, col, rent.real10().multiply(BigDecimal.valueOf(100)));
+                write(hoja, 84, col, rent.nominal5().multiply(BigDecimal.valueOf(100)));
+                write(hoja, 85, col, rent.real5().multiply(BigDecimal.valueOf(100)));
+                write(hoja, 86, col, rent.nominal3().multiply(BigDecimal.valueOf(100)));
+                write(hoja, 87, col, rent.real3().multiply(BigDecimal.valueOf(100)));
+                write(hoja, 88, col, rent.nominal1().multiply(BigDecimal.valueOf(100)));
+                write(hoja, 89, col, rent.real1().multiply(BigDecimal.valueOf(100)));
+                log.info("Semestral traza rentabilidades: 10y(nom={},real={}) 5y(nom={},real={}) 3y(nom={},real={}) 1y(nom={},real={})",
+                        rent.nominal10(), rent.real10(), rent.nominal5(), rent.real5(), rent.nominal3(), rent.real3(), rent.nominal1(), rent.real1());
 
                 try (var os = Files.newOutputStream(out)) {
                     wb.write(os);
@@ -288,6 +291,38 @@ public class SemestralExcelGenerator {
         }
     }
 
+    private Rentabilidades readRentabilidades(LocalDate fechaCorte) {
+        Path rentFile = findRentModeradoFile(fechaCorte);
+        try (Workbook wb = WorkbookFactory.create(rentFile.toFile(), null, true)) {
+            Sheet consolidado = getSheetIgnoreCase(wb, "Consolidado");
+            if (consolidado == null) consolidado = wb.getSheetAt(0);
+            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+
+            var y10 = calcularRentabilidad(consolidado, evaluator, fechaCorte.minusYears(10), fechaCorte);
+            var y5 = calcularRentabilidad(consolidado, evaluator, fechaCorte.minusYears(5), fechaCorte);
+            var y3 = calcularRentabilidad(consolidado, evaluator, fechaCorte.minusYears(3), fechaCorte);
+            var y1 = calcularRentabilidad(consolidado, evaluator, fechaCorte.minusYears(1), fechaCorte);
+
+            return new Rentabilidades(y10.nominal(), y10.real(), y5.nominal(), y5.real(), y3.nominal(), y3.real(), y1.nominal(), y1.real());
+        } catch (Exception e) {
+            log.warn("No fue posible leer rentabilidades históricas desde Rent_Vr_Uni_Moderado: {}", e.getMessage());
+            return Rentabilidades.ZERO;
+        }
+    }
+
+    private RentPair calcularRentabilidad(Sheet consolidado, FormulaEvaluator evaluator, LocalDate fechaInicial, LocalDate fechaFinal) {
+        Cell d4 = cell(consolidado, "D4");
+        Cell d5 = cell(consolidado, "D5");
+        d4.setCellValue(java.sql.Date.valueOf(fechaInicial));
+        d5.setCellValue(java.sql.Date.valueOf(fechaFinal));
+        evaluator.clearAllCachedResultValues();
+
+        BigDecimal real = num(consolidado, "D10", evaluator);
+        BigDecimal nominal = num(consolidado, "D11", evaluator);
+        log.info("Rent moderado: inicio={} fin={} -> D11 nominal={} D10 real={}", fechaInicial, fechaFinal, nominal, real);
+        return new RentPair(nominal, real);
+    }
+
     private BigDecimal readAportesRecibidos136(LocalDate fechaCorte) {
         Path formato136 = findFormato136File(fechaCorte);
         try (Workbook wb = WorkbookFactory.create(formato136.toFile(), null, true)) {
@@ -330,6 +365,18 @@ public class SemestralExcelGenerator {
                     .orElse(repoPath);
         } catch (Exception ignore) {
             return repoPath;
+        }
+    }
+
+    private Path findRentModeradoFile(LocalDate fechaCorte) {
+        try (Stream<Path> paths = Files.walk(properties.insumosDir(), 4)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).contains("rent_vr_uni_moderado"))
+                    .findFirst()
+                    .orElse(Path.of("insumos_ejemplo", "Rent_Vr_Uni_Moderado.xlsm"));
+        } catch (Exception ignore) {
+            return Path.of("insumos_ejemplo", "Rent_Vr_Uni_Moderado.xlsm");
         }
     }
 
@@ -392,6 +439,22 @@ public class SemestralExcelGenerator {
         static final CuentasData ZERO = new CuentasData(
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO
+        );
+    }
+
+    private record RentPair(BigDecimal nominal, BigDecimal real) {}
+
+    private record Rentabilidades(
+            BigDecimal nominal10, BigDecimal real10,
+            BigDecimal nominal5, BigDecimal real5,
+            BigDecimal nominal3, BigDecimal real3,
+            BigDecimal nominal1, BigDecimal real1
+    ) {
+        static final Rentabilidades ZERO = new Rentabilidades(
+                BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO
         );
     }
 
