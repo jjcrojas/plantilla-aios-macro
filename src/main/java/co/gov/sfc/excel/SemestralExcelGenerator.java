@@ -169,14 +169,22 @@ public class SemestralExcelGenerator {
                 log.info("Semestral traza filas71-76: comisionPromedioPct={} aporteTrabajador={} aporteEmpleador={}",
                         comisionPromedioPct, aporteTrabajador, aporteEmpleador);
                 Rentabilidades rent = readRentabilidades(fechaCorte);
-                write(hoja, 82, col, rent.nominal10().multiply(BigDecimal.valueOf(100)));
-                write(hoja, 83, col, rent.real10().multiply(BigDecimal.valueOf(100)));
-                write(hoja, 84, col, rent.nominal5().multiply(BigDecimal.valueOf(100)));
-                write(hoja, 85, col, rent.real5().multiply(BigDecimal.valueOf(100)));
-                write(hoja, 86, col, rent.nominal3().multiply(BigDecimal.valueOf(100)));
-                write(hoja, 87, col, rent.real3().multiply(BigDecimal.valueOf(100)));
-                write(hoja, 88, col, rent.nominal1().multiply(BigDecimal.valueOf(100)));
-                write(hoja, 89, col, rent.real1().multiply(BigDecimal.valueOf(100)));
+                write(hoja, 82, col, rent.nominal10());
+                write(hoja, 83, col, rent.real10());
+                write(hoja, 84, col, rent.nominal5());
+                write(hoja, 85, col, rent.real5());
+                write(hoja, 86, col, rent.nominal3());
+                write(hoja, 87, col, rent.real3());
+                write(hoja, 88, col, rent.nominal1());
+                write(hoja, 89, col, rent.real1());
+                setNumberFormat(hoja, 82, col, "#,##0.00%");
+                setNumberFormat(hoja, 83, col, "#,##0.00%");
+                setNumberFormat(hoja, 84, col, "#,##0.00%");
+                setNumberFormat(hoja, 85, col, "#,##0.00%");
+                setNumberFormat(hoja, 86, col, "#,##0.00%");
+                setNumberFormat(hoja, 87, col, "#,##0.00%");
+                setNumberFormat(hoja, 88, col, "#,##0.00%");
+                setNumberFormat(hoja, 89, col, "#,##0.00%");
                 log.info("Semestral traza rentabilidades: 10y(nom={},real={}) 5y(nom={},real={}) 3y(nom={},real={}) 1y(nom={},real={})",
                         rent.nominal10(), rent.real10(), rent.nominal5(), rent.real5(), rent.nominal3(), rent.real3(), rent.nominal1(), rent.real1());
 
@@ -316,6 +324,7 @@ public class SemestralExcelGenerator {
         d4.setCellValue(java.sql.Date.valueOf(fechaInicial));
         d5.setCellValue(java.sql.Date.valueOf(fechaFinal));
         evaluator.clearAllCachedResultValues();
+        evaluator.evaluateAll();
 
         BigDecimal nominalCell = num(consolidado, "D11", evaluator);
         BigDecimal realCell = num(consolidado, "D10", evaluator);
@@ -323,9 +332,10 @@ public class SemestralExcelGenerator {
         log.info("Rent moderado: inicio={} fin={} -> D11 nominal={} D10 real={} | tabla nominal={} real={}",
                 fechaInicial, fechaFinal, nominalCell, realCell, tablePair.nominal(), tablePair.real());
 
-        // Con algunos archivos, D10/D11 quedan cacheados iguales para todos los periodos.
-        // Priorizamos cálculo desde tabla histórica para respetar la ventana (10/5/3/1 años).
-        return tablePair;
+        // Priorizar el cálculo directo de la plantilla (macro usa D10/D11). Si no viene dato, usar tabla.
+        BigDecimal nominal = nominalCell.signum() != 0 ? nominalCell : tablePair.nominal();
+        BigDecimal real = realCell.signum() != 0 ? realCell : tablePair.real();
+        return new RentPair(nominal, real);
     }
 
     private RentPair calcularRentabilidadDesdeTabla(Sheet consolidado, LocalDate fechaInicial, LocalDate fechaFinal) {
