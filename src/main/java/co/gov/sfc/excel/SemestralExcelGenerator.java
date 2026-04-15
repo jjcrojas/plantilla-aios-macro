@@ -1,6 +1,7 @@
 package co.gov.sfc.excel;
 
 import co.gov.sfc.config.AiosProperties;
+import co.gov.sfc.insumos.InsumosLocator;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -32,9 +33,13 @@ public class SemestralExcelGenerator {
     private static final Logger log = LoggerFactory.getLogger(SemestralExcelGenerator.class);
 
     private final AiosProperties properties;
+    private final InsumosLocator locator;
+    private final RentabilidadService rentabilidadService;
 
-    public SemestralExcelGenerator(AiosProperties properties) {
+    public SemestralExcelGenerator(AiosProperties properties, InsumosLocator locator, RentabilidadService rentabilidadService) {
         this.properties = properties;
+        this.locator = locator;
+        this.rentabilidadService = rentabilidadService;
     }
 
     public Path generar(LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral) {
@@ -304,20 +309,49 @@ public class SemestralExcelGenerator {
 
     private Rentabilidades readRentabilidades(LocalDate fechaCorte) {
         Path rentFile = findRentModeradoFile(fechaCorte);
+        Path valoresModerado = findValoresFondoModerFile(fechaCorte);
         try (Workbook wb = WorkbookFactory.create(rentFile.toFile(), null, true)) {
+            // Fallback técnico: tabla consolidada por fecha si el cálculo NAV no tiene datos suficientes.
             Sheet consolidado = getSheetIgnoreCase(wb, "Consolidado");
             if (consolidado == null) consolidado = wb.getSheetAt(0);
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
 
-            var y10 = calcularRentabilidad(consolidado, evaluator, fechaCorte.minusYears(10), fechaCorte);
-            var y5 = calcularRentabilidad(consolidado, evaluator, fechaCorte.minusYears(5), fechaCorte);
-            var y3 = calcularRentabilidad(consolidado, evaluator, fechaCorte.minusYears(3), fechaCorte);
-            var y1 = calcularRentabilidad(consolidado, evaluator, fechaCorte.minusYears(1), fechaCorte);
-
+            var y10 = calcularRentabilidadPorHorizonte(valoresModerado, rentFile, consolidado, fechaCorte, 10);
+            var y5 = calcularRentabilidadPorHorizonte(valoresModerado, rentFile, consolidado, fechaCorte, 5);
+            var y3 = calcularRentabilidadPorHorizonte(valoresModerado, rentFile, consolidado, fechaCorte, 3);
+            var y1 = calcularRentabilidadPorHorizonte(valoresModerado, rentFile, consolidado, fechaCorte, 1);
             return new Rentabilidades(y10.nominal(), y10.real(), y5.nominal(), y5.real(), y3.nominal(), y3.real(), y1.nominal(), y1.real());
         } catch (Exception e) {
-            log.warn("No fue posible leer rentabilidades históricas desde Rent_Vr_Uni_Moderado: {}", e.getMessage());
+            log.warn("No fue posible leer rentabilidades históricas para semestral: {}", e.getMessage());
             return Rentabilidades.ZERO;
+        }
+    }
+
+    private RentPair calcularRentabilidadPorHorizonte(
+            Path valoresModerado,
+            Path rentFile,
+            Sheet consolidado,
+            LocalDate fechaCorte,
+            int anios
+    ) {
+        try {
+            var r = rentabilidadService.calcularRentabilidad(valoresModerado, rentFile, fechaCorte, anios);
+            log.info("Rent semestral {}y (NAV+IPC): ini={} fin={} nominal={} real={} valoresFile={} rentFile={}",
+                    anios, r.fechaInicio(), r.fechaFin(), r.rentabilidadNominal(), r.rentabilidadReal(),
+                    valoresModerado.toAbsolutePath(), rentFile.toAbsolutePath());
+            if (r.rentabilidadNominal().signum() == 0 && r.rentabilidadReal().signum() == 0) {
+                LocalDate ini = fechaCorte.minusYears(anios);
+                RentPair fb = calcularRentabilidadDesdeTabla(consolidado, ini, fechaCorte);
+                log.warn("Rent semestral {}y en cero con NAV+IPC; fallback tabla Consolidado => nominal={} real={}",
+                        anios, fb.nominal(), fb.real());
+                return fb;
+            }
+            return new RentPair(r.rentabilidadNominal(), r.rentabilidadReal());
+        } catch (Exception e) {
+            LocalDate ini = fechaCorte.minusYears(anios);
+            RentPair fb = calcularRentabilidadDesdeTabla(consolidado, ini, fechaCorte);
+            log.warn("Rent semestral {}y falló NAV+IPC; fallback tabla Consolidado. Causa={} nominal={} real={}",
+                    anios, e.getMessage(), fb.nominal(), fb.real());
+            return fb;
         }
     }
 
@@ -550,14 +584,22 @@ public class SemestralExcelGenerator {
     }
 
     private Path findRentModeradoFile(LocalDate fechaCorte) {
-        try (Stream<Path> paths = Files.walk(properties.insumosDir(), 4)) {
-            return paths
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).contains("rent_vr_uni_moderado"))
-                    .findFirst()
-                    .orElse(Path.of("insumos_ejemplo", "Rent_Vr_Uni_Moderado.xlsm"));
+        try {
+            return locator.findRequired("Rent_Vr_Uni_Moderado", fechaCorte);
         } catch (Exception ignore) {
             return Path.of("insumos_ejemplo", "Rent_Vr_Uni_Moderado.xlsm");
+        }
+    }
+
+    private Path findValoresFondoModerFile(LocalDate fechaCorte) {
+        try {
+            return locator.findRequired("Valores_Fondo_Moder", fechaCorte);
+        } catch (Exception e1) {
+            try {
+                return locator.findRequired("MODERADO", fechaCorte);
+            } catch (Exception e2) {
+                return Path.of("insumos_ejemplo", "MODERADO Junio 2025.xls");
+            }
         }
     }
 
