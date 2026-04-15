@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -60,10 +61,6 @@ public class RentabilidadService {
                     + " navIni=" + (navIniEntry == null ? "null" : navIniEntry.getKey())
                     + " navFin=" + (navFinEntry == null ? "null" : navFinEntry.getKey()));
         }
-        if (navIniEntry.getKey().isAfter(fechaInicio)) {
-            log.warn("Rentabilidad NAV: no hay fecha exacta para inicio={}; se usa NAV de {}.",
-                    fechaInicio, navIniEntry.getKey());
-        }
         BigDecimal navIni = navIniEntry.getValue();
         BigDecimal navFin = navFinEntry.getValue();
 
@@ -71,20 +68,24 @@ public class RentabilidadService {
         double navFactor = navFin.divide(navIni, 16, RoundingMode.HALF_UP).doubleValue();
         BigDecimal nominal = BigDecimal.valueOf(Math.pow(navFactor, 365d / (double) dias) - 1d);
 
-        BigDecimal ipcIni = floorValue(ipc, fechaInicio);
-        BigDecimal ipcFin = floorValue(ipc, fechaFin);
-        BigDecimal real;
-        if (ipcIni.signum() > 0 && ipcFin.signum() > 0) {
-            double ipcFactor = ipcFin.divide(ipcIni, 16, RoundingMode.HALF_UP).doubleValue();
-            double realFactor = navFactor / ipcFactor;
-            real = BigDecimal.valueOf(Math.pow(realFactor, 365d / (double) dias) - 1d);
-        } else {
-            real = nominal;
-            log.warn("Rentabilidad real sin IPC válido para ini={} fin={}; se usa nominal como fallback.", fechaInicio, fechaFin);
+        var ipcIniEntry = ipc.floorEntry(fechaInicio);
+        var ipcFinEntry = ipc.floorEntry(fechaFin);
+        if (ipcIniEntry == null || ipcFinEntry == null) {
+            throw new IllegalStateException("No hay IPC suficiente para calcular horizonte. "
+                    + "inicio=" + fechaInicio + " fin=" + fechaFin
+                    + " ipcIni=" + (ipcIniEntry == null ? "null" : ipcIniEntry.getKey())
+                    + " ipcFin=" + (ipcFinEntry == null ? "null" : ipcFinEntry.getKey()));
         }
+        BigDecimal ipcIni = ipcIniEntry.getValue();
+        BigDecimal ipcFin = ipcFinEntry.getValue();
+        BigDecimal inflacion = ipcFin.divide(ipcIni, 16, RoundingMode.HALF_UP).subtract(BigDecimal.ONE);
+        BigDecimal real = nominal.add(BigDecimal.ONE)
+                .divide(inflacion.add(BigDecimal.ONE), 16, RoundingMode.HALF_UP)
+                .subtract(BigDecimal.ONE);
 
-        log.info("Rentabilidad NAV calculada: ini={} fin={} navIni={} navFin={} ipcIni={} ipcFin={} nominal={} real={}",
-                fechaInicio, fechaFin, navIni, navFin, ipcIni, ipcFin, nominal, real);
+        log.info("Rentabilidad NAV calculada: ini={} fin={} navIniDate={} navIni={} navFinDate={} navFin={} ipcIniDate={} ipcIni={} ipcFinDate={} ipcFin={} nominal={} inflacion={} real={}",
+                fechaInicio, fechaFin, navIniEntry.getKey(), navIni, navFinEntry.getKey(), navFin,
+                ipcIniEntry.getKey(), ipcIni, ipcFinEntry.getKey(), ipcFin, nominal, inflacion, real);
         return new RentabilidadResultado(fechaInicio, fechaFin, nominal, real);
     }
 
@@ -103,7 +104,7 @@ public class RentabilidadService {
                     LocalDate fecha = cellAsDate(row.getCell(0));
                     BigDecimal nav = cellAsNumber(row.getCell(14)); // columna O
                     if (fecha == null || nav.signum() <= 0) continue;
-                    if (fecha.isBefore(fechaInicio) || fecha.isAfter(fechaFin)) continue;
+                    if (fecha.isAfter(fechaFin)) continue;
                     porFecha.computeIfAbsent(fecha, k -> new ArrayList<>()).add(nav);
                 }
             }
@@ -162,6 +163,10 @@ public class RentabilidadService {
             if (ipc != null) {
                 NavigableMap<LocalDate, BigDecimal> tasas = readDateValueSheet(ipc, 1, 2);
                 if (!tasas.isEmpty()) {
+                    if (isIndexSeries(tasas)) {
+                        log.info("Serie IPC cargada como índice directo: file={} fechas={}", rentModeradoFile.toAbsolutePath(), tasas.size());
+                        return tasas;
+                    }
                     BigDecimal indice = BigDecimal.valueOf(100);
                     NavigableMap<LocalDate, BigDecimal> indices = new TreeMap<>();
                     for (var e : tasas.entrySet().stream().sorted(Map.Entry.comparingByKey()).collect(Collectors.toList())) {
@@ -202,9 +207,16 @@ public class RentabilidadService {
 
     private Map.Entry<LocalDate, BigDecimal> nearestStartValue(NavigableMap<LocalDate, BigDecimal> serie, LocalDate fechaInicio) {
         if (serie == null || serie.isEmpty()) return null;
-        Map.Entry<LocalDate, BigDecimal> exacta = serie.floorEntry(fechaInicio);
-        if (exacta != null) return exacta;
-        return serie.ceilingEntry(fechaInicio);
+        return serie.floorEntry(fechaInicio);
+    }
+
+    private boolean isIndexSeries(NavigableMap<LocalDate, BigDecimal> serie) {
+        if (serie.isEmpty()) return false;
+        List<BigDecimal> sample = new ArrayList<>(serie.values());
+        Collections.sort(sample);
+        BigDecimal median = sample.get(sample.size() / 2);
+        // Regla simple: un IPC índice suele estar muy por encima de 1; una tasa mensual suele estar < 1.
+        return median.compareTo(BigDecimal.valueOf(2)) > 0;
     }
 
     private LocalDate cellAsDate(Cell c) {
