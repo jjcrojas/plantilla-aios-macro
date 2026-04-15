@@ -310,49 +310,24 @@ public class SemestralExcelGenerator {
     private Rentabilidades readRentabilidades(LocalDate fechaCorte) {
         Path rentFile = findRentModeradoFile(fechaCorte);
         Path valoresModerado = findValoresFondoModerFile(fechaCorte);
-        try (Workbook wb = WorkbookFactory.create(rentFile.toFile(), null, true)) {
-            // Fallback técnico: tabla consolidada por fecha si el cálculo NAV no tiene datos suficientes.
-            Sheet consolidado = getSheetIgnoreCase(wb, "Consolidado");
-            if (consolidado == null) consolidado = wb.getSheetAt(0);
-
-            var y10 = calcularRentabilidadPorHorizonte(valoresModerado, rentFile, consolidado, fechaCorte, 10);
-            var y5 = calcularRentabilidadPorHorizonte(valoresModerado, rentFile, consolidado, fechaCorte, 5);
-            var y3 = calcularRentabilidadPorHorizonte(valoresModerado, rentFile, consolidado, fechaCorte, 3);
-            var y1 = calcularRentabilidadPorHorizonte(valoresModerado, rentFile, consolidado, fechaCorte, 1);
-            return new Rentabilidades(y10.nominal(), y10.real(), y5.nominal(), y5.real(), y3.nominal(), y3.real(), y1.nominal(), y1.real());
-        } catch (Exception e) {
-            log.warn("No fue posible leer rentabilidades históricas para semestral: {}", e.getMessage());
-            return Rentabilidades.ZERO;
-        }
+        var y10 = calcularRentabilidadPorHorizonte(valoresModerado, rentFile, fechaCorte, 10);
+        var y5 = calcularRentabilidadPorHorizonte(valoresModerado, rentFile, fechaCorte, 5);
+        var y3 = calcularRentabilidadPorHorizonte(valoresModerado, rentFile, fechaCorte, 3);
+        var y1 = calcularRentabilidadPorHorizonte(valoresModerado, rentFile, fechaCorte, 1);
+        return new Rentabilidades(y10.nominal(), y10.real(), y5.nominal(), y5.real(), y3.nominal(), y3.real(), y1.nominal(), y1.real());
     }
 
     private RentPair calcularRentabilidadPorHorizonte(
             Path valoresModerado,
             Path rentFile,
-            Sheet consolidado,
             LocalDate fechaCorte,
             int anios
     ) {
-        try {
-            var r = rentabilidadService.calcularRentabilidad(valoresModerado, rentFile, fechaCorte, anios);
-            log.info("Rent semestral {}y (NAV+IPC): ini={} fin={} nominal={} real={} valoresFile={} rentFile={}",
-                    anios, r.fechaInicio(), r.fechaFin(), r.rentabilidadNominal(), r.rentabilidadReal(),
-                    valoresModerado.toAbsolutePath(), rentFile.toAbsolutePath());
-            if (r.rentabilidadNominal().signum() == 0 && r.rentabilidadReal().signum() == 0) {
-                LocalDate ini = fechaCorte.minusYears(anios);
-                RentPair fb = calcularRentabilidadDesdeTabla(consolidado, ini, fechaCorte);
-                log.warn("Rent semestral {}y en cero con NAV+IPC; fallback tabla Consolidado => nominal={} real={}",
-                        anios, fb.nominal(), fb.real());
-                return fb;
-            }
-            return new RentPair(r.rentabilidadNominal(), r.rentabilidadReal());
-        } catch (Exception e) {
-            LocalDate ini = fechaCorte.minusYears(anios);
-            RentPair fb = calcularRentabilidadDesdeTabla(consolidado, ini, fechaCorte);
-            log.warn("Rent semestral {}y falló NAV+IPC; fallback tabla Consolidado. Causa={} nominal={} real={}",
-                    anios, e.getMessage(), fb.nominal(), fb.real());
-            return fb;
-        }
+        var r = rentabilidadService.calcularRentabilidad(valoresModerado, rentFile, fechaCorte, anios);
+        log.info("Rent semestral {}y (NAV+IPC): ini={} fin={} nominal={} real={} valoresFile={} rentFile={}",
+                anios, r.fechaInicio(), r.fechaFin(), r.rentabilidadNominal(), r.rentabilidadReal(),
+                valoresModerado.toAbsolutePath(), rentFile.toAbsolutePath());
+        return new RentPair(r.rentabilidadNominal(), r.rentabilidadReal());
     }
 
     private RentPair calcularRentabilidad(Sheet consolidado, FormulaEvaluator evaluator, LocalDate fechaInicial, LocalDate fechaFinal) {

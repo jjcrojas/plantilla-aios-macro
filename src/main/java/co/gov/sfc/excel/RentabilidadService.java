@@ -41,7 +41,7 @@ public class RentabilidadService {
             int horizonteAnios
     ) {
         LocalDate fechaInicio = fechaCorte.minusYears(horizonteAnios);
-        NavigableMap<LocalDate, BigDecimal> nav = readNavPromedio(valoresFondoModerFile);
+        NavigableMap<LocalDate, BigDecimal> nav = readNavPromedio(valoresFondoModerFile, fechaInicio, fechaCorte);
         NavigableMap<LocalDate, BigDecimal> ipc = readIpcSeries(rentModeradoFile);
         return calcular(fechaInicio, fechaCorte, nav, ipc);
     }
@@ -52,13 +52,20 @@ public class RentabilidadService {
             NavigableMap<LocalDate, BigDecimal> nav,
             NavigableMap<LocalDate, BigDecimal> ipc
     ) {
-        BigDecimal navIni = floorValue(nav, fechaInicio);
-        BigDecimal navFin = floorValue(nav, fechaFin);
-        if (navIni.signum() <= 0 || navFin.signum() <= 0) {
-            log.warn("Rentabilidad NAV sin datos válidos: ini={} fin={} navIni={} navFin={}",
-                    fechaInicio, fechaFin, navIni, navFin);
-            return new RentabilidadResultado(fechaInicio, fechaFin, BigDecimal.ZERO, BigDecimal.ZERO);
+        var navIniEntry = nearestStartValue(nav, fechaInicio);
+        var navFinEntry = nav.floorEntry(fechaFin);
+        if (navIniEntry == null || navFinEntry == null) {
+            throw new IllegalStateException("No hay NAV suficiente para calcular horizonte. "
+                    + "inicio=" + fechaInicio + " fin=" + fechaFin
+                    + " navIni=" + (navIniEntry == null ? "null" : navIniEntry.getKey())
+                    + " navFin=" + (navFinEntry == null ? "null" : navFinEntry.getKey()));
         }
+        if (navIniEntry.getKey().isAfter(fechaInicio)) {
+            log.warn("Rentabilidad NAV: no hay fecha exacta para inicio={}; se usa NAV de {}.",
+                    fechaInicio, navIniEntry.getKey());
+        }
+        BigDecimal navIni = navIniEntry.getValue();
+        BigDecimal navFin = navFinEntry.getValue();
 
         long dias = Math.max(1, ChronoUnit.DAYS.between(fechaInicio, fechaFin));
         double navFactor = navFin.divide(navIni, 16, RoundingMode.HALF_UP).doubleValue();
@@ -81,10 +88,12 @@ public class RentabilidadService {
         return new RentabilidadResultado(fechaInicio, fechaFin, nominal, real);
     }
 
-    private NavigableMap<LocalDate, BigDecimal> readNavPromedio(Path file) {
+    private NavigableMap<LocalDate, BigDecimal> readNavPromedio(Path file, LocalDate fechaInicio, LocalDate fechaFin) {
         try (Workbook wb = WorkbookFactory.create(file.toFile(), null, true)) {
             Map<LocalDate, List<BigDecimal>> porFecha = new TreeMap<>();
-            for (String nombre : detectHojasNav(wb)) {
+            List<String> hojasNav = detectHojasNav(wb);
+            int fondosEsperados = hojasNav.size();
+            for (String nombre : hojasNav) {
                 Sheet s = wb.getSheet(nombre);
                 if (s == null) continue;
                 int last = s.getLastRowNum() + 1;
@@ -94,23 +103,32 @@ public class RentabilidadService {
                     LocalDate fecha = cellAsDate(row.getCell(0));
                     BigDecimal nav = cellAsNumber(row.getCell(14)); // columna O
                     if (fecha == null || nav.signum() <= 0) continue;
+                    if (fecha.isBefore(fechaInicio) || fecha.isAfter(fechaFin)) continue;
                     porFecha.computeIfAbsent(fecha, k -> new ArrayList<>()).add(nav);
                 }
             }
             NavigableMap<LocalDate, BigDecimal> serie = new TreeMap<>();
+            int coberturaParcial = 0;
             for (var e : porFecha.entrySet()) {
                 BigDecimal sum = e.getValue().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
                 BigDecimal avg = sum.divide(BigDecimal.valueOf(e.getValue().size()), 16, RoundingMode.HALF_UP);
                 serie.put(e.getKey(), avg);
+                if (e.getValue().size() < fondosEsperados) {
+                    coberturaParcial++;
+                }
             }
-            log.info("Serie NAV promedio cargada: file={} fechas={} desde={} hasta={}",
+            log.info("Serie NAV promedio cargada: file={} fechas={} desde={} hasta={} fondosEsperados={} fechasCoberturaParcial={}",
                     file.toAbsolutePath(), serie.size(),
                     serie.isEmpty() ? null : serie.firstKey(),
-                    serie.isEmpty() ? null : serie.lastKey());
+                    serie.isEmpty() ? null : serie.lastKey(),
+                    fondosEsperados,
+                    coberturaParcial);
+            if (serie.isEmpty()) {
+                throw new IllegalStateException("No hay NAV en el rango solicitado [" + fechaInicio + ", " + fechaFin + "] en " + file.toAbsolutePath());
+            }
             return serie;
         } catch (Exception e) {
-            log.warn("No fue posible leer NAV desde {}: {}", file.toAbsolutePath(), e.getMessage());
-            return new TreeMap<>();
+            throw new IllegalStateException("No fue posible leer NAV desde " + file.toAbsolutePath() + ": " + e.getMessage(), e);
         }
     }
 
@@ -180,6 +198,13 @@ public class RentabilidadService {
         if (exacta != null) return exacta;
         var floor = serie.floorEntry(fecha);
         return floor == null ? BigDecimal.ZERO : floor.getValue();
+    }
+
+    private Map.Entry<LocalDate, BigDecimal> nearestStartValue(NavigableMap<LocalDate, BigDecimal> serie, LocalDate fechaInicio) {
+        if (serie == null || serie.isEmpty()) return null;
+        Map.Entry<LocalDate, BigDecimal> exacta = serie.floorEntry(fechaInicio);
+        if (exacta != null) return exacta;
+        return serie.ceilingEntry(fechaInicio);
     }
 
     private LocalDate cellAsDate(Cell c) {
