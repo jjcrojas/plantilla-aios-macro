@@ -2,6 +2,7 @@ package co.gov.sfc.excel;
 
 import co.gov.sfc.config.AiosProperties;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.DataFormat;
 import org.apache.poi.ss.usermodel.Row;
@@ -331,6 +332,9 @@ public class SemestralExcelGenerator {
         BigDecimal real;
         BigDecimal nominal;
         try {
+            evaluator.notifyUpdateCell(d4);
+            evaluator.notifyUpdateCell(d5);
+            forceRecalculateConsolidadoInputs(consolidado, evaluator);
             CellValue ev10 = evaluator.evaluate(d10);
             CellValue ev11 = evaluator.evaluate(d11);
             real = (ev10 != null && ev10.getCellType() == org.apache.poi.ss.usermodel.CellType.NUMERIC)
@@ -339,6 +343,10 @@ public class SemestralExcelGenerator {
             nominal = (ev11 != null && ev11.getCellType() == org.apache.poi.ss.usermodel.CellType.NUMERIC)
                     ? BigDecimal.valueOf(ev11.getNumberValue())
                     : num(consolidado, "D11");
+            log.info("Rent moderado detalle eval: ini={} fin={} D10[type={},cached={},eval={}] D11[type={},cached={},eval={}]",
+                    fechaInicial, fechaFinal,
+                    d10.getCellType(), num(consolidado, "D10"), formatCellValue(ev10),
+                    d11.getCellType(), num(consolidado, "D11"), formatCellValue(ev11));
         } catch (Exception e) {
             real = num(consolidado, "D10");
             nominal = num(consolidado, "D11");
@@ -348,6 +356,43 @@ public class SemestralExcelGenerator {
         log.info("Rent moderado (solo D4/D5->D10/D11): D4(inicio)={} D5(fin)={} => D11 nominal={} D10 real={}",
                 fechaInicial, fechaFinal, nominal, real);
         return new RentPair(nominal, real);
+    }
+
+    private void forceRecalculateConsolidadoInputs(Sheet consolidado, FormulaEvaluator evaluator) {
+        int maxRow = Math.min(consolidado.getLastRowNum(), 20);
+        for (int r = 0; r <= maxRow; r++) {
+            Row row = consolidado.getRow(r);
+            if (row == null) continue;
+            int lastCell = Math.min(Math.max(row.getLastCellNum(), (short) 1), 20);
+            for (int c = 0; c < lastCell; c++) {
+                Cell cell = row.getCell(c);
+                if (cell == null) continue;
+                if (cell.getCellType() == CellType.FORMULA) {
+                    try {
+                        evaluator.evaluateFormulaCell(cell);
+                    } catch (Exception ignored) {
+                        // Celdas con dependencias externas pueden fallar; D10/D11 se intentan evaluar al final.
+                    }
+                }
+            }
+        }
+    }
+
+    private String formatCellValue(CellValue cellValue) {
+        if (cellValue == null) return "null";
+        if (cellValue.getCellType() == CellType.NUMERIC) {
+            return BigDecimal.valueOf(cellValue.getNumberValue()).toPlainString();
+        }
+        if (cellValue.getCellType() == CellType.STRING) {
+            return cellValue.getStringValue();
+        }
+        if (cellValue.getCellType() == CellType.BOOLEAN) {
+            return String.valueOf(cellValue.getBooleanValue());
+        }
+        if (cellValue.getCellType() == CellType.ERROR) {
+            return "ERROR:" + cellValue.getErrorValue();
+        }
+        return cellValue.formatAsString();
     }
 
     private RentPair leerRentabilidadDesdeSerieConsolidado(Sheet consolidado, LocalDate fechaInicial, LocalDate fechaFinal) {
