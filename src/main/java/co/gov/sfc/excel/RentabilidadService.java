@@ -46,6 +46,13 @@ public class RentabilidadService {
     ) {
         LocalDate fechaInicio = fechaCorte.minusYears(horizonteAnios);
         NavigableMap<LocalDate, BigDecimal> nav = readNavPromedio(valoresFondoModerFile, fechaInicio, fechaCorte);
+        if (nav.floorEntry(fechaInicio) == null) {
+            NavigableMap<LocalDate, BigDecimal> navConsolidado = readNavFromRentConsolidado(rentModeradoFile, fechaCorte);
+            if (!navConsolidado.isEmpty()) {
+                nav.putAll(navConsolidado);
+                log.warn("NAV histórico incompleto en Valores_Fondo_Moder para inicio={}; se complementa con Consolidado de Rent_Vr_Uni_Moderado.", fechaInicio);
+            }
+        }
         NavigableMap<YearMonth, BigDecimal> ipc = readIpcSeries(rentModeradoFile);
         return calcular(fechaInicio, fechaCorte, nav, ipc);
     }
@@ -283,6 +290,33 @@ public class RentabilidadService {
         if (ipcFin.compareTo(ipcIni.multiply(BigDecimal.valueOf(5))) > 0) {
             throw new IllegalStateException("IPC inválido: crecimiento irreal " + ipcIni + " -> " + ipcFin
                     + " para rango " + fechaInicio + " a " + fechaFin);
+        }
+    }
+
+    private NavigableMap<LocalDate, BigDecimal> readNavFromRentConsolidado(Path rentModeradoFile, LocalDate fechaFin) {
+        NavigableMap<LocalDate, BigDecimal> data = new TreeMap<>();
+        try (Workbook wb = WorkbookFactory.create(rentModeradoFile.toFile(), null, true)) {
+            Sheet s = getSheetIgnoreCase(wb, "Consolidado");
+            if (s == null) return data;
+            int last = s.getLastRowNum() + 1;
+            for (int r = 14; r <= last; r++) { // estructura histórica conocida en consolidado
+                Row row = s.getRow(r - 1);
+                if (row == null) continue;
+                LocalDate fecha = cellAsDate(row.getCell(0)); // col A
+                BigDecimal nav = cellAsNumber(row.getCell(4)); // col E (NAV nominal usado por macro/tabla)
+                if (fecha == null || nav.signum() <= 0) continue;
+                if (fecha.isAfter(fechaFin)) continue;
+                data.put(fecha, nav);
+            }
+            log.info("Serie NAV desde Consolidado cargada: file={} fechas={} desde={} hasta={}",
+                    rentModeradoFile.toAbsolutePath(),
+                    data.size(),
+                    data.isEmpty() ? null : data.firstKey(),
+                    data.isEmpty() ? null : data.lastKey());
+            return data;
+        } catch (Exception e) {
+            log.warn("No fue posible complementar NAV desde Consolidado en {}: {}", rentModeradoFile.toAbsolutePath(), e.getMessage());
+            return data;
         }
     }
 
