@@ -45,24 +45,28 @@ public class RentabilidadService {
             int horizonteAnios
     ) {
         LocalDate fechaInicio = fechaCorte.minusYears(horizonteAnios);
-        NavigableMap<LocalDate, BigDecimal> nav = readNavPromedio(valoresFondoModerFile, fechaInicio, fechaCorte);
-        if (nav.floorEntry(fechaInicio) == null) {
-            NavigableMap<LocalDate, BigDecimal> navConsolidado = readNavFromRentConsolidado(rentModeradoFile, fechaCorte);
-            if (!navConsolidado.isEmpty()) {
-                nav.putAll(navConsolidado);
+        NavSeries navSeries = readNavPromedio(valoresFondoModerFile, fechaInicio, fechaCorte);
+        if (navSeries.values().floorEntry(fechaInicio) == null) {
+            NavSeries navConsolidado = readNavFromRentConsolidado(rentModeradoFile, fechaCorte);
+            if (!navConsolidado.values().isEmpty()) {
+                navSeries.values().putAll(navConsolidado.values());
+                navSeries.sourceByDate().putAll(navConsolidado.sourceByDate());
+                navSeries.contributorsByDate().putAll(navConsolidado.contributorsByDate());
                 log.warn("NAV histórico incompleto en Valores_Fondo_Moder para inicio={}; se complementa con Consolidado de Rent_Vr_Uni_Moderado.", fechaInicio);
             }
         }
-        NavigableMap<YearMonth, BigDecimal> ipc = readIpcSeries(rentModeradoFile);
-        return calcular(fechaInicio, fechaCorte, nav, ipc);
+        IpcSeries ipcSeries = readIpcSeries(rentModeradoFile);
+        return calcular(fechaInicio, fechaCorte, navSeries, ipcSeries);
     }
 
     private RentabilidadResultado calcular(
             LocalDate fechaInicio,
             LocalDate fechaFin,
-            NavigableMap<LocalDate, BigDecimal> nav,
-            NavigableMap<YearMonth, BigDecimal> ipc
+            NavSeries navSeries,
+            IpcSeries ipcSeries
     ) {
+        NavigableMap<LocalDate, BigDecimal> nav = navSeries.values();
+        NavigableMap<YearMonth, BigDecimal> ipc = ipcSeries.values();
         var navIniEntry = nearestStartValue(nav, fechaInicio);
         var navFinEntry = nav.floorEntry(fechaFin);
         if (navIniEntry == null || navFinEntry == null) {
@@ -94,14 +98,25 @@ public class RentabilidadService {
                 .divide(inflacion.add(BigDecimal.ONE), 16, RoundingMode.HALF_UP)
                 .subtract(BigDecimal.ONE);
 
-        log.info("Rentabilidad NAV calculada: ini={} fin={} navIniDate={} navIni={} navFinDate={} navFin={} ipcIniDate={} ipcIni={} ipcFinDate={} ipcFin={} nominal={} inflacion={} real={}",
-                fechaInicio, fechaFin, navIniEntry.getKey(), navIni, navFinEntry.getKey(), navFin,
-                ipcIniEntry.getKey(), ipcIni, ipcFinEntry.getKey(), ipcFin, nominal, inflacion, real);
+        String navIniSrc = navSeries.sourceByDate().getOrDefault(navIniEntry.getKey(), "desconocido");
+        String navFinSrc = navSeries.sourceByDate().getOrDefault(navFinEntry.getKey(), "desconocido");
+        Integer navIniCount = navSeries.contributorsByDate().getOrDefault(navIniEntry.getKey(), 0);
+        Integer navFinCount = navSeries.contributorsByDate().getOrDefault(navFinEntry.getKey(), 0);
+        String ipcSource = "sheet=" + ipcSeries.sheetName() + (ipcSeries.convertedFromRates() ? " (tasas->índice)" : " (índice directo)");
+        log.info("Rentabilidad detalle operandos: fechaInicio={} fechaFin={} dias={} | NAV_ini_fecha={} NAV_ini_valor={} NAV_ini_fuente={} NAV_ini_fondos={} | NAV_fin_fecha={} NAV_fin_valor={} NAV_fin_fuente={} NAV_fin_fondos={} | IPC_ini_mes={} IPC_ini_valor={} IPC_ini_fuente={} | IPC_fin_mes={} IPC_fin_valor={} IPC_fin_fuente={} | inflacion=(IPC_fin/IPC_ini)-1={} | nominal=(NAV_fin/NAV_ini)^(365/dias)-1={} | real=((1+nominal)/(1+inflacion))-1={}",
+                fechaInicio, fechaFin, dias,
+                navIniEntry.getKey(), navIni, navIniSrc, navIniCount,
+                navFinEntry.getKey(), navFin, navFinSrc, navFinCount,
+                ipcIniEntry.getKey(), ipcIni, ipcSource,
+                ipcFinEntry.getKey(), ipcFin, ipcSource,
+                inflacion, nominal, real);
         return new RentabilidadResultado(fechaInicio, fechaFin, nominal, real);
     }
 
-    private NavigableMap<LocalDate, BigDecimal> readNavPromedio(Path file, LocalDate fechaInicio, LocalDate fechaFin) {
+    private NavSeries readNavPromedio(Path file, LocalDate fechaInicio, LocalDate fechaFin) {
             Map<LocalDate, List<BigDecimal>> porFecha = new TreeMap<>();
+        Map<LocalDate, String> sourceByDate = new TreeMap<>();
+        Map<LocalDate, Integer> contributorsByDate = new TreeMap<>();
         List<Path> navFiles = findNavHistoryFiles(file);
         int fondosEsperados = 0;
         try {
@@ -121,6 +136,7 @@ public class RentabilidadService {
                             if (fecha == null || nav.signum() <= 0) continue;
                             if (fecha.isAfter(fechaFin)) continue;
                             porFecha.computeIfAbsent(fecha, k -> new ArrayList<>()).add(nav);
+                            sourceByDate.put(fecha, navFile.getFileName() + "/" + nombre + "!O");
                         }
                     }
                 }
@@ -135,6 +151,7 @@ public class RentabilidadService {
                 BigDecimal sum = e.getValue().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
                 BigDecimal avg = sum.divide(BigDecimal.valueOf(e.getValue().size()), 16, RoundingMode.HALF_UP);
                 serie.put(e.getKey(), avg);
+                contributorsByDate.put(e.getKey(), e.getValue().size());
                 if (e.getValue().size() < fondosEsperados) {
                     coberturaParcial++;
                 }
@@ -148,7 +165,7 @@ public class RentabilidadService {
             if (serie.isEmpty()) {
                 throw new IllegalStateException("No hay NAV en el rango solicitado [" + fechaInicio + ", " + fechaFin + "] en " + file.toAbsolutePath());
             }
-            return serie;
+            return new NavSeries(serie, sourceByDate, contributorsByDate);
         } catch (IllegalStateException e) {
             throw e;
         }
@@ -170,14 +187,14 @@ public class RentabilidadService {
         return List.of(wb.getSheetAt(0).getSheetName());
     }
 
-    private NavigableMap<YearMonth, BigDecimal> readIpcSeries(Path rentModeradoFile) {
+    private IpcSeries readIpcSeries(Path rentModeradoFile) {
         try (Workbook wb = WorkbookFactory.create(rentModeradoFile.toFile(), null, true)) {
             Sheet ipcBr = getSheetIgnoreCase(wb, "IPC_BR");
             if (ipcBr != null) {
                 NavigableMap<YearMonth, BigDecimal> serie = readDateValueSheetByMonth(ipcBr, 1, 2);
                 if (!serie.isEmpty()) {
                     log.info("Serie IPC_BR cargada: file={} fechas={}", rentModeradoFile.toAbsolutePath(), serie.size());
-                    return serie;
+                    return new IpcSeries(serie, ipcBr.getSheetName(), false);
                 }
             }
             Sheet ipc = getSheetIgnoreCase(wb, "IPC");
@@ -186,7 +203,7 @@ public class RentabilidadService {
                 if (!tasas.isEmpty()) {
                     if (isIndexSeries(tasas)) {
                         log.info("Serie IPC cargada como índice directo: file={} fechas={}", rentModeradoFile.toAbsolutePath(), tasas.size());
-                        return tasas;
+                        return new IpcSeries(tasas, ipc.getSheetName(), false);
                     }
                     BigDecimal indice = BigDecimal.valueOf(100);
                     NavigableMap<YearMonth, BigDecimal> indices = new TreeMap<>();
@@ -195,13 +212,13 @@ public class RentabilidadService {
                         indices.put(e.getKey(), indice);
                     }
                     log.info("Serie IPC (tasas->índice) cargada: file={} fechas={}", rentModeradoFile.toAbsolutePath(), indices.size());
-                    return indices;
+                    return new IpcSeries(indices, ipc.getSheetName(), true);
                 }
             }
         } catch (Exception e) {
             log.warn("No fue posible leer IPC desde {}: {}", rentModeradoFile.toAbsolutePath(), e.getMessage());
         }
-        return new TreeMap<>();
+        return new IpcSeries(new TreeMap<>(), "N/A", false);
     }
 
     private NavigableMap<LocalDate, BigDecimal> readDateValueSheet(Sheet sheet, int dateCol1Based, int valueCol1Based) {
@@ -293,11 +310,13 @@ public class RentabilidadService {
         }
     }
 
-    private NavigableMap<LocalDate, BigDecimal> readNavFromRentConsolidado(Path rentModeradoFile, LocalDate fechaFin) {
+    private NavSeries readNavFromRentConsolidado(Path rentModeradoFile, LocalDate fechaFin) {
         NavigableMap<LocalDate, BigDecimal> data = new TreeMap<>();
+        Map<LocalDate, String> sourceByDate = new TreeMap<>();
+        Map<LocalDate, Integer> contributorsByDate = new TreeMap<>();
         try (Workbook wb = WorkbookFactory.create(rentModeradoFile.toFile(), null, true)) {
             Sheet s = getSheetIgnoreCase(wb, "Consolidado");
-            if (s == null) return data;
+            if (s == null) return new NavSeries(data, sourceByDate, contributorsByDate);
             int last = s.getLastRowNum() + 1;
             for (int r = 14; r <= last; r++) { // estructura histórica conocida en consolidado
                 Row row = s.getRow(r - 1);
@@ -307,18 +326,32 @@ public class RentabilidadService {
                 if (fecha == null || nav.signum() <= 0) continue;
                 if (fecha.isAfter(fechaFin)) continue;
                 data.put(fecha, nav);
+                sourceByDate.put(fecha, rentModeradoFile.getFileName() + "/Consolidado!E");
+                contributorsByDate.put(fecha, 1);
             }
             log.info("Serie NAV desde Consolidado cargada: file={} fechas={} desde={} hasta={}",
                     rentModeradoFile.toAbsolutePath(),
                     data.size(),
                     data.isEmpty() ? null : data.firstKey(),
                     data.isEmpty() ? null : data.lastKey());
-            return data;
+            return new NavSeries(data, sourceByDate, contributorsByDate);
         } catch (Exception e) {
             log.warn("No fue posible complementar NAV desde Consolidado en {}: {}", rentModeradoFile.toAbsolutePath(), e.getMessage());
-            return data;
+            return new NavSeries(data, sourceByDate, contributorsByDate);
         }
     }
+
+    private record NavSeries(
+            NavigableMap<LocalDate, BigDecimal> values,
+            Map<LocalDate, String> sourceByDate,
+            Map<LocalDate, Integer> contributorsByDate
+    ) {}
+
+    private record IpcSeries(
+            NavigableMap<YearMonth, BigDecimal> values,
+            String sheetName,
+            boolean convertedFromRates
+    ) {}
 
     private LocalDate cellAsDate(Cell c) {
         if (c == null) return null;
