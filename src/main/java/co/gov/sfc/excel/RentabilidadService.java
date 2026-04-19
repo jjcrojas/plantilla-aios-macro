@@ -94,6 +94,7 @@ public class RentabilidadService {
         BigDecimal ipcFin = ipcFinEntry.getValue();
         validarCrecimientoIpc(ipcIni, ipcFin, fechaInicio, fechaFin);
         double ipcFactor = ipcFin.divide(ipcIni, 16, RoundingMode.HALF_UP).doubleValue();
+        BigDecimal inflacionPeriodo = BigDecimal.valueOf(ipcFactor - 1d);
         BigDecimal inflacion = BigDecimal.valueOf(Math.pow(ipcFactor, 365d / (double) dias) - 1d);
         BigDecimal real = nominal.add(BigDecimal.ONE)
                 .divide(inflacion.add(BigDecimal.ONE), 16, RoundingMode.HALF_UP)
@@ -104,13 +105,13 @@ public class RentabilidadService {
         Integer navIniCount = navSeries.contributorsByDate().getOrDefault(navIniEntry.getKey(), 0);
         Integer navFinCount = navSeries.contributorsByDate().getOrDefault(navFinEntry.getKey(), 0);
         String ipcSource = "sheet=" + ipcSeries.sheetName() + (ipcSeries.convertedFromRates() ? " (tasas->índice)" : " (índice directo)");
-        log.info("Rentabilidad detalle operandos: fechaInicio={} fechaFin={} dias={} | NAV_ini_fecha={} NAV_ini_valor={} NAV_ini_fuente={} NAV_ini_fondos={} | NAV_fin_fecha={} NAV_fin_valor={} NAV_fin_fuente={} NAV_fin_fondos={} | IPC_ini_mes={} IPC_ini_valor={} IPC_ini_fuente={} | IPC_fin_mes={} IPC_fin_valor={} IPC_fin_fuente={} | inflacion=(IPC_fin/IPC_ini)-1={} | nominal=(NAV_fin/NAV_ini)^(365/dias)-1={} | real=((1+nominal)/(1+inflacion))-1={}",
+        log.info("Rentabilidad detalle operandos: fechaInicio={} fechaFin={} dias={} | NAV_ini_fecha={} NAV_ini_valor={} NAV_ini_fuente={} NAV_ini_fondos={} | NAV_fin_fecha={} NAV_fin_valor={} NAV_fin_fuente={} NAV_fin_fondos={} | IPC_ini_mes={} IPC_ini_valor={} IPC_ini_fuente={} | IPC_fin_mes={} IPC_fin_valor={} IPC_fin_fuente={} | ipcFactor=(IPC_fin/IPC_ini)={} | inflacion_periodo=(IPC_fin/IPC_ini)-1={} | inflacion_anual=((IPC_fin/IPC_ini)^(365/dias))-1={} | nominal_anual=(NAV_fin/NAV_ini)^(365/dias)-1={} | real=((1+nominal_anual)/(1+inflacion_anual))-1={}",
                 fechaInicio, fechaFin, dias,
                 navIniEntry.getKey(), navIni, navIniSrc, navIniCount,
                 navFinEntry.getKey(), navFin, navFinSrc, navFinCount,
                 ipcIniEntry.getKey(), ipcIni, ipcSource,
                 ipcFinEntry.getKey(), ipcFin, ipcSource,
-                inflacion, nominal, real);
+                ipcFactor, inflacionPeriodo, inflacion, nominal, real);
         return new RentabilidadResultado(fechaInicio, fechaFin, nominal, real);
     }
 
