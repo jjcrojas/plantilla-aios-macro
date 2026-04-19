@@ -93,7 +93,8 @@ public class RentabilidadService {
         BigDecimal ipcIni = ipcIniEntry.getValue();
         BigDecimal ipcFin = ipcFinEntry.getValue();
         validarCrecimientoIpc(ipcIni, ipcFin, fechaInicio, fechaFin);
-        BigDecimal inflacion = ipcFin.divide(ipcIni, 16, RoundingMode.HALF_UP).subtract(BigDecimal.ONE);
+        double ipcFactor = ipcFin.divide(ipcIni, 16, RoundingMode.HALF_UP).doubleValue();
+        BigDecimal inflacion = BigDecimal.valueOf(Math.pow(ipcFactor, 365d / (double) dias) - 1d);
         BigDecimal real = nominal.add(BigDecimal.ONE)
                 .divide(inflacion.add(BigDecimal.ONE), 16, RoundingMode.HALF_UP)
                 .subtract(BigDecimal.ONE);
