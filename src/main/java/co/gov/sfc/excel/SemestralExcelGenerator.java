@@ -157,7 +157,8 @@ public class SemestralExcelGenerator {
                 write(hoja, 69, col, safeDivide(cuentas.admon(), fila61));
                 write(hoja, 70, col, BigDecimal.valueOf(16));
                 write(hoja, 77, col, cuentas.comisiones());
-                write(hoja, 78, col, p1);
+                // Requerimiento funcional: la fila 78 debe usar el mismo valor calculado para la fila 28.
+                write(hoja, 78, col, fondoUsdMM);
                 write(hoja, 79, col, safeDivide(cuentas.comisiones(), p1));
                 write(hoja, 80, col, BigDecimal.valueOf(fechaCorte.getYear() - 1994L));
 
