@@ -39,6 +39,7 @@ public class AiosController {
         var resultado = generacionService.generar(fechaCorte, modo);
         var archivo = resultado.archivosGenerados().getFirst();
         var mediaType = resultado.zip() ? "application/zip" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        log.info("Generación AIOS finalizada: fechaCorte={}, modo={}, salida={}", fechaCorte, modo, archivo.toAbsolutePath());
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + archivo.getFileName() + "\"")
