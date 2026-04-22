@@ -24,7 +24,9 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Stream;
 
 @Component
@@ -148,7 +150,10 @@ public class SemestralExcelGenerator {
                 BigDecimal fila61 = safeDivide(aportesUsd, aportantesMiles).multiply(BigDecimal.valueOf(1000));
                 write(hoja, 61, col, fila61);
                 write(hoja, 62, col, safeDivide(cuentas.gastos(), aportesUsd).multiply(BigDecimal.valueOf(100)));
-                write(hoja, 63, col, safeDivide(patrimonioUsd, p1).multiply(BigDecimal.valueOf(100)));
+                BigDecimal patrimonioBaseMesMMCop = readPatrimonioBaseMesMMCop(fechaCorte);
+                BigDecimal patrimonioBaseMesMMUsd = safeDivide(patrimonioBaseMesMMCop, trm);
+                BigDecimal fila63 = safeDivide(patrimonioBaseMesMMUsd, fondoUsdMM).multiply(BigDecimal.valueOf(100));
+                write(hoja, 63, col, fila63);
                 write(hoja, 64, col, safeDivide(patrimonioUsd, mensual.afiliados()).multiply(BigDecimal.valueOf(1_000_000)));
                 write(hoja, 65, col, safeDivide(cuentas.resultadoNeto(), cuentas.comisiones()).multiply(BigDecimal.valueOf(100)));
                 write(hoja, 66, col, safeDivide(cuentas.resultadoNeto(), patrimonioUsd).multiply(BigDecimal.valueOf(100)));
@@ -163,10 +168,10 @@ public class SemestralExcelGenerator {
                 write(hoja, 79, col, safeDivide(cuentas.comisiones(), fondoUsdMM));
                 write(hoja, 80, col, BigDecimal.valueOf(fechaCorte.getYear() - 1994L));
 
-                log.info("Semestral traza filas51-80: comisiones={} gastos={} resultadoOper={} resultadoNeto={} admon={} cta511500={} publicidad={} otros={} aportesRecibidosCOP={} aportesUsd={} aportantes={} fila61={} p1={}",
+                log.info("Semestral traza filas51-80: comisiones={} gastos={} resultadoOper={} resultadoNeto={} admon={} cta511500={} publicidad={} otros={} aportesRecibidosCOP={} aportesUsd={} aportantes={} fila61={} p1={} fila63(%)={} patrimonioBaseMesMMCop={} patrimonioBaseMesMMUsd={} fondoUsdMM={}",
                         cuentas.comisiones(), cuentas.gastos(), cuentas.resultadoOperacion(), cuentas.resultadoNeto(), cuentas.admon(),
                         cuentas.cuenta511500(), cuentas.publicidad519015(), cuentas.otros517000(),
-                        aportesRecibidos, aportesUsd, mensual.aportantes(), fila61, p1);
+                        aportesRecibidos, aportesUsd, mensual.aportantes(), fila61, p1, fila63, patrimonioBaseMesMMCop, patrimonioBaseMesMMUsd, fondoUsdMM);
                 BigDecimal comisionPromedioPct = promedioComisionObligatoria(trimestral).multiply(BigDecimal.valueOf(100));
                 write(hoja, 71, col, comisionPromedioPct);
                 write(hoja, 72, col, BigDecimal.ZERO);
@@ -557,6 +562,68 @@ public class SemestralExcelGenerator {
                     .orElse(repoPath);
         } catch (Exception ignore) {
             return repoPath;
+        }
+    }
+
+    private BigDecimal readPatrimonioBaseMesMMCop(LocalDate fechaCorte) {
+        Path plantilla = findPlantillaAiosFile(fechaCorte);
+        try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
+            Sheet cuentas = getSheetIgnoreCase(wb, "cuentas");
+            Sheet baseMes = getSheetIgnoreCase(wb, "base mes");
+            if (cuentas == null || baseMes == null) {
+                log.warn("Patrimonio base mes: no se encontró hoja cuentas/base mes en {}", plantilla.toAbsolutePath());
+                return BigDecimal.ZERO;
+            }
+            int serialFecha = (int) Math.round(org.apache.poi.ss.usermodel.DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte)));
+            String cuentaPatrimonio = "300000";
+            Set<String> entidades = new HashSet<>();
+            for (int r = 1; r <= 4; r++) { // J1:J4
+                Row row = cuentas.getRow(r - 1);
+                if (row == null) continue;
+                Cell c = row.getCell(9);
+                if (c == null) continue;
+                String entidad = normalize(c.toString());
+                if (!entidad.isBlank()) entidades.add(entidad);
+            }
+            if (entidades.isEmpty()) {
+                log.warn("Patrimonio base mes: no se encontraron administradoras en cuentas!J1:J4");
+                return BigDecimal.ZERO;
+            }
+
+            Set<String> keys = new HashSet<>();
+            for (String entidad : entidades) {
+                keys.add(entidad + "-" + serialFecha + "-" + cuentaPatrimonio);
+            }
+
+            BigDecimal sumaCop = BigDecimal.ZERO;
+            Set<String> encontradas = new HashSet<>();
+            int last = baseMes.getLastRowNum() + 1;
+            for (int r = 2; r <= last; r++) {
+                Row row = baseMes.getRow(r - 1);
+                if (row == null) continue;
+                Cell keyCell = row.getCell(0); // col A llave
+                if (keyCell == null) continue;
+                String key = normalize(keyCell.toString());
+                if (!keys.contains(key)) continue;
+                BigDecimal valor = num(baseMes, r, 6); // col F valor
+                if (valor.signum() > 0) {
+                    sumaCop = sumaCop.add(valor);
+                    encontradas.add(key);
+                    log.info("Patrimonio base mes match: key={} valorCOP={}", key, valor);
+                }
+                if (encontradas.size() == keys.size()) break;
+            }
+            BigDecimal mmCop = sumaCop.divide(BigDecimal.valueOf(1_000_000), 8, RoundingMode.HALF_UP);
+            log.info("Patrimonio base mes total: fecha={} serial={} entidades={} matches={} sumaCOP={} sumaMMCOP={}",
+                    fechaCorte, serialFecha, entidades, encontradas.size(), sumaCop, mmCop);
+            if (encontradas.size() < keys.size()) {
+                log.warn("Patrimonio base mes incompleto: esperadas={} encontradas={} faltantes={}",
+                        keys.size(), encontradas.size(), keys.stream().filter(k -> !encontradas.contains(k)).toList());
+            }
+            return mmCop;
+        } catch (Exception e) {
+            log.warn("No fue posible leer patrimonio desde base mes: {}", e.getMessage());
+            return BigDecimal.ZERO;
         }
     }
 
