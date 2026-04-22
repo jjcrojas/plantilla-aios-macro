@@ -78,6 +78,17 @@ public class InsumosLocator {
                     .resolve("Historico_Rent_minima")
                     .resolve(String.valueOf(year))
                     .resolve(monthFolderUpper));
+        } else if (normalized.contains("valores_fondo_moder") || normalized.contains("valores fondo moder")) {
+            dirs.add(base.resolve("PROCESOS MENSUALES")
+                    .resolve("Rentabilidad Minima")
+                    .resolve("Historico_Rent_minima")
+                    .resolve(String.valueOf(year))
+                    .resolve(monthFolderLower));
+            dirs.add(base.resolve("PROCESOS MENSUALES")
+                    .resolve("Rentabilidad Minima")
+                    .resolve("Historico_Rent_minima")
+                    .resolve(String.valueOf(year))
+                    .resolve(monthFolderUpper));
         } else if (normalized.contains("formato_136_meses")) {
             dirs.add(base.resolve("FORMATOS ACTUALIZADOS"));
             dirs.add(base);
