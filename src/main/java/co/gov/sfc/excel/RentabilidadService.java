@@ -191,31 +191,55 @@ public class RentabilidadService {
 
     private IpcSeries readIpcSeries(Path rentModeradoFile) {
         try (Workbook wb = WorkbookFactory.create(rentModeradoFile.toFile(), null, true)) {
+            IpcSeries ipcBrSeries = null;
             Sheet ipcBr = getSheetIgnoreCase(wb, "IPC_BR");
             if (ipcBr != null) {
                 NavigableMap<YearMonth, BigDecimal> serie = readDateValueSheetByMonth(ipcBr, 1, 2);
                 if (!serie.isEmpty()) {
-                    log.info("Serie IPC_BR cargada: file={} fechas={}", rentModeradoFile.toAbsolutePath(), serie.size());
-                    return new IpcSeries(serie, ipcBr.getSheetName(), false);
+                    ipcBrSeries = new IpcSeries(serie, ipcBr.getSheetName(), false);
+                    log.info("Serie IPC_BR cargada: file={} fechas={} desde={} hasta={}",
+                            rentModeradoFile.toAbsolutePath(),
+                            serie.size(),
+                            serie.firstKey(),
+                            serie.lastKey());
                 }
             }
+
+            IpcSeries ipcSeries = null;
             Sheet ipc = getSheetIgnoreCase(wb, "IPC");
             if (ipc != null) {
                 NavigableMap<YearMonth, BigDecimal> tasas = readDateValueSheetByMonth(ipc, 1, 2);
                 if (!tasas.isEmpty()) {
                     if (isIndexSeries(tasas)) {
                         log.info("Serie IPC cargada como índice directo: file={} fechas={}", rentModeradoFile.toAbsolutePath(), tasas.size());
-                        return new IpcSeries(tasas, ipc.getSheetName(), false);
+                        ipcSeries = new IpcSeries(tasas, ipc.getSheetName(), false);
+                    } else {
+                        BigDecimal indice = BigDecimal.valueOf(100);
+                        NavigableMap<YearMonth, BigDecimal> indices = new TreeMap<>();
+                        for (var e : tasas.entrySet().stream().sorted(Map.Entry.comparingByKey()).collect(Collectors.toList())) {
+                            indice = indice.multiply(BigDecimal.ONE.add(e.getValue())).setScale(16, RoundingMode.HALF_UP);
+                            indices.put(e.getKey(), indice);
+                        }
+                        log.info("Serie IPC (tasas->índice) cargada: file={} fechas={}", rentModeradoFile.toAbsolutePath(), indices.size());
+                        ipcSeries = new IpcSeries(indices, ipc.getSheetName(), true);
                     }
-                    BigDecimal indice = BigDecimal.valueOf(100);
-                    NavigableMap<YearMonth, BigDecimal> indices = new TreeMap<>();
-                    for (var e : tasas.entrySet().stream().sorted(Map.Entry.comparingByKey()).collect(Collectors.toList())) {
-                        indice = indice.multiply(BigDecimal.ONE.add(e.getValue())).setScale(16, RoundingMode.HALF_UP);
-                        indices.put(e.getKey(), indice);
-                    }
-                    log.info("Serie IPC (tasas->índice) cargada: file={} fechas={}", rentModeradoFile.toAbsolutePath(), indices.size());
-                    return new IpcSeries(indices, ipc.getSheetName(), true);
                 }
+            }
+
+            // Selección defensiva: IPC_BR tiene prioridad solo si trae historia suficiente.
+            if (ipcBrSeries != null && ipcBrSeries.values().size() >= 24) {
+                return ipcBrSeries;
+            }
+            if (ipcBrSeries != null && ipcSeries != null) {
+                log.warn("IPC_BR tiene cobertura corta ({} puntos); se usa IPC con mayor cobertura ({} puntos).",
+                        ipcBrSeries.values().size(), ipcSeries.values().size());
+                return ipcSeries;
+            }
+            if (ipcBrSeries != null) {
+                return ipcBrSeries;
+            }
+            if (ipcSeries != null) {
+                return ipcSeries;
             }
         } catch (Exception e) {
             log.warn("No fue posible leer IPC desde {}: {}", rentModeradoFile.toAbsolutePath(), e.getMessage());
