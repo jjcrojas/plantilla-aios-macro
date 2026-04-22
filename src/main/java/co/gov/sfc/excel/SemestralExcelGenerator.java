@@ -159,7 +159,8 @@ public class SemestralExcelGenerator {
                 write(hoja, 77, col, cuentas.comisiones());
                 // Requerimiento funcional: la fila 78 debe usar el mismo valor calculado para la fila 28.
                 write(hoja, 78, col, fondoUsdMM);
-                write(hoja, 79, col, safeDivide(cuentas.comisiones(), p1));
+                // Requerimiento funcional: fila 79 = fila 77 / fila 78.
+                write(hoja, 79, col, safeDivide(cuentas.comisiones(), fondoUsdMM));
                 write(hoja, 80, col, BigDecimal.valueOf(fechaCorte.getYear() - 1994L));
 
                 log.info("Semestral traza filas51-80: comisiones={} gastos={} resultadoOper={} resultadoNeto={} admon={} cta511500={} publicidad={} otros={} aportesRecibidosCOP={} aportesUsd={} aportantes={} fila61={} p1={}",
