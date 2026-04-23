@@ -574,7 +574,9 @@ public class SemestralExcelGenerator {
                 log.warn("Patrimonio base mes: no se encontró hoja cuentas/base mes en {}", plantilla.toAbsolutePath());
                 return BigDecimal.ZERO;
             }
-            int serialFecha = (int) Math.round(org.apache.poi.ss.usermodel.DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte)));
+            LocalDate fechaBaseMes = LocalDate.of(fechaCorte.getYear(), fechaCorte.getMonth(), 1);
+            int serialFecha = (int) Math.round(org.apache.poi.ss.usermodel.DateUtil.getExcelDate(java.sql.Date.valueOf(fechaBaseMes)));
+            int serialFechaCorte = (int) Math.round(org.apache.poi.ss.usermodel.DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte)));
             String cuentaPatrimonio = "300000";
             Set<String> entidades = new HashSet<>();
             for (int r = 1; r <= 4; r++) { // J1:J4
@@ -614,11 +616,41 @@ public class SemestralExcelGenerator {
                 if (encontradas.size() == keys.size()) break;
             }
             BigDecimal mmCop = sumaCop.divide(BigDecimal.valueOf(1_000_000), 8, RoundingMode.HALF_UP);
-            log.info("Patrimonio base mes total: fecha={} serial={} entidades={} matches={} sumaCOP={} sumaMMCOP={}",
-                    fechaCorte, serialFecha, entidades, encontradas.size(), sumaCop, mmCop);
+            log.info("Patrimonio base mes total: fechaParametro={} fechaBaseMes={} serialBaseMes={} serialFechaCorte={} entidades={} matches={} sumaCOP={} sumaMMCOP={}",
+                    fechaCorte, fechaBaseMes, serialFecha, serialFechaCorte, entidades, encontradas.size(), sumaCop, mmCop);
             if (encontradas.size() < keys.size()) {
                 log.warn("Patrimonio base mes incompleto: esperadas={} encontradas={} faltantes={}",
                         keys.size(), encontradas.size(), keys.stream().filter(k -> !encontradas.contains(k)).toList());
+                // Fallback defensivo: si no hay match con serial del primer día de mes, intentar serial exacto de fecha de corte.
+                if (serialFechaCorte != serialFecha) {
+                    Set<String> keysCorte = new HashSet<>();
+                    for (String entidad : entidades) {
+                        keysCorte.add(entidad + "-" + serialFechaCorte + "-" + cuentaPatrimonio);
+                    }
+                    BigDecimal sumaCopCorte = BigDecimal.ZERO;
+                    Set<String> encontradasCorte = new HashSet<>();
+                    for (int r = 2; r <= last; r++) {
+                        Row row = baseMes.getRow(r - 1);
+                        if (row == null) continue;
+                        Cell keyCell = row.getCell(0);
+                        if (keyCell == null) continue;
+                        String key = normalize(keyCell.toString());
+                        if (!keysCorte.contains(key)) continue;
+                        BigDecimal valor = num(baseMes, r, 6);
+                        if (valor.signum() > 0) {
+                            sumaCopCorte = sumaCopCorte.add(valor);
+                            encontradasCorte.add(key);
+                            log.info("Patrimonio base mes fallback(fecha corte) match: key={} valorCOP={}", key, valor);
+                        }
+                        if (encontradasCorte.size() == keysCorte.size()) break;
+                    }
+                    if (encontradasCorte.size() > encontradas.size()) {
+                        BigDecimal mmCopCorte = sumaCopCorte.divide(BigDecimal.valueOf(1_000_000), 8, RoundingMode.HALF_UP);
+                        log.info("Patrimonio base mes fallback usado con serial fecha corte: serial={} matches={} sumaCOP={} sumaMMCOP={}",
+                                serialFechaCorte, encontradasCorte.size(), sumaCopCorte, mmCopCorte);
+                        return mmCopCorte;
+                    }
+                }
             }
             return mmCop;
         } catch (Exception e) {
