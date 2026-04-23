@@ -592,57 +592,64 @@ public class SemestralExcelGenerator {
                 return BigDecimal.ZERO;
             }
 
-            Set<String> keys = new HashSet<>();
+            Set<String> keysEsperadasBaseMes = new HashSet<>();
             for (String entidad : entidades) {
-                keys.add(entidad + "-" + serialFecha + "-" + cuentaPatrimonio);
+                keysEsperadasBaseMes.add(entidad + "-" + serialFecha + "-" + cuentaPatrimonio);
             }
-
             BigDecimal sumaCop = BigDecimal.ZERO;
             Set<String> encontradas = new HashSet<>();
             int last = baseMes.getLastRowNum() + 1;
             for (int r = 2; r <= last; r++) {
                 Row row = baseMes.getRow(r - 1);
                 if (row == null) continue;
-                Cell keyCell = row.getCell(0); // col A llave
-                if (keyCell == null) continue;
-                String key = normalize(keyCell.toString());
-                if (!keys.contains(key)) continue;
+                String entidad = normalize(cellAsString(row.getCell(4))); // col E
+                if (!entidades.contains(entidad)) continue;
+                String cuenta = normalize(cellAsString(row.getCell(1))); // col B
+                if (!cuentaPatrimonio.equals(cuenta)) continue;
+                Integer serialFila = excelSerialFromCell(row.getCell(3)); // col D
+                if (serialFila == null || serialFila != serialFecha) continue;
+                String keyConstruida = entidad + "-" + serialFila + "-" + cuenta;
+                if (!keysEsperadasBaseMes.contains(keyConstruida)) continue;
                 BigDecimal valor = num(baseMes, r, 6); // col F valor
                 if (valor.signum() > 0) {
                     sumaCop = sumaCop.add(valor);
-                    encontradas.add(key);
-                    log.info("Patrimonio base mes match: key={} valorCOP={}", key, valor);
+                    encontradas.add(keyConstruida);
+                    log.info("Patrimonio base mes match: key={} valorCOP={}", keyConstruida, valor);
                 }
-                if (encontradas.size() == keys.size()) break;
+                if (encontradas.size() == keysEsperadasBaseMes.size()) break;
             }
             BigDecimal mmCop = sumaCop.divide(BigDecimal.valueOf(1_000_000), 8, RoundingMode.HALF_UP);
             log.info("Patrimonio base mes total: fechaParametro={} fechaBaseMes={} serialBaseMes={} serialFechaCorte={} entidades={} matches={} sumaCOP={} sumaMMCOP={}",
                     fechaCorte, fechaBaseMes, serialFecha, serialFechaCorte, entidades, encontradas.size(), sumaCop, mmCop);
-            if (encontradas.size() < keys.size()) {
+            if (encontradas.size() < keysEsperadasBaseMes.size()) {
                 log.warn("Patrimonio base mes incompleto: esperadas={} encontradas={} faltantes={}",
-                        keys.size(), encontradas.size(), keys.stream().filter(k -> !encontradas.contains(k)).toList());
+                        keysEsperadasBaseMes.size(), encontradas.size(), keysEsperadasBaseMes.stream().filter(k -> !encontradas.contains(k)).toList());
                 // Fallback defensivo: si no hay match con serial del primer día de mes, intentar serial exacto de fecha de corte.
                 if (serialFechaCorte != serialFecha) {
-                    Set<String> keysCorte = new HashSet<>();
+                    Set<String> keysEsperadasCorte = new HashSet<>();
                     for (String entidad : entidades) {
-                        keysCorte.add(entidad + "-" + serialFechaCorte + "-" + cuentaPatrimonio);
+                        keysEsperadasCorte.add(entidad + "-" + serialFechaCorte + "-" + cuentaPatrimonio);
                     }
                     BigDecimal sumaCopCorte = BigDecimal.ZERO;
                     Set<String> encontradasCorte = new HashSet<>();
                     for (int r = 2; r <= last; r++) {
                         Row row = baseMes.getRow(r - 1);
                         if (row == null) continue;
-                        Cell keyCell = row.getCell(0);
-                        if (keyCell == null) continue;
-                        String key = normalize(keyCell.toString());
-                        if (!keysCorte.contains(key)) continue;
+                        String entidad = normalize(cellAsString(row.getCell(4)));
+                        if (!entidades.contains(entidad)) continue;
+                        String cuenta = normalize(cellAsString(row.getCell(1)));
+                        if (!cuentaPatrimonio.equals(cuenta)) continue;
+                        Integer serialFila = excelSerialFromCell(row.getCell(3));
+                        if (serialFila == null || serialFila != serialFechaCorte) continue;
+                        String keyConstruida = entidad + "-" + serialFila + "-" + cuenta;
+                        if (!keysEsperadasCorte.contains(keyConstruida)) continue;
                         BigDecimal valor = num(baseMes, r, 6);
                         if (valor.signum() > 0) {
                             sumaCopCorte = sumaCopCorte.add(valor);
-                            encontradasCorte.add(key);
-                            log.info("Patrimonio base mes fallback(fecha corte) match: key={} valorCOP={}", key, valor);
+                            encontradasCorte.add(keyConstruida);
+                            log.info("Patrimonio base mes fallback(fecha corte) match: key={} valorCOP={}", keyConstruida, valor);
                         }
-                        if (encontradasCorte.size() == keysCorte.size()) break;
+                        if (encontradasCorte.size() == keysEsperadasCorte.size()) break;
                     }
                     if (encontradasCorte.size() > encontradas.size()) {
                         BigDecimal mmCopCorte = sumaCopCorte.divide(BigDecimal.valueOf(1_000_000), 8, RoundingMode.HALF_UP);
@@ -656,6 +663,37 @@ public class SemestralExcelGenerator {
         } catch (Exception e) {
             log.warn("No fue posible leer patrimonio desde base mes: {}", e.getMessage());
             return BigDecimal.ZERO;
+        }
+    }
+
+    private String cellAsString(Cell cell) {
+        if (cell == null) return "";
+        try {
+            return switch (cell.getCellType()) {
+                case STRING -> cell.getStringCellValue();
+                case NUMERIC -> BigDecimal.valueOf(cell.getNumericCellValue()).stripTrailingZeros().toPlainString();
+                case FORMULA -> cell.getCachedFormulaResultType() == org.apache.poi.ss.usermodel.CellType.NUMERIC
+                        ? BigDecimal.valueOf(cell.getNumericCellValue()).stripTrailingZeros().toPlainString()
+                        : cell.getRichStringCellValue().getString();
+                default -> cell.toString();
+            };
+        } catch (Exception e) {
+            return cell.toString();
+        }
+    }
+
+    private Integer excelSerialFromCell(Cell cell) {
+        if (cell == null) return null;
+        try {
+            return switch (cell.getCellType()) {
+                case NUMERIC -> (int) Math.round(cell.getNumericCellValue());
+                case FORMULA -> cell.getCachedFormulaResultType() == org.apache.poi.ss.usermodel.CellType.NUMERIC
+                        ? (int) Math.round(cell.getNumericCellValue())
+                        : null;
+                default -> null;
+            };
+        } catch (Exception e) {
+            return null;
         }
     }
 
