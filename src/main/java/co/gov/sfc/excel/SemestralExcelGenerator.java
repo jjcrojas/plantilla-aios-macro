@@ -85,11 +85,12 @@ public class SemestralExcelGenerator {
                 BigDecimal fondoCop = mensual.fondoSistemaJ14().multiply(BigDecimal.valueOf(1000));
                 BigDecimal fondoUsdMM = safeDivide(safeDivide(fondoCop, trm(mensual)), BigDecimal.valueOf(1_000_000));
                 write(hoja, 28, col, fondoUsdMM);
-                BigDecimal ratioFondosPib = safeDivide(fondoCop, mensual.pibSemestral());
+                BigDecimal pibUsd = safeDivide(mensual.pibSemestral(), trm(mensual));
+                BigDecimal ratioFondosPib = safeDivide(fondoUsdMM, pibUsd);
                 write(hoja, 29, col, ratioFondosPib);
                 setNumberFormat(hoja, 29, col, "#,##0.00%");
-                log.info("Semestral traza fila29: fondoCop={} pibSemestral={} ratioFondosPib={} fecha={} col={}",
-                        fondoCop, mensual.pibSemestral(), ratioFondosPib, fechaCorte, col);
+                log.info("Semestral traza fila29: fondoUsdMM={} pibSemestralCOP={} trm={} pibUsd={} ratioFondosPib={} fecha={} col={}",
+                        fondoUsdMM, mensual.pibSemestral(), trm(mensual), pibUsd, ratioFondosPib, fechaCorte, col);
                 if (mensual.pibSemestral() == null || mensual.pibSemestral().signum() == 0) {
                     log.warn("Semestral fila29 en 0 por PIB nulo/cero; en la plantilla puede mostrarse '-' por formato contable. fecha={} col={}",
                             fechaCorte, col);
