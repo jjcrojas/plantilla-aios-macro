@@ -470,20 +470,34 @@ public class MensualDataReader {
                 BigDecimal mejor = BigDecimal.ZERO;
                 LocalDate mejorFecha = LocalDate.MIN;
                 for (Row row : sheet) {
-                    LocalDate fecha = cellAsDate(row.getCell(1)); // columna B
+                    LocalDate fecha = cellAsDate(row.getCell(2)); // columna C (Último día hábil)
+                    if (fecha == null) {
+                        fecha = cellAsDate(row.getCell(1)); // fallback columna B
+                    }
                     if (fecha == null) continue;
                     BigDecimal pib = num(sheet, row.getRowNum() + 1, 6, null); // columna F
                     if (pib.signum() == 0) continue;
-                    if (fecha.equals(fechaCorte)) return pib;
-                    if (fecha.getYear() == fechaCorte.getYear() && fecha.getMonth() == fechaCorte.getMonth()) return pib;
+                    if (fecha.equals(fechaCorte)) {
+                        log.info("PIB semestral exacto: fecha={} fila={} valor={}", fechaCorte, row.getRowNum() + 1, pib);
+                        return pib;
+                    }
+                    if (fecha.getYear() == fechaCorte.getYear() && fecha.getMonth() == fechaCorte.getMonth()) {
+                        log.info("PIB semestral match mes/año: fechaFila={} fechaCorte={} fila={} valor={}",
+                                fecha, fechaCorte, row.getRowNum() + 1, pib);
+                        return pib;
+                    }
                     if (!fecha.isAfter(fechaCorte) && fecha.isAfter(mejorFecha)) {
                         mejorFecha = fecha;
                         mejor = pib;
                     }
                 }
+                if (mejor.signum() != 0) {
+                    log.info("PIB semestral fallback por fecha anterior: fechaFila={} fechaCorte={} valor={}", mejorFecha, fechaCorte, mejor);
+                }
                 return mejor;
             }
         } catch (Exception e) {
+            log.warn("No se pudo leer PIB semestral desde PIB_PEA_TRM_DG: {}", e.getMessage());
             return BigDecimal.ZERO;
         }
     }
