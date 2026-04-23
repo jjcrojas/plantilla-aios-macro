@@ -4,6 +4,12 @@ import java.math.BigDecimal;
 
 public record MensualData(
         String textoFecha,
+        BigDecimal hombres,
+        BigDecimal mujeres,
+        BigDecimal afiliadosMenor30,
+        BigDecimal afiliados30a44,
+        BigDecimal afiliados45a59,
+        BigDecimal afiliadosMayor60,
         BigDecimal afiliados,
         BigDecimal aportantes,
         BigDecimal traspasosSistema,
@@ -20,6 +26,24 @@ public record MensualData(
         BigDecimal dudaAc,
         BigDecimal dudaF,
         BigDecimal h17,
-        BigDecimal otros
+        BigDecimal otros,
+        BigDecimal dudaGe,
+        BigDecimal dudaEfe,
+        BigDecimal dudaNfe,
+        BigDecimal dudaAce,
+        BigDecimal dudaFe,
+        BigDecimal dudaSte,
+        BigDecimal pea,
+        BigDecimal deudaG,
+        BigDecimal pibSemestral,
+        BigDecimal smColombiaUsd,
+        BigDecimal totalPen,
+        BigDecimal totalInv,
+        BigDecimal totalVej,
+        BigDecimal totalSob,
+        BigDecimal fondoSistemaJ14,
+        BigDecimal deudaGobB4,
+        BigDecimal activosCuentas,
+        BigDecimal pasivosCuentas
 ) {
 }
