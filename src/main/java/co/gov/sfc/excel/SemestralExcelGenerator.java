@@ -111,7 +111,8 @@ public class SemestralExcelGenerator {
                 write(hoja, 41, col, mensual.dudaFe());
                 write(hoja, 42, col, BigDecimal.valueOf(2));
                 write(hoja, 43, col, mensual.otros());
-                write(hoja, 44, col, mensual.h17());
+                BigDecimal fila44Pct = readFila44DesdeLimites(fechaCorte);
+                write(hoja, 44, col, fila44Pct);
                 BigDecimal deudaGobUsd = safeDivide(mensual.deudaGobB4().multiply(BigDecimal.valueOf(1_000_000)), trm(mensual));
                 write(hoja, 45, col, safeDivide(safeDivide(fondoCop, trm(mensual)), deudaGobUsd));
                 write(hoja, 46, col, BigDecimal.valueOf(4));
@@ -715,6 +716,30 @@ public class SemestralExcelGenerator {
             } catch (Exception e2) {
                 return Path.of("insumos_ejemplo", "MODERADO Junio 2025.xls");
             }
+        }
+    }
+
+    private BigDecimal readFila44DesdeLimites(LocalDate fechaCorte) {
+        try {
+            Path limites = locator.findRequired("LIMITES", fechaCorte);
+            try (Workbook wb = WorkbookFactory.create(limites.toFile(), null, true)) {
+                Sheet aios = getSheetIgnoreCase(wb, "AIOS");
+                if (aios == null) return BigDecimal.ZERO;
+                BigDecimal o4 = num(aios, "O4", null);
+                BigDecimal q4 = num(aios, "Q4", null);
+                BigDecimal s4 = num(aios, "S4", null);
+                BigDecimal u4 = num(aios, "U4", null);
+                BigDecimal w4 = num(aios, "W4", null);
+                BigDecimal y4 = num(aios, "Y4", null);
+                BigDecimal suma = o4.add(q4).add(s4).add(u4).add(w4).add(y4);
+                BigDecimal porcentaje = suma.multiply(BigDecimal.valueOf(100));
+                log.info("Semestral fila44 desde LIMITES: archivo={} O4={} Q4={} S4={} U4={} W4={} Y4={} suma={} porcentaje={}",
+                        limites.toAbsolutePath(), o4, q4, s4, u4, w4, y4, suma, porcentaje);
+                return porcentaje;
+            }
+        } catch (Exception e) {
+            log.warn("No fue posible leer fila44 desde LIMITES para fecha={}: {}", fechaCorte, e.getMessage());
+            return BigDecimal.ZERO;
         }
     }
 
