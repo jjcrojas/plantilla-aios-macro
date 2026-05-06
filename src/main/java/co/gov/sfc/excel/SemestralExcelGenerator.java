@@ -113,8 +113,13 @@ public class SemestralExcelGenerator {
                 write(hoja, 43, col, mensual.otros());
                 BigDecimal fila44Pct = readFila44DesdeLimites(fechaCorte);
                 write(hoja, 44, col, fila44Pct);
-                BigDecimal deudaGobUsd = safeDivide(mensual.deudaGobB4().multiply(BigDecimal.valueOf(1_000_000)), trm(mensual));
-                write(hoja, 45, col, safeDivide(safeDivide(fondoCop, trm(mensual)), deudaGobUsd));
+                BigDecimal deudaGubernamentalTotal = readDeudaGubernamentalTotal(fechaCorte);
+                BigDecimal deudaGubernamentalUsd = safeDivide(deudaGubernamentalTotal, trm(mensual));
+                BigDecimal fila45 = safeDivide(fondoUsdMM, deudaGubernamentalUsd);
+                write(hoja, 45, col, fila45);
+                setNumberFormat(hoja, 45, col, "#,##0.00%");
+                log.info("Semestral fila45: fondoUsdMM={} deudaGubernamentalTotal={} trm={} deudaGubernamentalUsd={} fila45Ratio={} fecha={}",
+                        fondoUsdMM, deudaGubernamentalTotal, trm(mensual), deudaGubernamentalUsd, fila45, fechaCorte);
                 write(hoja, 46, col, BigDecimal.valueOf(4));
                 write(hoja, 47, col, mensual.porcVrFondo());
                 BigDecimal activos = mensual.activosCuentas() == null ? BigDecimal.ZERO : mensual.activosCuentas();
@@ -716,6 +721,47 @@ public class SemestralExcelGenerator {
             } catch (Exception e2) {
                 return Path.of("insumos_ejemplo", "MODERADO Junio 2025.xls");
             }
+        }
+    }
+
+
+    private BigDecimal readDeudaGubernamentalTotal(LocalDate fechaCorte) {
+        try {
+            Path seriesFile = locator.findRequired("PIB_PEA_TRM_DG", fechaCorte);
+            try (Workbook wb = WorkbookFactory.create(seriesFile.toFile(), null, true)) {
+                Sheet sheet = wb.getSheet("Hoja1");
+                if (sheet == null) sheet = wb.getSheetAt(0);
+                BigDecimal mejor = BigDecimal.ZERO;
+                LocalDate mejorFecha = LocalDate.MIN;
+                int mejorFila = -1;
+                for (Row row : sheet) {
+                    LocalDate fecha = cellAsDate(row.getCell(11)); // columna L
+                    if (fecha == null || fecha.isAfter(fechaCorte)) continue;
+                    BigDecimal deuda = num(sheet, row.getRowNum() + 1, 13); // columna M
+                    if (deuda.signum() == 0) continue;
+                    if (fecha.equals(fechaCorte)) {
+                        log.info("Deuda gubernamental total exacta: archivo={} hoja=Hoja1 fila={} fecha={} celda=M{} valor={}",
+                                seriesFile.toAbsolutePath(), row.getRowNum() + 1, fecha, row.getRowNum() + 1, deuda);
+                        return deuda;
+                    }
+                    if (fecha.isAfter(mejorFecha)) {
+                        mejorFecha = fecha;
+                        mejor = deuda;
+                        mejorFila = row.getRowNum() + 1;
+                    }
+                }
+                if (mejor.signum() != 0) {
+                    log.info("Deuda gubernamental total por fecha anterior: archivo={} hoja=Hoja1 fila={} fechaFila={} fechaCorte={} celda=M{} valor={}",
+                            seriesFile.toAbsolutePath(), mejorFila, mejorFecha, fechaCorte, mejorFila, mejor);
+                } else {
+                    log.warn("No se encontró deuda gubernamental total en Hoja1!M para fecha={} o anterior en {}",
+                            fechaCorte, seriesFile.toAbsolutePath());
+                }
+                return mejor;
+            }
+        } catch (Exception e) {
+            log.warn("No fue posible leer deuda gubernamental total desde PIB_PEA_TRM_DG para fecha={}: {}", fechaCorte, e.getMessage());
+            return BigDecimal.ZERO;
         }
     }
 
