@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -69,15 +70,16 @@ public class SemestralExcelGenerator {
                 write(hoja, 13, col, pct(safeDivide(mensual.aportantes(), mensual.pea())));
                 write(hoja, 14, col, pct(safeDivide(mensual.aportantes(), mensual.afiliados())));
                 write(hoja, 15, col, mensual.smColombiaUsd());
-                write(hoja, 16, col, mensual.totalPen());
-                write(hoja, 17, col, safeDivide(mensual.totalInv(), mensual.totalPen()));
-                write(hoja, 18, col, safeDivide(mensual.totalVej(), mensual.totalPen()));
-                write(hoja, 19, col, safeDivide(mensual.totalSob(), mensual.totalPen()));
+                BigDecimal totalPensionadosSemestral = readTotalPensionados495(fechaCorte, mensual.totalPen());
+                write(hoja, 16, col, totalPensionadosSemestral);
+                write(hoja, 17, col, safeDivide(mensual.totalInv(), totalPensionadosSemestral));
+                write(hoja, 18, col, safeDivide(mensual.totalVej(), totalPensionadosSemestral));
+                write(hoja, 19, col, safeDivide(mensual.totalSob(), totalPensionadosSemestral));
                 log.info("Semestral: fila16(total_pen)={}, fila17(inv%)={}, fila18(vej%)={}, fila19(sob%)={} para fecha={} col={}.",
-                        mensual.totalPen(),
-                        safeDivide(mensual.totalInv(), mensual.totalPen()),
-                        safeDivide(mensual.totalVej(), mensual.totalPen()),
-                        safeDivide(mensual.totalSob(), mensual.totalPen()),
+                        totalPensionadosSemestral,
+                        safeDivide(mensual.totalInv(), totalPensionadosSemestral),
+                        safeDivide(mensual.totalVej(), totalPensionadosSemestral),
+                        safeDivide(mensual.totalSob(), totalPensionadosSemestral),
                         fechaCorte, col);
                 write(hoja, 26, col, mensual.traspasosSistema());
                 write(hoja, 27, col, safeDivide(mensual.traspasosSistema(), mensual.afiliados()));
@@ -237,7 +239,7 @@ public class SemestralExcelGenerator {
         explicaciones.put(13, "Aportantes / PEA * 100.");
         explicaciones.put(14, "Aportantes / afiliados * 100.");
         explicaciones.put(15, "Salario mínimo Colombia en USD.");
-        explicaciones.put(16, "Total pensionados.");
+        explicaciones.put(16, "Total pensionados desde Series_Formato-495 PENSIONADOS, hoja TOTAL PENSIONADOS, fecha parámetro B4, columna I.");
         explicaciones.put(17, "Pensionados invalidez / total pensionados.");
         explicaciones.put(18, "Pensionados vejez / total pensionados.");
         explicaciones.put(19, "Pensionados sobrevivencia / total pensionados.");
@@ -314,6 +316,121 @@ public class SemestralExcelGenerator {
         BigDecimal pro = trimestral.comisionesPct().getOrDefault("pro_obl", BigDecimal.ZERO);
         BigDecimal ska = trimestral.comisionesPct().getOrDefault("ska_obl", BigDecimal.ZERO);
         return col.add(por).add(pro).add(ska).divide(BigDecimal.valueOf(4), 8, RoundingMode.HALF_UP);
+    }
+
+
+    private BigDecimal readTotalPensionados495(LocalDate fechaCorte, BigDecimal fallback) {
+        try {
+            Path file495 = findPensionados495File(fechaCorte);
+            try (Workbook wb = WorkbookFactory.create(file495.toFile(), null, true)) {
+                Sheet totalPensionados = getSheetIgnoreCase(wb, "TOTAL PENSIONADOS");
+                if (totalPensionados == null) {
+                    totalPensionados = findSheetContainsIgnoreCase(wb, "total pensionados");
+                }
+                if (totalPensionados == null) {
+                    log.warn("Semestral fila16: no se encontró hoja TOTAL PENSIONADOS en {}. Se usa fallback={}",
+                            file495.toAbsolutePath(), fallback);
+                    return fallback == null ? BigDecimal.ZERO : fallback;
+                }
+
+                setDate(totalPensionados, "B4", fechaCorte);
+                BigDecimal valor = readTotalPensionadosSerie(totalPensionados, fechaCorte);
+                if (valor.signum() != 0) {
+                    log.info("Semestral fila16: archivo={} hoja=TOTAL PENSIONADOS parámetro=B4 fecha={} valor columna I={}",
+                            file495.toAbsolutePath(), fechaCorte, valor);
+                    return valor;
+                }
+                log.warn("Semestral fila16: no se encontró valor en columna I para fecha={} en {}. Se usa fallback={}",
+                        fechaCorte, file495.toAbsolutePath(), fallback);
+            }
+        } catch (Exception e) {
+            log.warn("Semestral fila16: no fue posible leer Series_Formato-495 PENSIONADOS para fecha={}: {}. Se usa fallback={}",
+                    fechaCorte, e.getMessage(), fallback);
+        }
+        return fallback == null ? BigDecimal.ZERO : fallback;
+    }
+
+    private Path findPensionados495File(LocalDate fechaCorte) {
+        Path principal = properties.insumosDir()
+                .resolve("Formato 495")
+                .resolve("Series_Formato-495 PENSIONADOS.xlsm");
+        if (Files.isRegularFile(principal)) {
+            return principal;
+        }
+        try {
+            return locator.findRequired("Series_Formato-495 PENSIONADOS", fechaCorte);
+        } catch (Exception ignored) {
+            Path local = Path.of("insumos_ejemplo", "Series_Formato-495 PENSIONADOS.xlsm");
+            if (Files.isRegularFile(local)) return local;
+            throw ignored;
+        }
+    }
+
+    private BigDecimal readTotalPensionadosSerie(Sheet totalPensionados, LocalDate fechaCorte) {
+        DataFormatter formatter = new DataFormatter(Locale.forLanguageTag("es-CO"));
+        BigDecimal mejor = BigDecimal.ZERO;
+        LocalDate mejorFecha = LocalDate.MIN;
+        int mejorFila = -1;
+        for (int r = 0; r <= totalPensionados.getLastRowNum(); r++) {
+            Row row = totalPensionados.getRow(r);
+            if (row == null) continue;
+            LocalDate fechaFila = cellAsDate(row.getCell(1)); // columna B
+            if (fechaFila == null) continue;
+            BigDecimal valor = cellAsBigDecimal(row.getCell(8), formatter); // columna I
+            if (valor.signum() == 0) continue;
+            if (fechaFila.equals(fechaCorte)) {
+                log.info("Semestral fila16: match exacto hoja=TOTAL PENSIONADOS fila={} fecha={} celda=I{} valor={}",
+                        r + 1, fechaFila, r + 1, valor);
+                return valor;
+            }
+            if (!fechaFila.isAfter(fechaCorte) && fechaFila.isAfter(mejorFecha)) {
+                mejorFecha = fechaFila;
+                mejor = valor;
+                mejorFila = r + 1;
+            }
+        }
+        if (mejor.signum() != 0) {
+            log.info("Semestral fila16: usando fecha anterior hoja=TOTAL PENSIONADOS fila={} fechaFila={} fechaCorte={} celda=I{} valor={}",
+                    mejorFila, mejorFecha, fechaCorte, mejorFila, mejor);
+        }
+        return mejor;
+    }
+
+    private BigDecimal cellAsBigDecimal(Cell cell, DataFormatter formatter) {
+        if (cell == null) return BigDecimal.ZERO;
+        try {
+            if (cell.getCellType() == CellType.NUMERIC ||
+                    (cell.getCellType() == CellType.FORMULA && cell.getCachedFormulaResultType() == CellType.NUMERIC)) {
+                return BigDecimal.valueOf(cell.getNumericCellValue());
+            }
+            String text = formatter.formatCellValue(cell);
+            if (text == null || text.isBlank()) return BigDecimal.ZERO;
+            String normalized = text.trim().replace("$", "").replace("%", "").replace(" ", "");
+            if (normalized.contains(",") && normalized.contains(".")) {
+                normalized = normalized.replace(",", "");
+            } else if (normalized.contains(",")) {
+                normalized = normalized.replace(".", "").replace(",", ".");
+            }
+            return new BigDecimal(normalized);
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private void setDate(Sheet sheet, String ref, LocalDate date) {
+        Cell target = cell(sheet, ref);
+        target.setCellValue(Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant()));
+    }
+
+    private Sheet findSheetContainsIgnoreCase(Workbook wb, String fragment) {
+        String normalizedFragment = fragment.toLowerCase(Locale.ROOT);
+        for (int i = 0; i < wb.getNumberOfSheets(); i++) {
+            Sheet sheet = wb.getSheetAt(i);
+            if (sheet.getSheetName().toLowerCase(Locale.ROOT).contains(normalizedFragment)) {
+                return sheet;
+            }
+        }
+        return null;
     }
 
     private Path resolveTemplate() {

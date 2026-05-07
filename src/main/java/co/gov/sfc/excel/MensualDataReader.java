@@ -351,15 +351,15 @@ public class MensualDataReader {
                 Sheet totalPensionados = getSheetIgnoreCase(wb, "Total pensionados");
                 if (totalPensionados == null) totalPensionados = findSheetContainsIgnoreCase(wb, "total pensionados");
                 if (totalPensionados != null) {
-                    setDate(totalPensionados, "B5", fechaCorte);
+                    setDate(totalPensionados, "B4", fechaCorte);
                     evaluator.clearAllCachedResultValues();
                     BigDecimal totalDesdeSerie = readTotalPensionadosSerie(totalPensionados, fechaCorte);
-                    log.info("495: total pensionados serie -> valor encontrado columna I={}", totalDesdeSerie);
+                    log.info("495: total pensionados serie -> parámetro B4={} valor encontrado columna I={}", fechaCorte, totalDesdeSerie);
                     if (totalDesdeSerie.signum() != 0) {
                         totalPen = totalDesdeSerie;
                     } else if (totalPen.signum() == 0) {
-                        totalPen = num(totalPensionados, "B5", evaluator);
-                        log.info("495: fallback B5 en Total pensionados -> {}", totalPen);
+                        totalPen = num(totalPensionados, "B4", evaluator);
+                        log.info("495: fallback B4 en Total pensionados -> {}", totalPen);
                     }
                 }
             }
