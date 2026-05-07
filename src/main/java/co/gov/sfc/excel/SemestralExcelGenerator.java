@@ -71,15 +71,23 @@ public class SemestralExcelGenerator {
                 write(hoja, 14, col, pct(safeDivide(mensual.aportantes(), mensual.afiliados())));
                 write(hoja, 15, col, mensual.smColombiaUsd());
                 BigDecimal totalPensionadosSemestral = readTotalPensionados495(fechaCorte, mensual.totalPen());
+                PensionadosPorEntidad pensionadosPorEntidad = readPensionadosPorEntidad495(fechaCorte,
+                        new PensionadosPorEntidad(mensual.totalInv(), mensual.totalVej(), mensual.totalSob()));
+                BigDecimal fila17 = safeDivide(pensionadosPorEntidad.invalidez(), totalPensionadosSemestral);
+                BigDecimal fila18 = safeDivide(pensionadosPorEntidad.vejez(), totalPensionadosSemestral);
+                BigDecimal fila19 = safeDivide(pensionadosPorEntidad.sobrevivencia(), totalPensionadosSemestral);
                 write(hoja, 16, col, totalPensionadosSemestral);
-                write(hoja, 17, col, safeDivide(mensual.totalInv(), totalPensionadosSemestral));
-                write(hoja, 18, col, safeDivide(mensual.totalVej(), totalPensionadosSemestral));
-                write(hoja, 19, col, safeDivide(mensual.totalSob(), totalPensionadosSemestral));
-                log.info("Semestral: fila16(total_pen)={}, fila17(inv%)={}, fila18(vej%)={}, fila19(sob%)={} para fecha={} col={}.",
+                write(hoja, 17, col, fila17);
+                write(hoja, 18, col, fila18);
+                write(hoja, 19, col, fila19);
+                log.info("Semestral: fila16(total_pen)={}, fila17(inv% BI62/total)={}, fila18(vej% BH62/total)={}, fila19(sob% BJ62/total)={} numeradores(inv={}, vej={}, sob={}) para fecha={} col={}.",
                         totalPensionadosSemestral,
-                        safeDivide(mensual.totalInv(), totalPensionadosSemestral),
-                        safeDivide(mensual.totalVej(), totalPensionadosSemestral),
-                        safeDivide(mensual.totalSob(), totalPensionadosSemestral),
+                        fila17,
+                        fila18,
+                        fila19,
+                        pensionadosPorEntidad.invalidez(),
+                        pensionadosPorEntidad.vejez(),
+                        pensionadosPorEntidad.sobrevivencia(),
                         fechaCorte, col);
                 write(hoja, 26, col, mensual.traspasosSistema());
                 write(hoja, 27, col, safeDivide(mensual.traspasosSistema(), mensual.afiliados()));
@@ -240,9 +248,9 @@ public class SemestralExcelGenerator {
         explicaciones.put(14, "Aportantes / afiliados * 100.");
         explicaciones.put(15, "Salario mínimo Colombia en USD.");
         explicaciones.put(16, "Total pensionados desde Series_Formato-495 PENSIONADOS, hoja TOTAL PENSIONADOS, fecha parámetro B4, columna I.");
-        explicaciones.put(17, "Pensionados invalidez / total pensionados.");
-        explicaciones.put(18, "Pensionados vejez / total pensionados.");
-        explicaciones.put(19, "Pensionados sobrevivencia / total pensionados.");
+        explicaciones.put(17, "Pensionados invalidez desde por Entidad!BI62 / fila 16.");
+        explicaciones.put(18, "Pensionados vejez desde por Entidad!BH62 / fila 16.");
+        explicaciones.put(19, "Pensionados sobrevivencia desde por Entidad!BJ62 / fila 16.");
         explicaciones.put(26, "Traspasos sistema.");
         explicaciones.put(27, "Traspasos sistema / afiliados.");
         explicaciones.put(28, "Fondos administrados: fondoSistemaJ14 * 1000 / TRM / 1,000,000.");
@@ -348,6 +356,42 @@ public class SemestralExcelGenerator {
                     fechaCorte, e.getMessage(), fallback);
         }
         return fallback == null ? BigDecimal.ZERO : fallback;
+    }
+
+
+    private PensionadosPorEntidad readPensionadosPorEntidad495(LocalDate fechaCorte, PensionadosPorEntidad fallback) {
+        try {
+            Path file495 = findPensionados495File(fechaCorte);
+            try (Workbook wb = WorkbookFactory.create(file495.toFile(), null, true)) {
+                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+                Sheet porEntidad = getSheetIgnoreCase(wb, "por Entidad");
+                if (porEntidad == null) {
+                    porEntidad = findSheetContainsIgnoreCase(wb, "por entidad");
+                }
+                if (porEntidad == null) {
+                    log.warn("Semestral filas17-19: no se encontró hoja por Entidad en {}. Se usa fallback={}",
+                            file495.toAbsolutePath(), fallback);
+                    return fallback;
+                }
+
+                setDate(porEntidad, "C6", fechaCorte);
+                evaluator.clearAllCachedResultValues();
+                BigDecimal invalidez = num(porEntidad, "BI62", evaluator);
+                BigDecimal vejez = num(porEntidad, "BH62", evaluator);
+                BigDecimal sobrevivencia = num(porEntidad, "BJ62", evaluator);
+                log.info("Semestral filas17-19: archivo={} hoja=por Entidad parámetro=C6 fecha={} BI62(invalidez)={} BH62(vejez)={} BJ62(sobrevivencia)={}",
+                        file495.toAbsolutePath(), fechaCorte, invalidez, vejez, sobrevivencia);
+                return new PensionadosPorEntidad(
+                        invalidez.signum() == 0 ? fallback.invalidez() : invalidez,
+                        vejez.signum() == 0 ? fallback.vejez() : vejez,
+                        sobrevivencia.signum() == 0 ? fallback.sobrevivencia() : sobrevivencia
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Semestral filas17-19: no fue posible leer por Entidad BI62/BH62/BJ62 para fecha={}: {}. Se usa fallback={}",
+                    fechaCorte, e.getMessage(), fallback);
+            return fallback;
+        }
     }
 
     private Path findPensionados495File(LocalDate fechaCorte) {
@@ -1056,6 +1100,8 @@ public class SemestralExcelGenerator {
         if (cell == null) cell = row.createCell(cr.getCol());
         return cell;
     }
+
+    private record PensionadosPorEntidad(BigDecimal invalidez, BigDecimal vejez, BigDecimal sobrevivencia) {}
 
     private record CuentasData(
             BigDecimal comisiones,
