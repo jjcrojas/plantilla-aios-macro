@@ -114,12 +114,11 @@ public class SemestralExcelGenerator {
                 BigDecimal fila44Pct = readFila44DesdeLimites(fechaCorte);
                 write(hoja, 44, col, fila44Pct);
                 BigDecimal deudaGubernamentalTotal = readDeudaGubernamentalTotal(fechaCorte);
-                BigDecimal deudaGubernamentalUsd = safeDivide(deudaGubernamentalTotal, trm(mensual));
-                BigDecimal fila45 = safeDivide(fondoUsdMM, deudaGubernamentalUsd);
+                BigDecimal fila45 = safeDivide(fondoUsdMM, deudaGubernamentalTotal);
                 write(hoja, 45, col, fila45);
                 setNumberFormat(hoja, 45, col, "#,##0.00%");
-                log.info("Semestral fila45: fondoUsdMM={} deudaGubernamentalTotal={} trm={} deudaGubernamentalUsd={} fila45Ratio={} fecha={}",
-                        fondoUsdMM, deudaGubernamentalTotal, trm(mensual), deudaGubernamentalUsd, fila45, fechaCorte);
+                log.info("Semestral fila45: fondoUsdMM={} deudaGubernamentalTotalUSD={} fila45Ratio={} fecha={}",
+                        fondoUsdMM, deudaGubernamentalTotal, fila45, fechaCorte);
                 write(hoja, 46, col, BigDecimal.valueOf(4));
                 write(hoja, 47, col, mensual.porcVrFondo());
                 BigDecimal activos = mensual.activosCuentas() == null ? BigDecimal.ZERO : mensual.activosCuentas();
@@ -209,6 +208,7 @@ public class SemestralExcelGenerator {
                 setNumberFormat(hoja, 89, col, "#,##0.00%");
                 log.info("Semestral traza rentabilidades: 10y(nom={},real={}) 5y(nom={},real={}) 3y(nom={},real={}) 1y(nom={},real={})",
                         rent.nominal10(), rent.real10(), rent.nominal5(), rent.real5(), rent.nominal3(), rent.real3(), rent.nominal1(), rent.real1());
+                logFilasSemestral(hoja, col, fechaCorte);
 
                 try (var os = Files.newOutputStream(out)) {
                     wb.write(os);
@@ -219,6 +219,93 @@ public class SemestralExcelGenerator {
         } catch (Exception e) {
             throw new IllegalStateException("No fue posible generar archivo semestral", e);
         }
+    }
+
+
+    private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte) {
+        java.util.Map<Integer, String> explicaciones = new java.util.LinkedHashMap<>();
+        explicaciones.put(3, "Afiliados: mensual.afiliados().");
+        explicaciones.put(4, "Afiliados <30 / afiliados * 100.");
+        explicaciones.put(5, "Afiliados 30-44 / afiliados * 100.");
+        explicaciones.put(6, "Afiliados 45-59 / afiliados * 100.");
+        explicaciones.put(7, "Afiliados >60 / afiliados * 100.");
+        explicaciones.put(8, "Total porcentual fijo 100.");
+        explicaciones.put(9, "Afiliados / 1000.");
+        explicaciones.put(10, "Mujeres / afiliados * 100.");
+        explicaciones.put(11, "Aportantes: mensual.aportantes().");
+        explicaciones.put(12, "Afiliados / PEA * 100.");
+        explicaciones.put(13, "Aportantes / PEA * 100.");
+        explicaciones.put(14, "Aportantes / afiliados * 100.");
+        explicaciones.put(15, "Salario mínimo Colombia en USD.");
+        explicaciones.put(16, "Total pensionados.");
+        explicaciones.put(17, "Pensionados invalidez / total pensionados.");
+        explicaciones.put(18, "Pensionados vejez / total pensionados.");
+        explicaciones.put(19, "Pensionados sobrevivencia / total pensionados.");
+        explicaciones.put(26, "Traspasos sistema.");
+        explicaciones.put(27, "Traspasos sistema / afiliados.");
+        explicaciones.put(28, "Fondos administrados: fondoSistemaJ14 * 1000 / TRM / 1,000,000.");
+        explicaciones.put(29, "Fondos/PIB: fila 28 / (PIB semestral / TRM).");
+        explicaciones.put(30, "Composición fondos: total1 / TRM.");
+        explicaciones.put(31, "Límites: dudaG.");
+        explicaciones.put(32, "Límites: dudaEf.");
+        explicaciones.put(33, "Límites: dudaNf.");
+        explicaciones.put(34, "Límites: dudaAc.");
+        explicaciones.put(35, "Límites: dudaF.");
+        explicaciones.put(36, "Valor fijo 0.");
+        explicaciones.put(37, "Límites exterior: dudaGe.");
+        explicaciones.put(38, "Límites exterior: dudaEfe.");
+        explicaciones.put(39, "Límites exterior: dudaNfe.");
+        explicaciones.put(40, "Límites exterior: dudaAce.");
+        explicaciones.put(41, "Límites exterior: dudaFe.");
+        explicaciones.put(42, "Valor fijo 2.");
+        explicaciones.put(43, "Otros: mensual.otros().");
+        explicaciones.put(44, "Suma LIMITES!AIOS O4+Q4+S4+U4+W4+Y4 * 100.");
+        explicaciones.put(45, "Participación fondos/deuda gubernamental: fila 28 / deuda gubernamental total en USD (PIB_PEA_TRM_DG Hoja1 columna M).");
+        explicaciones.put(46, "Valor fijo 4.");
+        explicaciones.put(47, "Porcentaje fondos Protección+Porvenir sobre fondo sistema.");
+        explicaciones.put(48, "Activos cuentas / TRM.");
+        explicaciones.put(49, "Pasivos cuentas / TRM.");
+        explicaciones.put(50, "Patrimonio: (activos - pasivos) / TRM.");
+        explicaciones.put(51, "Comisiones desde CUENTAS.");
+        explicaciones.put(52, "Gastos desde CUENTAS.");
+        explicaciones.put(53, "Resultado operación desde CUENTAS.");
+        explicaciones.put(54, "Resultado neto desde CUENTAS.");
+        explicaciones.put(55, "Gastos de administración desde CUENTAS.");
+        explicaciones.put(56, "Cuenta 511500 desde CUENTAS.");
+        explicaciones.put(57, "Publicidad 519015 desde CUENTAS.");
+        explicaciones.put(58, "Cuenta 511500 + publicidad 519015.");
+        explicaciones.put(59, "Otros 517000 desde CUENTAS.");
+        explicaciones.put(60, "Administración + otros 517000 + publicidad 519015.");
+        explicaciones.put(61, "Aportes USD / aportantes en miles * 1000.");
+        explicaciones.put(62, "Gastos / aportes USD * 100.");
+        explicaciones.put(63, "Patrimonio base_mes MM USD / fondos administrados fila 28 * 100.");
+        explicaciones.put(64, "Patrimonio USD / afiliados * 1,000,000.");
+        explicaciones.put(65, "Resultado neto / comisiones * 100.");
+        explicaciones.put(66, "Resultado neto / patrimonio USD * 100.");
+        explicaciones.put(67, "Gastos / afiliados * 1,000,000.");
+        explicaciones.put(68, "Comisiones / aportantes * 1,000,000.");
+        explicaciones.put(69, "Administración / fila 61.");
+        explicaciones.put(70, "Valor fijo 16.");
+        explicaciones.put(71, "Promedio comisiones obligatorias trimestrales * 100.");
+        explicaciones.put(72, "Valor fijo 0.");
+        explicaciones.put(73, "Valor fijo 0.");
+        explicaciones.put(74, "(3 - comisión promedio %) * 0.25.");
+        explicaciones.put(75, "(3 - comisión promedio %) * 0.75.");
+        explicaciones.put(76, "Valor fijo 0.");
+        explicaciones.put(77, "Comisiones desde CUENTAS.");
+        explicaciones.put(78, "Mismo valor de fila 28 (fondos administrados).");
+        explicaciones.put(79, "Fila 77 / fila 78.");
+        explicaciones.put(80, "Años desde 1994: año fecha corte - 1994.");
+        explicaciones.put(82, "Rentabilidad nominal 10 años calculada por RentabilidadService.");
+        explicaciones.put(83, "Rentabilidad real 10 años calculada por RentabilidadService.");
+        explicaciones.put(84, "Rentabilidad nominal 5 años calculada por RentabilidadService.");
+        explicaciones.put(85, "Rentabilidad real 5 años calculada por RentabilidadService.");
+        explicaciones.put(86, "Rentabilidad nominal 3 años calculada por RentabilidadService.");
+        explicaciones.put(87, "Rentabilidad real 3 años calculada por RentabilidadService.");
+        explicaciones.put(88, "Rentabilidad nominal 1 año calculada por RentabilidadService.");
+        explicaciones.put(89, "Rentabilidad real 1 año calculada por RentabilidadService.");
+        explicaciones.forEach((fila, explicacion) -> log.info("Semestral fila {}: valor={} fecha={} col={} cálculo={}",
+                fila, num(hoja, fila, col), fechaCorte, col, explicacion));
     }
 
     private BigDecimal promedioComisionObligatoria(TrimestralData trimestral) {
