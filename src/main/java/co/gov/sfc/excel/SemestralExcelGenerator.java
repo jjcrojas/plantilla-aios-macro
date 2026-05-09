@@ -130,7 +130,9 @@ public class SemestralExcelGenerator {
                 log.info("Semestral fila45: fondoUsdMM={} deudaGubernamentalTotalUSD={} fila45Ratio={} fecha={}",
                         fondoUsdMM, deudaGubernamentalTotal, fila45, fechaCorte);
                 write(hoja, 46, col, BigDecimal.valueOf(4));
-                write(hoja, 47, col, mensual.porcVrFondo());
+                BigDecimal fila47 = readFila47DesdeSistemaTotal(fechaCorte, mensual.porcVrFondo());
+                write(hoja, 47, col, fila47);
+                setNumberFormat(hoja, 47, col, "#,##0.00%");
                 BigDecimal activos = mensual.activosCuentas() == null ? BigDecimal.ZERO : mensual.activosCuentas();
                 BigDecimal pasivos = mensual.pasivosCuentas() == null ? BigDecimal.ZERO : mensual.pasivosCuentas();
                 BigDecimal activosUsd = safeDivide(activos, trm(mensual));
@@ -272,7 +274,7 @@ public class SemestralExcelGenerator {
         explicaciones.put(44, "Suma LIMITES!AIOS O4+Q4+S4+U4+W4+Y4 * 100.");
         explicaciones.put(45, "Participación fondos/deuda gubernamental: fila 28 / deuda gubernamental total en USD (PIB_PEA_TRM_DG Hoja1 columna M).");
         explicaciones.put(46, "Valor fijo 4.");
-        explicaciones.put(47, "Porcentaje fondos Protección+Porvenir sobre fondo sistema.");
+        explicaciones.put(47, "SISTEMA TOTAL restot: (C14 Protección + D14 Porvenir) / J14 total sistema.");
         explicaciones.put(48, "Activos cuentas / TRM.");
         explicaciones.put(49, "Pasivos cuentas / TRM.");
         explicaciones.put(50, "Patrimonio: (activos - pasivos) / TRM.");
@@ -972,6 +974,32 @@ public class SemestralExcelGenerator {
         }
     }
 
+
+
+    private BigDecimal readFila47DesdeSistemaTotal(LocalDate fechaCorte, BigDecimal fallback) {
+        try {
+            Path sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
+            try (Workbook wb = WorkbookFactory.create(sistemaTotal.toFile(), null, true)) {
+                Sheet restot = getSheetIgnoreCase(wb, "restot");
+                if (restot == null) {
+                    log.warn("Semestral fila47: no se encontró hoja restot en {}. Se usa fallback={}",
+                            sistemaTotal.toAbsolutePath(), fallback);
+                    return fallback == null ? BigDecimal.ZERO : fallback;
+                }
+                BigDecimal proteccion = num(restot, "C14", null);
+                BigDecimal porvenir = num(restot, "D14", null);
+                BigDecimal totalSistema = num(restot, "J14", null);
+                BigDecimal fila47 = safeDivide(proteccion.add(porvenir), totalSistema);
+                log.info("Semestral fila47 desde SISTEMA TOTAL: archivo={} hoja=restot C14(Protección)={} D14(Porvenir)={} J14(totalSistema)={} fila47={}",
+                        sistemaTotal.toAbsolutePath(), proteccion, porvenir, totalSistema, fila47);
+                return fila47;
+            }
+        } catch (Exception e) {
+            log.warn("Semestral fila47: no fue posible leer SISTEMA TOTAL para fecha={}: {}. Se usa fallback={}",
+                    fechaCorte, e.getMessage(), fallback);
+            return fallback == null ? BigDecimal.ZERO : fallback;
+        }
+    }
 
     private BigDecimal readDeudaGubernamentalTotal(LocalDate fechaCorte) {
         try {
