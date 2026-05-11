@@ -235,89 +235,113 @@ public class SemestralExcelGenerator {
 
 
     private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte) {
+        String formato491 = rutaInsumo("Formato 491 afiliados", () -> Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm"));
+        String formato495 = rutaInsumo("Series_Formato-495 PENSIONADOS", () -> findPensionados495File(fechaCorte));
+        String sistemaTotal = rutaInsumo("SISTEMA TOTAL", () -> locator.findRequired("SISTEMA TOTAL", fechaCorte));
+        String limites = rutaInsumo("LIMITES", () -> locator.findRequired("LIMITES", fechaCorte));
+        String pibPeaTrmDg = rutaInsumo("PIB_PEA_TRM_DG", () -> locator.findRequired("PIB_PEA_TRM_DG", fechaCorte));
+        String formato136 = rutaInsumo("Formato 136", () -> findFormato136File(fechaCorte));
+        String plantillaAios = rutaInsumo("Plantilla AIOS-probable", () -> findPlantillaAiosFile(fechaCorte));
+        String rentVrUni = rutaInsumo("Rent_Vr_Uni_Moderado", () -> findRentModeradoFile(fechaCorte));
+        String valoresFondo = rutaInsumo("Valores_Fondo_Moder/MODERADO", () -> findValoresFondoModerFile(fechaCorte));
+
         java.util.Map<Integer, String> explicaciones = new java.util.LinkedHashMap<>();
-        explicaciones.put(3, "Afiliados: mensual.afiliados().");
-        explicaciones.put(4, "Afiliados <30 / afiliados * 100.");
-        explicaciones.put(5, "Afiliados 30-44 / afiliados * 100.");
-        explicaciones.put(6, "Afiliados 45-59 / afiliados * 100.");
-        explicaciones.put(7, "Afiliados >60 / afiliados * 100.");
-        explicaciones.put(8, "Total porcentual fijo 100.");
-        explicaciones.put(9, "Afiliados / 1000.");
-        explicaciones.put(10, "Mujeres / afiliados * 100.");
-        explicaciones.put(11, "Aportantes: mensual.aportantes().");
-        explicaciones.put(12, "Afiliados / PEA * 100.");
-        explicaciones.put(13, "Aportantes / PEA * 100.");
-        explicaciones.put(14, "Aportantes / afiliados * 100.");
-        explicaciones.put(15, "Salario mínimo Colombia en USD.");
-        explicaciones.put(16, "Total pensionados desde Series_Formato-495 PENSIONADOS, hoja TOTAL PENSIONADOS, fecha parámetro B4, columna I.");
-        explicaciones.put(17, "Pensionados invalidez desde por Entidad!BI62 / fila 16.");
-        explicaciones.put(18, "Pensionados vejez desde por Entidad!BH62 / fila 16.");
-        explicaciones.put(19, "Pensionados sobrevivencia desde por Entidad!BJ62 / fila 16.");
-        explicaciones.put(26, "Traspasos sistema.");
-        explicaciones.put(27, "Traspasos sistema / afiliados.");
-        explicaciones.put(28, "Fondos administrados: fondoSistemaJ14 * 1000 / TRM / 1,000,000.");
-        explicaciones.put(29, "Fondos/PIB: fila 28 / (PIB semestral / TRM).");
-        explicaciones.put(30, "Composición fondos: total1 / TRM.");
-        explicaciones.put(31, "Límites: dudaG.");
-        explicaciones.put(32, "Límites: dudaEf.");
-        explicaciones.put(33, "Límites: dudaNf.");
-        explicaciones.put(34, "Límites: dudaAc.");
-        explicaciones.put(35, "Límites: dudaF.");
-        explicaciones.put(36, "Valor fijo 0.");
-        explicaciones.put(37, "Límites exterior: dudaGe.");
-        explicaciones.put(38, "Límites exterior: dudaEfe.");
-        explicaciones.put(39, "Límites exterior: dudaNfe.");
-        explicaciones.put(40, "Límites exterior: dudaAce.");
-        explicaciones.put(41, "Límites exterior: dudaFe.");
-        explicaciones.put(42, "Valor fijo 2.");
-        explicaciones.put(43, "Otros: mensual.otros().");
-        explicaciones.put(44, "Suma LIMITES!AIOS O4+Q4+S4+U4+W4+Y4 * 100.");
-        explicaciones.put(45, "Participación fondos/deuda gubernamental: fila 28 / deuda gubernamental total en USD (PIB_PEA_TRM_DG Hoja1 columna M).");
-        explicaciones.put(46, "Valor fijo 4.");
-        explicaciones.put(47, "SISTEMA TOTAL restot: (C14 Protección + D14 Porvenir) / J14 total sistema.");
-        explicaciones.put(48, "Activos cuentas / TRM.");
-        explicaciones.put(49, "Pasivos cuentas / TRM.");
-        explicaciones.put(50, "Patrimonio: (activos - pasivos) / TRM.");
-        explicaciones.put(51, "Comisiones desde CUENTAS.");
-        explicaciones.put(52, "Gastos desde CUENTAS.");
-        explicaciones.put(53, "Resultado operación desde CUENTAS.");
-        explicaciones.put(54, "Resultado neto desde CUENTAS.");
-        explicaciones.put(55, "Gastos de administración desde CUENTAS.");
-        explicaciones.put(56, "Cuenta 511500 desde CUENTAS.");
-        explicaciones.put(57, "Publicidad 519015 desde CUENTAS.");
-        explicaciones.put(58, "Cuenta 511500 + publicidad 519015.");
-        explicaciones.put(59, "Otros 517000 desde CUENTAS.");
-        explicaciones.put(60, "Administración + otros 517000 + publicidad 519015.");
-        explicaciones.put(61, "Aportes USD / aportantes en miles * 1000.");
-        explicaciones.put(62, "Gastos / aportes USD * 100.");
-        explicaciones.put(63, "Patrimonio base_mes MM USD / fondos administrados fila 28 * 100.");
-        explicaciones.put(64, "Patrimonio USD / afiliados * 1,000,000.");
-        explicaciones.put(65, "Resultado neto / comisiones * 100.");
-        explicaciones.put(66, "Resultado neto / patrimonio USD * 100.");
-        explicaciones.put(67, "Gastos / afiliados * 1,000,000.");
-        explicaciones.put(68, "Comisiones / aportantes * 1,000,000.");
-        explicaciones.put(69, "Administración / fila 61.");
-        explicaciones.put(70, "Valor fijo 16.");
-        explicaciones.put(71, "Promedio comisiones obligatorias trimestrales * 100.");
-        explicaciones.put(72, "Valor fijo 0.");
-        explicaciones.put(73, "Valor fijo 0.");
-        explicaciones.put(74, "(3 - comisión promedio %) * 0.25.");
-        explicaciones.put(75, "(3 - comisión promedio %) * 0.75.");
-        explicaciones.put(76, "Valor fijo 0.");
-        explicaciones.put(77, "Comisiones desde CUENTAS.");
-        explicaciones.put(78, "Mismo valor de fila 28 (fondos administrados).");
-        explicaciones.put(79, "Fila 77 / fila 78.");
-        explicaciones.put(80, "Años desde 1994: año fecha corte - 1994.");
-        explicaciones.put(82, "Rentabilidad nominal 10 años calculada por RentabilidadService.");
-        explicaciones.put(83, "Rentabilidad real 10 años calculada por RentabilidadService.");
-        explicaciones.put(84, "Rentabilidad nominal 5 años calculada por RentabilidadService.");
-        explicaciones.put(85, "Rentabilidad real 5 años calculada por RentabilidadService.");
-        explicaciones.put(86, "Rentabilidad nominal 3 años calculada por RentabilidadService.");
-        explicaciones.put(87, "Rentabilidad real 3 años calculada por RentabilidadService.");
-        explicaciones.put(88, "Rentabilidad nominal 1 año calculada por RentabilidadService.");
-        explicaciones.put(89, "Rentabilidad real 1 año calculada por RentabilidadService.");
-        explicaciones.forEach((fila, explicacion) -> log.info("Semestral fila {}: valor={} fecha={} col={} cálculo={}",
-                fila, num(hoja, fila, col), fechaCorte, col, explicacion));
+        explicaciones.put(3, "valor = mensual.afiliados(); variable calculada por MensualDataReader desde el formato 491 de afiliados, ruta=" + formato491 + ".");
+        explicaciones.put(4, "valor = (mensual.afiliadosMenor30() / mensual.afiliados()) * 100; operandos: afiliadosMenor30 y total afiliados leídos del formato 491, ruta=" + formato491 + ".");
+        explicaciones.put(5, "valor = (mensual.afiliados30a44() / mensual.afiliados()) * 100; operandos del formato 491, ruta=" + formato491 + ".");
+        explicaciones.put(6, "valor = (mensual.afiliados45a59() / mensual.afiliados()) * 100; operandos del formato 491, ruta=" + formato491 + ".");
+        explicaciones.put(7, "valor = (mensual.afiliadosMayor60() / mensual.afiliados()) * 100; operandos del formato 491, ruta=" + formato491 + ".");
+        explicaciones.put(8, "valor fijo = 100; representa el total porcentual de rangos de edad.");
+        explicaciones.put(9, "valor = mensual.afiliados() / 1000; afiliados proviene del formato 491, ruta=" + formato491 + ".");
+        explicaciones.put(10, "valor = (mensual.mujeres() / mensual.afiliados()) * 100; mujeres y afiliados provienen del formato 491, ruta=" + formato491 + ".");
+        explicaciones.put(11, "valor = mensual.aportantes(); variable leída/calculada por MensualDataReader desde los insumos mensuales de afiliados/aportantes, ruta principal=" + formato491 + ".");
+        explicaciones.put(12, "valor = (mensual.afiliados() / mensual.pea()) * 100; afiliados del formato 491 ruta=" + formato491 + "; PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(13, "valor = (mensual.aportantes() / mensual.pea()) * 100; aportantes del lector mensual y PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(14, "valor = (mensual.aportantes() / mensual.afiliados()) * 100; ambos operandos vienen de MensualDataReader/formato 491 ruta=" + formato491 + ".");
+        explicaciones.put(15, "valor = salario mínimo Colombia en COP / TRM; salario mínimo desde formato 491 hoja SM COLOMBIA celda E8 ruta=" + formato491 + "; TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(16, "valor = total pensionados de Series_Formato-495 PENSIONADOS hoja TOTAL PENSIONADOS: se escribe fecha parámetro en B4 y se toma columna I de la fila cuya fecha en columna B corresponde al corte; ruta=" + formato495 + ".");
+        explicaciones.put(17, "valor = por Entidad!BI62 / fila 16; BI62 es pensionados por invalidez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
+        explicaciones.put(18, "valor = por Entidad!BH62 / fila 16; BH62 es pensionados por vejez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
+        explicaciones.put(19, "valor = por Entidad!BJ62 / fila 16; BJ62 es pensionados por sobrevivencia del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
+        explicaciones.put(26, "valor = mensual.traspasosSistema(); total de traspasos del sistema leído por MensualDataReader desde los insumos de movimiento/formato 493 y trimestral cuando aplica.");
+        explicaciones.put(27, "valor = mensual.traspasosSistema() / mensual.afiliados(); traspasos del sistema dividido entre afiliados del formato 491 ruta=" + formato491 + ".");
+        explicaciones.put(28, "valor = mensual.fondoSistemaJ14() * 1000 / mensual.trm() / 1,000,000; fondoSistemaJ14 proviene de SISTEMA TOTAL hoja restot celda J14 ruta=" + sistemaTotal + "; TRM de PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(29, "valor = fila 28 / (mensual.pibSemestral() / mensual.trm()); PIB semestral y TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(30, "valor = mensual.total1() / mensual.trm(); total1 desde límites/composición leída por MensualDataReader; TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(31, "valor = mensual.dudaG(); dato de límites de inversión leído por MensualDataReader desde LIMITES/AIOS u origen equivalente, ruta=" + limites + ".");
+        explicaciones.put(32, "valor = mensual.dudaEf(); dato de límites de inversión leído desde LIMITES/AIOS, ruta=" + limites + ".");
+        explicaciones.put(33, "valor = mensual.dudaNf(); dato de límites de inversión leído desde LIMITES/AIOS, ruta=" + limites + ".");
+        explicaciones.put(34, "valor = mensual.dudaAc(); dato de límites de inversión leído desde LIMITES/AIOS, ruta=" + limites + ".");
+        explicaciones.put(35, "valor = mensual.dudaF(); dato de límites de inversión leído desde LIMITES/AIOS, ruta=" + limites + ".");
+        explicaciones.put(36, "valor fijo = 0; no usa insumo externo.");
+        explicaciones.put(37, "valor = mensual.dudaGe(); límite exterior leído desde LIMITES/AIOS, ruta=" + limites + ".");
+        explicaciones.put(38, "valor = mensual.dudaEfe(); límite exterior leído desde LIMITES/AIOS, ruta=" + limites + ".");
+        explicaciones.put(39, "valor = mensual.dudaNfe(); límite exterior leído desde LIMITES/AIOS, ruta=" + limites + ".");
+        explicaciones.put(40, "valor = mensual.dudaAce(); límite exterior leído desde LIMITES/AIOS, ruta=" + limites + ".");
+        explicaciones.put(41, "valor = mensual.dudaFe(); límite exterior leído desde LIMITES/AIOS, ruta=" + limites + ".");
+        explicaciones.put(42, "valor fijo = 2; no usa insumo externo.");
+        explicaciones.put(43, "valor = mensual.otros(); otros conceptos calculados por MensualDataReader desde los insumos mensuales.");
+        explicaciones.put(44, "valor = (LIMITES hoja AIOS celdas O4 + Q4 + S4 + U4 + W4 + Y4) * 100; ruta=" + limites + ".");
+        explicaciones.put(45, "valor = fila 28 / deuda gubernamental total en USD; deuda gubernamental total proviene de PIB_PEA_TRM_DG hoja Hoja1 columna M para la fecha de corte, ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(46, "valor fijo = 4; no usa insumo externo.");
+        explicaciones.put(47, "valor = (SISTEMA TOTAL hoja restot C14 Protección + restot D14 Porvenir) / restot J14 total sistema; ruta=" + sistemaTotal + ".");
+        explicaciones.put(48, "valor = mensual.activosCuentas() / mensual.trm(); activosCuentas desde Plantilla AIOS/CUENTAS o fuente contable, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(49, "valor = mensual.pasivosCuentas() / mensual.trm(); pasivosCuentas desde Plantilla AIOS/CUENTAS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(50, "valor = (mensual.activosCuentas() - mensual.pasivosCuentas()) / mensual.trm(); activos y pasivos desde CUENTAS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(51, "valor = cuentas.comisiones(); leído desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
+        explicaciones.put(52, "valor = cuentas.gastos(); leído desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
+        explicaciones.put(53, "valor = cuentas.resultadoOperacion(); leído desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
+        explicaciones.put(54, "valor = cuentas.resultadoNeto(); leído desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
+        explicaciones.put(55, "valor = cuentas.admon(); gastos de administración desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
+        explicaciones.put(56, "valor = cuentas.cuenta511500(); cuenta 511500 desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
+        explicaciones.put(57, "valor = cuentas.publicidad519015(); cuenta publicidad 519015 desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
+        explicaciones.put(58, "valor = cuentas.cuenta511500() + cuentas.publicidad519015(); ambos operandos desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
+        explicaciones.put(59, "valor = cuentas.otros517000(); otros 517000 desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
+        explicaciones.put(60, "valor = cuentas.admon() + cuentas.otros517000() + cuentas.publicidad519015(); operandos desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
+        explicaciones.put(61, "valor = (aportesRecibidos136 / TRM) / (mensual.aportantes() / 1000) * 1000; aportesRecibidos136 desde Formato 136 hoja FORMATO OBL, ruta=" + formato136 + "; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(62, "valor = cuentas.gastos() / (aportesRecibidos136 / TRM) * 100; gastos desde CUENTAS ruta=" + plantillaAios + "; aportes desde Formato 136 ruta=" + formato136 + ".");
+        explicaciones.put(63, "valor = (patrimonioBaseMesMMCop / TRM) / fila 28 * 100; patrimonio base_mes desde Plantilla AIOS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(64, "valor = patrimonioUsd / mensual.afiliados() * 1,000,000; patrimonioUsd=(activos-pasivos)/TRM desde CUENTAS ruta=" + plantillaAios + " y afiliados desde formato 491 ruta=" + formato491 + ".");
+        explicaciones.put(65, "valor = cuentas.resultadoNeto() / cuentas.comisiones() * 100; ambos operandos desde Plantilla AIOS hoja CUENTAS ruta=" + plantillaAios + ".");
+        explicaciones.put(66, "valor = cuentas.resultadoNeto() / patrimonioUsd * 100; resultado neto desde CUENTAS ruta=" + plantillaAios + " y patrimonioUsd=(activos-pasivos)/TRM.");
+        explicaciones.put(67, "valor = cuentas.gastos() / mensual.afiliados() * 1,000,000; gastos desde CUENTAS ruta=" + plantillaAios + "; afiliados desde formato 491 ruta=" + formato491 + ".");
+        explicaciones.put(68, "valor = cuentas.comisiones() / mensual.aportantes() * 1,000,000; comisiones desde CUENTAS ruta=" + plantillaAios + "; aportantes desde MensualDataReader.");
+        explicaciones.put(69, "valor = cuentas.admon() / fila 61; administración desde CUENTAS ruta=" + plantillaAios + " y fila 61 calculada con Formato 136 ruta=" + formato136 + ".");
+        explicaciones.put(70, "valor fijo = 16; no usa insumo externo.");
+        explicaciones.put(71, "valor = promedio(trimestral.comisionesPct col_obl, por_obl, pro_obl, ska_obl) * 100; comisiones trimestrales leídas por TrimestralDataReader.");
+        explicaciones.put(72, "valor fijo = 0; no usa insumo externo.");
+        explicaciones.put(73, "valor fijo = 0; no usa insumo externo.");
+        explicaciones.put(74, "valor = (3 - fila 71) * 0.25; usa comisión promedio porcentual calculada en fila 71.");
+        explicaciones.put(75, "valor = (3 - fila 71) * 0.75; usa comisión promedio porcentual calculada en fila 71.");
+        explicaciones.put(76, "valor fijo = 0; no usa insumo externo.");
+        explicaciones.put(77, "valor = cuentas.comisiones(); comisiones desde Plantilla AIOS hoja CUENTAS ruta=" + plantillaAios + ".");
+        explicaciones.put(78, "valor = fila 28; se reutiliza el valor de fondos administrados calculado con SISTEMA TOTAL J14 ruta=" + sistemaTotal + " y TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(79, "valor = fila 77 / fila 78; fila 77 son comisiones desde CUENTAS ruta=" + plantillaAios + " y fila 78 fondos administrados.");
+        explicaciones.put(80, "valor = año(fechaCorte) - 1994; no usa insumo externo.");
+        explicaciones.put(82, "valor = rentabilidad nominal 10 años calculada por RentabilidadService usando NAV del archivo Valores_Fondo_Moder/MODERADO ruta=" + valoresFondo + " y fechas de corte.");
+        explicaciones.put(83, "valor = rentabilidad real 10 años calculada por RentabilidadService usando rentabilidad nominal, IPC y archivo Rent_Vr_Uni_Moderado ruta=" + rentVrUni + ".");
+        explicaciones.put(84, "valor = rentabilidad nominal 5 años calculada por RentabilidadService usando NAV de Valores_Fondo_Moder/MODERADO ruta=" + valoresFondo + ".");
+        explicaciones.put(85, "valor = rentabilidad real 5 años calculada por RentabilidadService usando IPC/Rent_Vr_Uni_Moderado ruta=" + rentVrUni + ".");
+        explicaciones.put(86, "valor = rentabilidad nominal 3 años calculada por RentabilidadService usando NAV de Valores_Fondo_Moder/MODERADO ruta=" + valoresFondo + ".");
+        explicaciones.put(87, "valor = rentabilidad real 3 años calculada por RentabilidadService usando IPC/Rent_Vr_Uni_Moderado ruta=" + rentVrUni + ".");
+        explicaciones.put(88, "valor = rentabilidad nominal 1 año calculada por RentabilidadService usando NAV de Valores_Fondo_Moder/MODERADO ruta=" + valoresFondo + ".");
+        explicaciones.put(89, "valor = rentabilidad real 1 año calculada por RentabilidadService usando IPC/Rent_Vr_Uni_Moderado ruta=" + rentVrUni + ".");
+        explicaciones.forEach((fila, explicacion) -> log.info("Semestral fila número {}: explicación={} valor={} fechaCorte={} columnaDestino={}",
+                fila, explicacion, num(hoja, fila, col), fechaCorte, col));
+    }
+
+    private String rutaInsumo(String nombre, PathSupplier supplier) {
+        try {
+            Path path = supplier.get();
+            return path == null ? nombre + " (ruta no resuelta)" : path.toAbsolutePath().toString();
+        } catch (Exception e) {
+            return nombre + " (ruta no resuelta: " + e.getMessage() + ")";
+        }
+    }
+
+    @FunctionalInterface
+    private interface PathSupplier {
+        Path get() throws Exception;
     }
 
     private BigDecimal promedioComisionObligatoria(TrimestralData trimestral) {
