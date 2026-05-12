@@ -82,7 +82,7 @@ public class MensualDataReader {
                 var j9 = num(multifondos, "J9", evaluator);
                 var j12 = num(multifondos, "J12", evaluator);
                 consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
-                log.info("491 recalculado con fechaCorte={}: hombres={}, mujeres={}", fechaCorte, hombres, mujeres);
+                log.debug("491 recalculado con fechaCorte={}: hombres={}, mujeres={}", fechaCorte, hombres, mujeres);
             } catch (OutOfMemoryError oom) {
                 log.warn("OOM en recálculo macro 491; se usa modo seguro XML cacheado");
                 SexTotals st = readAfiliadosFromDataXml(file491, fechaCorte);

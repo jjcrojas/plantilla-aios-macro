@@ -220,7 +220,7 @@ public class SemestralExcelGenerator {
                 setNumberFormat(hoja, 89, col, "#,##0.00%");
                 log.info("Semestral traza rentabilidades: 10y(nom={},real={}) 5y(nom={},real={}) 3y(nom={},real={}) 1y(nom={},real={})",
                         rent.nominal10(), rent.real10(), rent.nominal5(), rent.real5(), rent.nominal3(), rent.real3(), rent.nominal1(), rent.real1());
-                logFilasSemestral(hoja, col, fechaCorte);
+                logFilasSemestral(hoja, col, fechaCorte, mensual);
 
                 try (var os = Files.newOutputStream(out)) {
                     wb.write(os);
@@ -234,7 +234,7 @@ public class SemestralExcelGenerator {
     }
 
 
-    private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte) {
+    private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte, MensualData mensual) {
         String formato491 = rutaInsumo("Formato 491 afiliados", () -> Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm"));
         String formato495 = rutaInsumo("Series_Formato-495 PENSIONADOS", () -> findPensionados495File(fechaCorte));
         String sistemaTotal = rutaInsumo("SISTEMA TOTAL", () -> locator.findRequired("SISTEMA TOTAL", fechaCorte));
@@ -246,15 +246,15 @@ public class SemestralExcelGenerator {
         String valoresFondo = rutaInsumo("Valores_Fondo_Moder/MODERADO", () -> findValoresFondoModerFile(fechaCorte));
 
         java.util.Map<Integer, String> explicaciones = new java.util.LinkedHashMap<>();
-        explicaciones.put(3, "valor = mensual.afiliados(); variable calculada por MensualDataReader desde el formato 491 de afiliados, ruta=" + formato491 + ".");
-        explicaciones.put(4, "valor = (mensual.afiliadosMenor30() / mensual.afiliados()) * 100; operandos: afiliadosMenor30 y total afiliados leídos del formato 491, ruta=" + formato491 + ".");
-        explicaciones.put(5, "valor = (mensual.afiliados30a44() / mensual.afiliados()) * 100; operandos del formato 491, ruta=" + formato491 + ".");
-        explicaciones.put(6, "valor = (mensual.afiliados45a59() / mensual.afiliados()) * 100; operandos del formato 491, ruta=" + formato491 + ".");
-        explicaciones.put(7, "valor = (mensual.afiliadosMayor60() / mensual.afiliados()) * 100; operandos del formato 491, ruta=" + formato491 + ".");
+        explicaciones.put(3, "valor = mensual.afiliados() = mensual.hombres() + mensual.mujeres(); desde Formato 491 hoja informe de prensa con fechaCorte escrita en C3, hombres=C11=" + mensual.hombres() + ", mujeres=D11=" + mensual.mujeres() + ", total=" + mensual.afiliados() + ", ruta=" + formato491 + ".");
+        explicaciones.put(4, "valor = (mensual.afiliadosMenor30() / mensual.afiliados()) * 100; afiliadosMenor30=(informe de prensa C81 + D81)=" + mensual.afiliadosMenor30() + ", afiliados=fila 3=" + mensual.afiliados() + ", ruta=" + formato491 + ".");
+        explicaciones.put(5, "valor = (mensual.afiliados30a44() / mensual.afiliados()) * 100; afiliados30a44=(informe de prensa C82 + D82)=" + mensual.afiliados30a44() + ", afiliados=fila 3=" + mensual.afiliados() + ", ruta=" + formato491 + ".");
+        explicaciones.put(6, "valor = (mensual.afiliados45a59() / mensual.afiliados()) * 100; afiliados45a59=(informe de prensa C83 + D83)=" + mensual.afiliados45a59() + ", afiliados=fila 3=" + mensual.afiliados() + ", ruta=" + formato491 + ".");
+        explicaciones.put(7, "valor = (mensual.afiliadosMayor60() / mensual.afiliados()) * 100; afiliadosMayor60=(informe de prensa C84 + D84)=" + mensual.afiliadosMayor60() + ", afiliados=fila 3=" + mensual.afiliados() + ", ruta=" + formato491 + ".");
         explicaciones.put(8, "valor fijo = 100; representa el total porcentual de rangos de edad.");
-        explicaciones.put(9, "valor = mensual.afiliados() / 1000; afiliados proviene del formato 491, ruta=" + formato491 + ".");
-        explicaciones.put(10, "valor = (mensual.mujeres() / mensual.afiliados()) * 100; mujeres y afiliados provienen del formato 491, ruta=" + formato491 + ".");
-        explicaciones.put(11, "valor = mensual.aportantes(); variable leída/calculada por MensualDataReader desde los insumos mensuales de afiliados/aportantes, ruta principal=" + formato491 + ".");
+        explicaciones.put(9, "valor = mensual.afiliados() / 1000; afiliados=fila 3=" + mensual.afiliados() + ", ruta=" + formato491 + ".");
+        explicaciones.put(10, "valor = (mensual.mujeres() / mensual.afiliados()) * 100; mujeres=informe de prensa D11=" + mensual.mujeres() + ", afiliados=fila 3=" + mensual.afiliados() + ", ruta=" + formato491 + ".");
+        explicaciones.put(11, "valor = mensual.aportantes(); aportantes leídos desde Formato 491 hoja multifondos celda E25 con fechaCorte escrita en C4, aportantes=" + mensual.aportantes() + ", ruta=" + formato491 + ".");
         explicaciones.put(12, "valor = (mensual.afiliados() / mensual.pea()) * 100; afiliados del formato 491 ruta=" + formato491 + "; PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(13, "valor = (mensual.aportantes() / mensual.pea()) * 100; aportantes del lector mensual y PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(14, "valor = (mensual.aportantes() / mensual.afiliados()) * 100; ambos operandos vienen de MensualDataReader/formato 491 ruta=" + formato491 + ".");
