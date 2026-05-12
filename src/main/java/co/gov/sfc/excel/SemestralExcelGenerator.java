@@ -55,6 +55,7 @@ public class SemestralExcelGenerator {
             try (InputStream in = Files.newInputStream(base); Workbook wb = WorkbookFactory.create(in)) {
                 Sheet hoja = resolveSheet(wb);
                 int col = columnaSemestral(hoja, fechaCorte);
+                java.util.Map<Integer, String> detallesFilas = new java.util.LinkedHashMap<>();
 
                 // Bloque A - principales (según EscribirSemestral_Integral)
                 write(hoja, 3, col, mensual.afiliados());
@@ -121,17 +122,18 @@ public class SemestralExcelGenerator {
                 write(hoja, 41, col, mensual.dudaFe());
                 write(hoja, 42, col, BigDecimal.valueOf(2));
                 write(hoja, 43, col, mensual.otros());
-                BigDecimal fila44Pct = readFila44DesdeLimites(fechaCorte);
-                write(hoja, 44, col, fila44Pct);
-                BigDecimal deudaGubernamentalTotal = readDeudaGubernamentalTotal(fechaCorte);
-                BigDecimal fila45 = safeDivide(fondoUsdMM, deudaGubernamentalTotal);
+                DatoDetalle fila44Pct = readFila44DesdeLimites(fechaCorte);
+                write(hoja, 44, col, fila44Pct.valor());
+                detallesFilas.put(44, fila44Pct.detalle());
+                DatoDetalle deudaGubernamentalTotal = readDeudaGubernamentalTotal(fechaCorte);
+                BigDecimal fila45 = safeDivide(fondoUsdMM, deudaGubernamentalTotal.valor());
                 write(hoja, 45, col, fila45);
                 setNumberFormat(hoja, 45, col, "#,##0.00%");
-                log.info("Semestral fila45: fondoUsdMM={} deudaGubernamentalTotalUSD={} fila45Ratio={} fecha={}",
-                        fondoUsdMM, deudaGubernamentalTotal, fila45, fechaCorte);
+                detallesFilas.put(45, "operando fila28 fondoUsdMM=" + fondoUsdMM + "; operando deudaGubernamentalTotalUSD=" + deudaGubernamentalTotal.valor() + "; " + deudaGubernamentalTotal.detalle());
                 write(hoja, 46, col, BigDecimal.valueOf(4));
-                BigDecimal fila47 = readFila47DesdeSistemaTotal(fechaCorte, mensual.porcVrFondo());
-                write(hoja, 47, col, fila47);
+                DatoDetalle fila47 = readFila47DesdeSistemaTotal(fechaCorte, mensual.porcVrFondo());
+                write(hoja, 47, col, fila47.valor());
+                detallesFilas.put(47, fila47.detalle());
                 setNumberFormat(hoja, 47, col, "#,##0.00%");
                 BigDecimal activos = mensual.activosCuentas() == null ? BigDecimal.ZERO : mensual.activosCuentas();
                 BigDecimal pasivos = mensual.pasivosCuentas() == null ? BigDecimal.ZERO : mensual.pasivosCuentas();
@@ -220,7 +222,7 @@ public class SemestralExcelGenerator {
                 setNumberFormat(hoja, 89, col, "#,##0.00%");
                 log.info("Semestral traza rentabilidades: 10y(nom={},real={}) 5y(nom={},real={}) 3y(nom={},real={}) 1y(nom={},real={})",
                         rent.nominal10(), rent.real10(), rent.nominal5(), rent.real5(), rent.nominal3(), rent.real3(), rent.nominal1(), rent.real1());
-                logFilasSemestral(hoja, col, fechaCorte, mensual);
+                logFilasSemestral(hoja, col, fechaCorte, mensual, detallesFilas);
 
                 try (var os = Files.newOutputStream(out)) {
                     wb.write(os);
@@ -234,7 +236,7 @@ public class SemestralExcelGenerator {
     }
 
 
-    private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte, MensualData mensual) {
+    private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte, MensualData mensual, java.util.Map<Integer, String> detallesFilas) {
         String formato491 = rutaInsumo("Formato 491 afiliados", () -> Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm"));
         String formato495 = rutaInsumo("Series_Formato-495 PENSIONADOS", () -> findPensionados495File(fechaCorte));
         String sistemaTotal = rutaInsumo("SISTEMA TOTAL", () -> locator.findRequired("SISTEMA TOTAL", fechaCorte));
@@ -326,8 +328,12 @@ public class SemestralExcelGenerator {
         explicaciones.put(87, "valor = rentabilidad real 3 años calculada por RentabilidadService usando IPC/Rent_Vr_Uni_Moderado ruta=" + rentVrUni + ".");
         explicaciones.put(88, "valor = rentabilidad nominal 1 año calculada por RentabilidadService usando NAV de Valores_Fondo_Moder/MODERADO ruta=" + valoresFondo + ".");
         explicaciones.put(89, "valor = rentabilidad real 1 año calculada por RentabilidadService usando IPC/Rent_Vr_Uni_Moderado ruta=" + rentVrUni + ".");
-        explicaciones.forEach((fila, explicacion) -> log.info("Semestral fila número {}: explicación={} valor={} fechaCorte={} columnaDestino={}",
-                fila, explicacion, num(hoja, fila, col), fechaCorte, col));
+        explicaciones.forEach((fila, explicacion) -> {
+            String detalle = detallesFilas.get(fila);
+            String explicacionCompleta = detalle == null || detalle.isBlank() ? explicacion : explicacion + " " + detalle;
+            log.info("Semestral fila número {}: explicación={} valor={} fechaCorte={} columnaDestino={}",
+                    fila, explicacionCompleta, num(hoja, fila, col), fechaCorte, col);
+        });
     }
 
     private String rutaInsumo(String nombre, PathSupplier supplier) {
@@ -1000,32 +1006,34 @@ public class SemestralExcelGenerator {
 
 
 
-    private BigDecimal readFila47DesdeSistemaTotal(LocalDate fechaCorte, BigDecimal fallback) {
+    private DatoDetalle readFila47DesdeSistemaTotal(LocalDate fechaCorte, BigDecimal fallback) {
         try {
             Path sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
             try (Workbook wb = WorkbookFactory.create(sistemaTotal.toFile(), null, true)) {
                 Sheet restot = getSheetIgnoreCase(wb, "restot");
                 if (restot == null) {
-                    log.warn("Semestral fila47: no se encontró hoja restot en {}. Se usa fallback={}",
-                            sistemaTotal.toAbsolutePath(), fallback);
-                    return fallback == null ? BigDecimal.ZERO : fallback;
+                    String detalle = "archivo=" + sistemaTotal.toAbsolutePath() + " hoja=restot no encontrada; se usa fallback=" + fallback + ".";
+                    log.warn("Semestral fila47: {}", detalle);
+                    return new DatoDetalle(fallback == null ? BigDecimal.ZERO : fallback, detalle);
                 }
                 BigDecimal proteccion = num(restot, "C14", null);
                 BigDecimal porvenir = num(restot, "D14", null);
                 BigDecimal totalSistema = num(restot, "J14", null);
                 BigDecimal fila47 = safeDivide(proteccion.add(porvenir), totalSistema);
-                log.info("Semestral fila47 desde SISTEMA TOTAL: archivo={} hoja=restot C14(Protección)={} D14(Porvenir)={} J14(totalSistema)={} fila47={}",
-                        sistemaTotal.toAbsolutePath(), proteccion, porvenir, totalSistema, fila47);
-                return fila47;
+                String detalle = "detalle fuente: archivo=" + sistemaTotal.toAbsolutePath() + " hoja=restot celda=C14 Protección valor=" + proteccion
+                        + "; celda=D14 Porvenir valor=" + porvenir + "; celda=J14 totalSistema valor=" + totalSistema
+                        + "; operación=(C14 + D14) / J14.";
+                log.debug("Semestral fila47 desde SISTEMA TOTAL: {} resultado={}", detalle, fila47);
+                return new DatoDetalle(fila47, detalle);
             }
         } catch (Exception e) {
-            log.warn("Semestral fila47: no fue posible leer SISTEMA TOTAL para fecha={}: {}. Se usa fallback={}",
-                    fechaCorte, e.getMessage(), fallback);
-            return fallback == null ? BigDecimal.ZERO : fallback;
+            String detalle = "no fue posible leer SISTEMA TOTAL para fecha=" + fechaCorte + ": " + e.getMessage() + "; se usa fallback=" + fallback + ".";
+            log.warn("Semestral fila47: {}", detalle);
+            return new DatoDetalle(fallback == null ? BigDecimal.ZERO : fallback, detalle);
         }
     }
 
-    private BigDecimal readDeudaGubernamentalTotal(LocalDate fechaCorte) {
+    private DatoDetalle readDeudaGubernamentalTotal(LocalDate fechaCorte) {
         try {
             Path seriesFile = locator.findRequired("PIB_PEA_TRM_DG", fechaCorte);
             try (Workbook wb = WorkbookFactory.create(seriesFile.toFile(), null, true)) {
@@ -1040,9 +1048,11 @@ public class SemestralExcelGenerator {
                     BigDecimal deuda = num(sheet, row.getRowNum() + 1, 13); // columna M
                     if (deuda.signum() == 0) continue;
                     if (fecha.equals(fechaCorte)) {
-                        log.info("Deuda gubernamental total exacta: archivo={} hoja=Hoja1 fila={} fecha={} celda=M{} valor={}",
-                                seriesFile.toAbsolutePath(), row.getRowNum() + 1, fecha, row.getRowNum() + 1, deuda);
-                        return deuda;
+                        String detalle = "detalle fuente deuda gubernamental: archivo=" + seriesFile.toAbsolutePath()
+                                + " hoja=Hoja1 fila=" + (row.getRowNum() + 1) + " fecha=" + fecha
+                                + " celda=M" + (row.getRowNum() + 1) + " valor=" + deuda + ".";
+                        log.debug("Deuda gubernamental total exacta: {}", detalle);
+                        return new DatoDetalle(deuda, detalle);
                     }
                     if (fecha.isAfter(mejorFecha)) {
                         mejorFecha = fecha;
@@ -1051,26 +1061,34 @@ public class SemestralExcelGenerator {
                     }
                 }
                 if (mejor.signum() != 0) {
-                    log.info("Deuda gubernamental total por fecha anterior: archivo={} hoja=Hoja1 fila={} fechaFila={} fechaCorte={} celda=M{} valor={}",
-                            seriesFile.toAbsolutePath(), mejorFila, mejorFecha, fechaCorte, mejorFila, mejor);
+                    String detalle = "detalle fuente deuda gubernamental: archivo=" + seriesFile.toAbsolutePath()
+                            + " hoja=Hoja1 fila=" + mejorFila + " fechaFila=" + mejorFecha + " fechaCorte=" + fechaCorte
+                            + " celda=M" + mejorFila + " valor=" + mejor + " (fallback por fecha anterior).";
+                    log.debug("Deuda gubernamental total por fecha anterior: {}", detalle);
+                    return new DatoDetalle(mejor, detalle);
                 } else {
-                    log.warn("No se encontró deuda gubernamental total en Hoja1!M para fecha={} o anterior en {}",
-                            fechaCorte, seriesFile.toAbsolutePath());
+                    String detalle = "no se encontró deuda gubernamental total en archivo=" + seriesFile.toAbsolutePath()
+                            + " hoja=Hoja1 columna M para fecha=" + fechaCorte + " o anterior.";
+                    log.warn("Semestral fila45: {}", detalle);
+                    return new DatoDetalle(BigDecimal.ZERO, detalle);
                 }
-                return mejor;
             }
         } catch (Exception e) {
-            log.warn("No fue posible leer deuda gubernamental total desde PIB_PEA_TRM_DG para fecha={}: {}", fechaCorte, e.getMessage());
-            return BigDecimal.ZERO;
+            String detalle = "no fue posible leer deuda gubernamental total desde PIB_PEA_TRM_DG para fecha=" + fechaCorte + ": " + e.getMessage() + ".";
+            log.warn("Semestral fila45: {}", detalle);
+            return new DatoDetalle(BigDecimal.ZERO, detalle);
         }
     }
 
-    private BigDecimal readFila44DesdeLimites(LocalDate fechaCorte) {
+    private DatoDetalle readFila44DesdeLimites(LocalDate fechaCorte) {
         try {
             Path limites = locator.findRequired("LIMITES", fechaCorte);
             try (Workbook wb = WorkbookFactory.create(limites.toFile(), null, true)) {
                 Sheet aios = getSheetIgnoreCase(wb, "AIOS");
-                if (aios == null) return BigDecimal.ZERO;
+                if (aios == null) {
+                    String detalle = "archivo=" + limites.toAbsolutePath() + " hoja=AIOS no encontrada.";
+                    return new DatoDetalle(BigDecimal.ZERO, detalle);
+                }
                 BigDecimal o4 = num(aios, "O4", null);
                 BigDecimal q4 = num(aios, "Q4", null);
                 BigDecimal s4 = num(aios, "S4", null);
@@ -1079,13 +1097,16 @@ public class SemestralExcelGenerator {
                 BigDecimal y4 = num(aios, "Y4", null);
                 BigDecimal suma = o4.add(q4).add(s4).add(u4).add(w4).add(y4);
                 BigDecimal porcentaje = suma.multiply(BigDecimal.valueOf(100));
-                log.info("Semestral fila44 desde LIMITES: archivo={} O4={} Q4={} S4={} U4={} W4={} Y4={} suma={} porcentaje={}",
-                        limites.toAbsolutePath(), o4, q4, s4, u4, w4, y4, suma, porcentaje);
-                return porcentaje;
+                String detalle = "detalle fuente: archivo=" + limites.toAbsolutePath()
+                        + " hoja=AIOS celdas O4=" + o4 + ", Q4=" + q4 + ", S4=" + s4 + ", U4=" + u4
+                        + ", W4=" + w4 + ", Y4=" + y4 + "; suma=" + suma + "; operación=suma * 100.";
+                log.debug("Semestral fila44 desde LIMITES: {} resultado={}", detalle, porcentaje);
+                return new DatoDetalle(porcentaje, detalle);
             }
         } catch (Exception e) {
-            log.warn("No fue posible leer fila44 desde LIMITES para fecha={}: {}", fechaCorte, e.getMessage());
-            return BigDecimal.ZERO;
+            String detalle = "no fue posible leer LIMITES para fecha=" + fechaCorte + ": " + e.getMessage() + ".";
+            log.warn("Semestral fila44: {}", detalle);
+            return new DatoDetalle(BigDecimal.ZERO, detalle);
         }
     }
 
@@ -1152,6 +1173,8 @@ public class SemestralExcelGenerator {
         if (cell == null) cell = row.createCell(cr.getCol());
         return cell;
     }
+
+    private record DatoDetalle(BigDecimal valor, String detalle) {}
 
     private record PensionadosPorEntidad(BigDecimal invalidez, BigDecimal vejez, BigDecimal sobrevivencia) {}
 
