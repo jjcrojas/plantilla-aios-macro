@@ -159,11 +159,22 @@ public class SemestralExcelGenerator {
                 write(hoja, 53, col, cuentas.resultadoOperacion());
                 write(hoja, 54, col, cuentas.resultadoNeto());
                 write(hoja, 55, col, cuentas.admon());
-                write(hoja, 56, col, cuentas.cuenta511500());
-                write(hoja, 57, col, cuentas.publicidad519015());
-                write(hoja, 58, col, cuentas.cuenta511500().add(cuentas.publicidad519015()));
-                write(hoja, 59, col, cuentas.otros517000());
-                write(hoja, 60, col, cuentas.admon().add(cuentas.otros517000()).add(cuentas.publicidad519015()));
+                BigDecimal fila56 = safeDivide(cuentas.cuenta511500(), trm);
+                BigDecimal fila57 = safeDivide(cuentas.cuenta511527(), trm);
+                BigDecimal fila58Base = cuentas.cuenta511500().add(cuentas.cuenta511527());
+                BigDecimal fila58 = safeDivide(fila58Base, trm);
+                BigDecimal fila59 = safeDivide(cuentas.otrosGastosOperacion(), trm);
+                BigDecimal fila60 = safeDivide(cuentas.gastoOperacion510000(), trm);
+                write(hoja, 56, col, fila56);
+                write(hoja, 57, col, fila57);
+                write(hoja, 58, col, fila58);
+                write(hoja, 59, col, fila59);
+                write(hoja, 60, col, fila60);
+                detallesFilas.put(56, "detalle fuente cuenta 511500: hoja=cuentas celda=C21 valorCOP=" + cuentas.cuenta511500() + "; TRM=" + trm + "; operación=C21/TRM.");
+                detallesFilas.put(57, "detalle fuente cuenta 511527: hoja=cuentas celda=C22 valorCOP=" + cuentas.cuenta511527() + "; TRM=" + trm + "; operación=C22/TRM.");
+                detallesFilas.put(58, "detalle fuente cuentas 511500+511527: hoja=cuentas celdas C21=" + cuentas.cuenta511500() + ", C22=" + cuentas.cuenta511527() + "; sumaCOP=" + fila58Base + "; TRM=" + trm + "; operación=(C21+C22)/TRM.");
+                detallesFilas.put(59, "detalle fuente otros gastos de operación: hoja=cuentas celdas C24,C28,C29,C31,C32,C33,C34,C35,C36,C37,C38 sumaCOP=" + cuentas.otrosGastosOperacion() + "; TRM=" + trm + "; operación=suma/TRM.");
+                detallesFilas.put(60, "detalle fuente cuenta 510000: hoja=cuentas celda=C15 valorCOP=" + cuentas.gastoOperacion510000() + "; TRM=" + trm + "; operación=C15/TRM.");
 
                 BigDecimal aportesUsd = safeDivide(aportesRecibidos, trm);
                 BigDecimal aportantesMiles = safeDivide(mensual.aportantes(), BigDecimal.valueOf(1000));
@@ -188,9 +199,9 @@ public class SemestralExcelGenerator {
                 write(hoja, 79, col, safeDivide(cuentas.comisiones(), fondoUsdMM));
                 write(hoja, 80, col, BigDecimal.valueOf(fechaCorte.getYear() - 1994L));
 
-                log.info("Semestral traza filas51-80: comisiones={} gastos={} resultadoOper={} resultadoNeto={} admon={} cta511500={} publicidad={} otros={} aportesRecibidosCOP={} aportesUsd={} aportantes={} fila61={} p1={} fila63(%)={} patrimonioBaseMesMMCop={} patrimonioBaseMesMMUsd={} fondoUsdMM={}",
+                log.info("Semestral traza filas51-80: comisiones={} gastos={} resultadoOper={} resultadoNeto={} admon={} fila56(511500/TRM)={} fila57(511527/TRM)={} fila58((511500+511527)/TRM)={} fila59(otros/TRM)={} fila60(510000/TRM)={} aportesRecibidosCOP={} aportesUsd={} aportantes={} fila61={} p1={} fila63(%)={} patrimonioBaseMesMMCop={} patrimonioBaseMesMMUsd={} fondoUsdMM={}",
                         cuentas.comisiones(), cuentas.gastos(), cuentas.resultadoOperacion(), cuentas.resultadoNeto(), cuentas.admon(),
-                        cuentas.cuenta511500(), cuentas.publicidad519015(), cuentas.otros517000(),
+                        fila56, fila57, fila58, fila59, fila60,
                         aportesRecibidos, aportesUsd, mensual.aportantes(), fila61, p1, fila63, patrimonioBaseMesMMCop, patrimonioBaseMesMMUsd, fondoUsdMM);
                 BigDecimal comisionPromedioPct = promedioComisionObligatoria(trimestral).multiply(BigDecimal.valueOf(100));
                 write(hoja, 71, col, comisionPromedioPct);
@@ -295,11 +306,11 @@ public class SemestralExcelGenerator {
         explicaciones.put(53, "valor = cuentas.resultadoOperacion(); leído desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
         explicaciones.put(54, "valor = cuentas.resultadoNeto(); leído desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
         explicaciones.put(55, "valor = cuentas.admon(); gastos de administración desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
-        explicaciones.put(56, "valor = cuentas.cuenta511500(); cuenta 511500 desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
-        explicaciones.put(57, "valor = cuentas.publicidad519015(); cuenta publicidad 519015 desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
-        explicaciones.put(58, "valor = cuentas.cuenta511500() + cuentas.publicidad519015(); ambos operandos desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
-        explicaciones.put(59, "valor = cuentas.otros517000(); otros 517000 desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
-        explicaciones.put(60, "valor = cuentas.admon() + cuentas.otros517000() + cuentas.publicidad519015(); operandos desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
+        explicaciones.put(56, "valor = cuenta 511500 / TRM; cuenta 511500 proviene de Plantilla AIOS-probable hoja cuentas celda C21, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(57, "valor = cuenta 511527 / TRM; cuenta 511527 proviene de Plantilla AIOS-probable hoja cuentas celda C22, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(58, "valor = (cuenta 511500 + cuenta 511527) / TRM; cuentas desde Plantilla AIOS-probable hoja cuentas celdas C21 y C22, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(59, "valor = suma de cuentas 512000, 513000, 513500, 514000, 514500, 515000, 515500, 516000, 516500, 517000 y 517200 / TRM; celdas C24,C28,C29,C31,C32,C33,C34,C35,C36,C37,C38 de Plantilla AIOS-probable hoja cuentas, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(60, "valor = cuenta 510000 / TRM; cuenta 510000 proviene de Plantilla AIOS-probable hoja cuentas celda C15, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(61, "valor = (aportesRecibidos136 / TRM) / (mensual.aportantes() / 1000) * 1000; aportesRecibidos136 desde Formato 136 hoja FORMATO OBL, ruta=" + formato136 + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(62, "valor = cuentas.gastos() / (aportesRecibidos136 / TRM) * 100; gastos desde CUENTAS ruta=" + plantillaAios + "; aportes desde Formato 136 ruta=" + formato136 + ".");
         explicaciones.put(63, "valor = (patrimonioBaseMesMMCop / TRM) / fila 28 * 100; patrimonio base_mes desde Plantilla AIOS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
@@ -400,11 +411,11 @@ public class SemestralExcelGenerator {
             case 53 -> "valores tomados: resultadoOperacion=fila53=" + num(hoja, 53, col) + ".";
             case 54 -> "valores tomados: resultadoNeto=fila54=" + num(hoja, 54, col) + ".";
             case 55 -> "valores tomados: administracion=fila55=" + num(hoja, 55, col) + ".";
-            case 56 -> "valores tomados: cuenta511500=fila56=" + num(hoja, 56, col) + ".";
-            case 57 -> "valores tomados: publicidad519015=fila57=" + num(hoja, 57, col) + ".";
-            case 58 -> "valores tomados: cuenta511500=fila56=" + num(hoja, 56, col) + "; publicidad519015=fila57=" + num(hoja, 57, col) + ".";
-            case 59 -> "valores tomados: otros517000=fila59=" + num(hoja, 59, col) + ".";
-            case 60 -> "valores tomados: administracion=fila55=" + num(hoja, 55, col) + "; otros517000=fila59=" + num(hoja, 59, col) + "; publicidad519015=fila57=" + num(hoja, 57, col) + ".";
+            case 56 -> "valores tomados: cuenta511500/TRM=fila56=" + num(hoja, 56, col) + "; TRM=" + trm(mensual) + ".";
+            case 57 -> "valores tomados: cuenta511527/TRM=fila57=" + num(hoja, 57, col) + "; TRM=" + trm(mensual) + ".";
+            case 58 -> "valores tomados: fila56=" + num(hoja, 56, col) + "; fila57=" + num(hoja, 57, col) + "; TRM=" + trm(mensual) + ".";
+            case 59 -> "valores tomados: suma otros gastos/TRM=fila59=" + num(hoja, 59, col) + "; TRM=" + trm(mensual) + ".";
+            case 60 -> "valores tomados: cuenta510000/TRM=fila60=" + num(hoja, 60, col) + "; TRM=" + trm(mensual) + ".";
             case 61 -> "valores tomados: aportantes=" + mensual.aportantes() + "; TRM=" + trm(mensual) + "; fila61=" + num(hoja, 61, col) + ".";
             case 62 -> "valores tomados: gastos=fila52=" + num(hoja, 52, col) + "; fila62=" + num(hoja, 62, col) + ".";
             case 63 -> "valores tomados: fila28=" + num(hoja, 28, col) + "; fila63=" + num(hoja, 63, col) + "; TRM=" + trm(mensual) + ".";
@@ -698,8 +709,19 @@ public class SemestralExcelGenerator {
                     num(cuentas, "E44"),
                     num(cuentas, "H24"),
                     num(cuentas, "C21"),
-                    num(cuentas, "C42"),
-                    num(cuentas, "C37")
+                    num(cuentas, "C22"),
+                    num(cuentas, "C24")
+                            .add(num(cuentas, "C28"))
+                            .add(num(cuentas, "C29"))
+                            .add(num(cuentas, "C31"))
+                            .add(num(cuentas, "C32"))
+                            .add(num(cuentas, "C33"))
+                            .add(num(cuentas, "C34"))
+                            .add(num(cuentas, "C35"))
+                            .add(num(cuentas, "C36"))
+                            .add(num(cuentas, "C37"))
+                            .add(num(cuentas, "C38")),
+                    num(cuentas, "C15")
             );
         } catch (Exception e) {
             log.warn("No fue posible leer CUENTAS para semestral: {}", e.getMessage());
@@ -1291,12 +1313,13 @@ public class SemestralExcelGenerator {
             BigDecimal resultadoNeto,
             BigDecimal admon,
             BigDecimal cuenta511500,
-            BigDecimal publicidad519015,
-            BigDecimal otros517000
+            BigDecimal cuenta511527,
+            BigDecimal otrosGastosOperacion,
+            BigDecimal gastoOperacion510000
     ) {
         static final CuentasData ZERO = new CuentasData(
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO
         );
     }
 
