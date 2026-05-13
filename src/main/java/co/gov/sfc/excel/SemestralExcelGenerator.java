@@ -311,7 +311,7 @@ public class SemestralExcelGenerator {
         explicaciones.put(58, "valor = (cuenta 511500 + cuenta 511527) / TRM; cuentas desde Plantilla AIOS-probable hoja cuentas celdas C21 y C22, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(59, "valor = suma de cuentas 512000, 513000, 513500, 514000, 514500, 515000, 515500, 516000, 516500, 517000 y 517200 / TRM; celdas C24,C28,C29,C31,C32,C33,C34,C35,C36,C37,C38 de Plantilla AIOS-probable hoja cuentas, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(60, "valor = cuenta 510000 / TRM; cuenta 510000 proviene de Plantilla AIOS-probable hoja cuentas celda C15, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(61, "valor = (aportesRecibidos136 / TRM) / (mensual.aportantes() / 1000) * 1000; aportesRecibidos136 desde Formato 136 hoja FORMATO OBL, ruta=" + formato136 + "; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(61, "valor = (aportesRecibidos136 / TRM) / (mensual.aportantes() / 1000) * 1000; aportesRecibidos136 desde Formato 136 hoja FORMATO OBL configurando C7 con el día 1 del mismo mes un año antes del corte, D6 y D7 con la fecha de corte, ruta=" + formato136 + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(62, "valor = cuentas.gastos() / (aportesRecibidos136 / TRM) * 100; gastos desde CUENTAS ruta=" + plantillaAios + "; aportes desde Formato 136 ruta=" + formato136 + ".");
         explicaciones.put(63, "valor = (patrimonioBaseMesMMCop / TRM) / fila 28 * 100; patrimonio base_mes desde Plantilla AIOS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(64, "valor = patrimonioUsd / mensual.afiliados() * 1,000,000; patrimonioUsd=(activos-pasivos)/TRM desde CUENTAS ruta=" + plantillaAios + " y afiliados desde formato 491 ruta=" + formato491 + ".");
@@ -940,12 +940,21 @@ public class SemestralExcelGenerator {
         try (Workbook wb = WorkbookFactory.create(formato136.toFile(), null, true)) {
             Sheet sheet = getSheetIgnoreCase(wb, "FORMATO OBL");
             if (sheet == null) sheet = wb.getSheetAt(0);
+            LocalDate fechaInicial = fechaCorte.minusYears(1).withDayOfMonth(1);
+            Cell c7 = cell(sheet, "C7");
             Cell d6 = cell(sheet, "D6");
+            Cell d7 = cell(sheet, "D7");
+            c7.setCellValue(java.sql.Date.valueOf(fechaInicial));
             d6.setCellValue(java.sql.Date.valueOf(fechaCorte));
+            d7.setCellValue(java.sql.Date.valueOf(fechaCorte));
             FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+            evaluator.notifyUpdateCell(c7);
+            evaluator.notifyUpdateCell(d6);
+            evaluator.notifyUpdateCell(d7);
             evaluator.clearAllCachedResultValues();
             BigDecimal value = num(sheet, "G6", evaluator);
-            log.info("Semestral: Formato136 G6 (aportes recibidos COP)={} para fecha={}", value, fechaCorte);
+            log.info("Semestral: Formato136 G6 (aportes recibidos COP)={} para fecha={} parámetros C7={} D6={} D7={}",
+                    value, fechaCorte, fechaInicial, fechaCorte, fechaCorte);
             return value;
         } catch (Exception e) {
             log.warn("No fue posible leer aportes recibidos desde Formato_136_Meses: {}", e.getMessage());
