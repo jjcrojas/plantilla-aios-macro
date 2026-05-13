@@ -222,7 +222,7 @@ public class SemestralExcelGenerator {
                 setNumberFormat(hoja, 89, col, "#,##0.00%");
                 log.info("Semestral traza rentabilidades: 10y(nom={},real={}) 5y(nom={},real={}) 3y(nom={},real={}) 1y(nom={},real={})",
                         rent.nominal10(), rent.real10(), rent.nominal5(), rent.real5(), rent.nominal3(), rent.real3(), rent.nominal1(), rent.real1());
-                logFilasSemestral(hoja, col, fechaCorte, mensual, detallesFilas);
+                logFilasSemestral(hoja, col, fechaCorte, mensual, trimestral, detallesFilas);
 
                 try (var os = Files.newOutputStream(out)) {
                     wb.write(os);
@@ -236,7 +236,7 @@ public class SemestralExcelGenerator {
     }
 
 
-    private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte, MensualData mensual, java.util.Map<Integer, String> detallesFilas) {
+    private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral, java.util.Map<Integer, String> detallesFilas) {
         String formato491 = rutaInsumo("Formato 491 afiliados", () -> Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm"));
         String formato495 = rutaInsumo("Series_Formato-495 PENSIONADOS", () -> findPensionados495File(fechaCorte));
         String sistemaTotal = rutaInsumo("SISTEMA TOTAL", () -> locator.findRequired("SISTEMA TOTAL", fechaCorte));
@@ -329,11 +329,117 @@ public class SemestralExcelGenerator {
         explicaciones.put(88, "valor = rentabilidad nominal 1 año calculada por RentabilidadService usando NAV de Valores_Fondo_Moder/MODERADO ruta=" + valoresFondo + ".");
         explicaciones.put(89, "valor = rentabilidad real 1 año calculada por RentabilidadService usando IPC/Rent_Vr_Uni_Moderado ruta=" + rentVrUni + ".");
         explicaciones.forEach((fila, explicacion) -> {
-            String detalle = detallesFilas.get(fila);
-            String explicacionCompleta = detalle == null || detalle.isBlank() ? explicacion : explicacion + " " + detalle;
-            log.info("Semestral fila número {}: explicación={} valor={} fechaCorte={} columnaDestino={}",
+            String detalleValores = detalleValoresFila(fila, hoja, col, mensual, trimestral);
+            String detalleFuente = detallesFilas.get(fila);
+            String explicacionCompleta = unirPartesExplicacion(explicacion, detalleValores, detalleFuente);
+            log.info("Semestral fila número {}: Explicación=\"{}\" valor={} fechaCorte={} columnaDestino={}",
                     fila, explicacionCompleta, num(hoja, fila, col), fechaCorte, col);
         });
+    }
+
+    private String unirPartesExplicacion(String... partes) {
+        StringBuilder sb = new StringBuilder();
+        for (String parte : partes) {
+            if (parte == null || parte.isBlank()) {
+                continue;
+            }
+            if (!sb.isEmpty()) {
+                sb.append(' ');
+            }
+            sb.append(parte.trim());
+        }
+        return sb.toString();
+    }
+
+    private String detalleValoresFila(int fila, Sheet hoja, int col, MensualData mensual, TrimestralData trimestral) {
+        return switch (fila) {
+            case 3 -> "valores tomados: hombres=" + mensual.hombres() + "; mujeres=" + mensual.mujeres() + "; afiliados=" + mensual.afiliados() + ".";
+            case 4 -> "valores tomados: afiliadosMenor30=" + mensual.afiliadosMenor30() + "; afiliados=" + mensual.afiliados() + ".";
+            case 5 -> "valores tomados: afiliados30a44=" + mensual.afiliados30a44() + "; afiliados=" + mensual.afiliados() + ".";
+            case 6 -> "valores tomados: afiliados45a59=" + mensual.afiliados45a59() + "; afiliados=" + mensual.afiliados() + ".";
+            case 7 -> "valores tomados: afiliadosMayor60=" + mensual.afiliadosMayor60() + "; afiliados=" + mensual.afiliados() + ".";
+            case 8 -> "valores tomados: constante=100.";
+            case 9 -> "valores tomados: afiliados=" + mensual.afiliados() + "; divisor=1000.";
+            case 10 -> "valores tomados: mujeres=" + mensual.mujeres() + "; afiliados=" + mensual.afiliados() + ".";
+            case 11 -> "valores tomados: aportantes=" + mensual.aportantes() + ".";
+            case 12 -> "valores tomados: afiliados=" + mensual.afiliados() + "; PEA=" + mensual.pea() + ".";
+            case 13 -> "valores tomados: aportantes=" + mensual.aportantes() + "; PEA=" + mensual.pea() + ".";
+            case 14 -> "valores tomados: aportantes=" + mensual.aportantes() + "; afiliados=" + mensual.afiliados() + ".";
+            case 15 -> "valores tomados: salarioMinimoUsd=" + mensual.smColombiaUsd() + "; TRM=" + trm(mensual) + ".";
+            case 16 -> "valores tomados: totalPensionados=" + num(hoja, 16, col) + "; fallback mensual.totalPen=" + mensual.totalPen() + ".";
+            case 17 -> "valores tomados: invalidez=" + mensual.totalInv() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
+            case 18 -> "valores tomados: vejez=" + mensual.totalVej() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
+            case 19 -> "valores tomados: sobrevivencia=" + mensual.totalSob() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
+            case 26 -> "valores tomados: traspasosSistema=" + mensual.traspasosSistema() + ".";
+            case 27 -> "valores tomados: traspasosSistema=" + mensual.traspasosSistema() + "; afiliados=" + mensual.afiliados() + ".";
+            case 28 -> "valores tomados: fondoSistemaJ14=" + mensual.fondoSistemaJ14() + "; multiplicador=1000; TRM=" + trm(mensual) + "; divisor=1000000.";
+            case 29 -> "valores tomados: fila28=" + num(hoja, 28, col) + "; pibSemestralCOP=" + mensual.pibSemestral() + "; TRM=" + trm(mensual) + "; pibUsd=" + safeDivide(mensual.pibSemestral(), trm(mensual)) + ".";
+            case 30 -> "valores tomados: total1=" + mensual.total1() + "; TRM=" + trm(mensual) + ".";
+            case 31 -> "valores tomados: dudaG=" + mensual.dudaG() + ".";
+            case 32 -> "valores tomados: dudaEf=" + mensual.dudaEf() + ".";
+            case 33 -> "valores tomados: dudaNf=" + mensual.dudaNf() + ".";
+            case 34 -> "valores tomados: dudaAc=" + mensual.dudaAc() + ".";
+            case 35 -> "valores tomados: dudaF=" + mensual.dudaF() + ".";
+            case 36 -> "valores tomados: constante=0.";
+            case 37 -> "valores tomados: dudaGe=" + mensual.dudaGe() + ".";
+            case 38 -> "valores tomados: dudaEfe=" + mensual.dudaEfe() + ".";
+            case 39 -> "valores tomados: dudaNfe=" + mensual.dudaNfe() + ".";
+            case 40 -> "valores tomados: dudaAce=" + mensual.dudaAce() + ".";
+            case 41 -> "valores tomados: dudaFe=" + mensual.dudaFe() + ".";
+            case 42 -> "valores tomados: constante=2.";
+            case 43 -> "valores tomados: otros=" + mensual.otros() + ".";
+            case 44 -> "valores tomados: fila44=" + num(hoja, 44, col) + ".";
+            case 45 -> "valores tomados: fila28=" + num(hoja, 28, col) + "; fila45=" + num(hoja, 45, col) + ".";
+            case 46 -> "valores tomados: constante=4.";
+            case 47 -> "valores tomados: fila47=" + num(hoja, 47, col) + "; fallback mensual.porcVrFondo=" + mensual.porcVrFondo() + ".";
+            case 48 -> "valores tomados: activosCuentas=" + mensual.activosCuentas() + "; TRM=" + trm(mensual) + ".";
+            case 49 -> "valores tomados: pasivosCuentas=" + mensual.pasivosCuentas() + "; TRM=" + trm(mensual) + ".";
+            case 50 -> "valores tomados: activosCuentas=" + mensual.activosCuentas() + "; pasivosCuentas=" + mensual.pasivosCuentas() + "; TRM=" + trm(mensual) + ".";
+            case 51 -> "valores tomados: comisiones=fila51=" + num(hoja, 51, col) + ".";
+            case 52 -> "valores tomados: gastos=fila52=" + num(hoja, 52, col) + ".";
+            case 53 -> "valores tomados: resultadoOperacion=fila53=" + num(hoja, 53, col) + ".";
+            case 54 -> "valores tomados: resultadoNeto=fila54=" + num(hoja, 54, col) + ".";
+            case 55 -> "valores tomados: administracion=fila55=" + num(hoja, 55, col) + ".";
+            case 56 -> "valores tomados: cuenta511500=fila56=" + num(hoja, 56, col) + ".";
+            case 57 -> "valores tomados: publicidad519015=fila57=" + num(hoja, 57, col) + ".";
+            case 58 -> "valores tomados: cuenta511500=fila56=" + num(hoja, 56, col) + "; publicidad519015=fila57=" + num(hoja, 57, col) + ".";
+            case 59 -> "valores tomados: otros517000=fila59=" + num(hoja, 59, col) + ".";
+            case 60 -> "valores tomados: administracion=fila55=" + num(hoja, 55, col) + "; otros517000=fila59=" + num(hoja, 59, col) + "; publicidad519015=fila57=" + num(hoja, 57, col) + ".";
+            case 61 -> "valores tomados: aportantes=" + mensual.aportantes() + "; TRM=" + trm(mensual) + "; fila61=" + num(hoja, 61, col) + ".";
+            case 62 -> "valores tomados: gastos=fila52=" + num(hoja, 52, col) + "; fila62=" + num(hoja, 62, col) + ".";
+            case 63 -> "valores tomados: fila28=" + num(hoja, 28, col) + "; fila63=" + num(hoja, 63, col) + "; TRM=" + trm(mensual) + ".";
+            case 64 -> "valores tomados: patrimonioUsd=fila50=" + num(hoja, 50, col) + "; afiliados=" + mensual.afiliados() + ".";
+            case 65 -> "valores tomados: resultadoNeto=fila54=" + num(hoja, 54, col) + "; comisiones=fila51=" + num(hoja, 51, col) + ".";
+            case 66 -> "valores tomados: resultadoNeto=fila54=" + num(hoja, 54, col) + "; patrimonioUsd=fila50=" + num(hoja, 50, col) + ".";
+            case 67 -> "valores tomados: gastos=fila52=" + num(hoja, 52, col) + "; afiliados=" + mensual.afiliados() + ".";
+            case 68 -> "valores tomados: comisiones=fila51=" + num(hoja, 51, col) + "; aportantes=" + mensual.aportantes() + ".";
+            case 69 -> "valores tomados: administracion=fila55=" + num(hoja, 55, col) + "; fila61=" + num(hoja, 61, col) + ".";
+            case 70 -> "valores tomados: constante=16.";
+            case 71 -> "valores tomados: col_obl=" + trimestral.comisionesPct().getOrDefault("col_obl", BigDecimal.ZERO) + "; por_obl=" + trimestral.comisionesPct().getOrDefault("por_obl", BigDecimal.ZERO) + "; pro_obl=" + trimestral.comisionesPct().getOrDefault("pro_obl", BigDecimal.ZERO) + "; ska_obl=" + trimestral.comisionesPct().getOrDefault("ska_obl", BigDecimal.ZERO) + ".";
+            case 72 -> "valores tomados: constante=0.";
+            case 73 -> "valores tomados: constante=0.";
+            case 74 -> "valores tomados: constante=3; fila71=" + num(hoja, 71, col) + "; factor=0.25.";
+            case 75 -> "valores tomados: constante=3; fila71=" + num(hoja, 71, col) + "; factor=0.75.";
+            case 76 -> "valores tomados: constante=0.";
+            case 77 -> "valores tomados: comisiones=fila77=" + num(hoja, 77, col) + ".";
+            case 78 -> "valores tomados: fila28=" + num(hoja, 28, col) + ".";
+            case 79 -> "valores tomados: fila77=" + num(hoja, 77, col) + "; fila78=" + num(hoja, 78, col) + ".";
+            case 80 -> "valores tomados: anioFechaCorte=" + fechaYearFromColumnValue(hoja, col) + "; base=1994.";
+            case 82 -> "valores tomados: rentabilidadNominal10=" + num(hoja, 82, col) + ".";
+            case 83 -> "valores tomados: rentabilidadReal10=" + num(hoja, 83, col) + ".";
+            case 84 -> "valores tomados: rentabilidadNominal5=" + num(hoja, 84, col) + ".";
+            case 85 -> "valores tomados: rentabilidadReal5=" + num(hoja, 85, col) + ".";
+            case 86 -> "valores tomados: rentabilidadNominal3=" + num(hoja, 86, col) + ".";
+            case 87 -> "valores tomados: rentabilidadReal3=" + num(hoja, 87, col) + ".";
+            case 88 -> "valores tomados: rentabilidadNominal1=" + num(hoja, 88, col) + ".";
+            case 89 -> "valores tomados: rentabilidadReal1=" + num(hoja, 89, col) + ".";
+            default -> "";
+        };
+    }
+
+    private int fechaYearFromColumnValue(Sheet hoja, int col) {
+        BigDecimal fila80 = num(hoja, 80, col);
+        return fila80.add(BigDecimal.valueOf(1994)).intValue();
     }
 
     private String rutaInsumo(String nombre, PathSupplier supplier) {
