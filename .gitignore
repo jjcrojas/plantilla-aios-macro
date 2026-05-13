@@ -18,3 +18,5 @@ salidas_referencia/~$*.xlsx
 
 # Build
 target/
+plantillas/Plantilla AIOS-probable.xlsm
+plantillas/*
