@@ -121,7 +121,28 @@ Para hallar `aportesRecibidos136`, antes de evaluar `G6` en la hoja `FORMATO OBL
 | `D6` | `fechaCorte`. |
 | `D7` | `fechaCorte`. |
 
-## 8. Manejo de unidades
+
+## 8. Lectura conceptual de los datos
+
+Además de indicar la celda exacta de origen, la documentación de fórmulas incluye una lectura conceptual de cada fila semestral. Esta lectura separa tres niveles:
+
+1. **Dato técnico**: archivo, hoja, celda y operación usada para obtener el valor.
+2. **Concepto económico o operativo**: qué representa el dato dentro del sistema pensional.
+3. **Interpretación**: para qué sirve el indicador y qué pregunta ayuda a responder.
+
+Por ejemplo, la fila 29 no se documenta solo como `fila28 / PIB`, sino como el indicador **Fondos administrados / PIB (%)**, que mide el tamaño relativo del sistema de fondos de pensiones frente a la economía. De forma similar, la fila 31 se documenta como **Deuda gubernamental local (%)**, que mide la exposición del portafolio a deuda pública interna.
+
+Las fórmulas conceptuales se escriben con notación matemática en Markdown, por ejemplo:
+
+$$
+\text{Fondos / PIB (\%)} = \frac{\text{Valor total de los fondos de pensiones}}{\text{Producto Interno Bruto (PIB)}} \times 100
+$$
+
+$$
+\text{Deuda gubernamental local (\%)} = \frac{\text{Valor invertido en deuda gubernamental local}}{\text{Valor total del portafolio de fondos}} \times 100
+$$
+
+## 9. Manejo de unidades
 
 | Unidad | Convención usada |
 |---|---|
@@ -130,7 +151,7 @@ Para hallar `aportesRecibidos136`, antes de evaluar `G6` en la hoja `FORMATO OBL
 | Porcentaje | El valor se escribe como ratio con formato de porcentaje o se multiplica por 100 según la convención de la fila/plantilla. |
 | Valor crudo | Conteos de afiliados, aportantes, traspasos, pensionados o constantes. |
 
-## 9. Trazabilidad
+## 10. Trazabilidad
 
 La generación semestral emite un log por fila con el formato:
 

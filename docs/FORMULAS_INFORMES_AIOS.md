@@ -135,7 +135,173 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 | 88 | `rentabilidad nominal 1 año` | `RentabilidadService`, NAV de `Valores_Fondo_Moder` | Porcentaje |
 | 89 | `rentabilidad real 1 año` | `RentabilidadService`, IPC de `Rent_Vr_Uni_Moderado` | Porcentaje |
 
-## 5. Parámetros de Formato 136 para fila 61
+
+## 5. Diccionario conceptual de datos semestrales
+
+Esta sección complementa la tabla técnica anterior. La tabla técnica indica **de dónde sale el número**; este diccionario indica **qué significa el indicador** y cómo debe interpretarse funcionalmente.
+
+| Fila | Nombre conceptual | ¿Qué representa? | Interpretación |
+|---:|---|---|---|
+| 3 | Afiliados totales | Total de personas afiliadas al sistema de fondos de pensiones. | Tamaño de la población cubierta por el sistema. |
+| 4 | Afiliados menores de 30 años (%) | Participación de afiliados jóvenes dentro del total de afiliados. | Mide qué proporción del sistema está en edades tempranas de acumulación. |
+| 5 | Afiliados de 30 a 44 años (%) | Participación de afiliados en edad laboral media. | Permite ver la concentración de afiliados en etapa de acumulación consolidada. |
+| 6 | Afiliados de 45 a 59 años (%) | Participación de afiliados cercanos a edades previas al retiro. | Indica presión futura de maduración del sistema. |
+| 7 | Afiliados mayores de 60 años (%) | Participación de afiliados de mayor edad. | Mide la proporción de población próxima o posterior a edades típicas de retiro. |
+| 8 | Total de distribución por edad | Base porcentual de referencia. | Sirve como control conceptual de que los grupos de edad componen el 100%. |
+| 9 | Afiliados en miles | Total de afiliados expresado en miles. | Facilita comparaciones internacionales o gráficas con magnitudes más manejables. |
+| 10 | Mujeres afiliadas (%) | Participación de mujeres dentro del total de afiliados. | Mide composición por género del sistema. |
+| 11 | Aportantes | Personas que realizaron aportes al sistema. | Aproxima la población activa que contribuye efectivamente. |
+| 12 | Afiliados / PEA (%) | Afiliados como proporción de la población económicamente activa. | Mide cobertura del sistema frente al mercado laboral potencial. |
+| 13 | Aportantes / PEA (%) | Aportantes como proporción de la población económicamente activa. | Mide cobertura contributiva efectiva frente al mercado laboral. |
+| 14 | Aportantes / afiliados (%) | Proporción de afiliados que aportan. | Indica densidad contributiva o actividad efectiva de afiliados. |
+| 15 | Salario mínimo en USD | Salario mínimo colombiano convertido a dólares. | Permite comparación internacional del ingreso mínimo de referencia. |
+| 16 | Pensionados totales | Número total de pensionados reportados. | Tamaño de la población pensionada atendida por el sistema. |
+| 17 | Pensionados por invalidez (%) | Proporción de pensionados cuya modalidad es invalidez. | Mide composición de beneficios por riesgo de invalidez. |
+| 18 | Pensionados por vejez (%) | Proporción de pensionados cuya modalidad es vejez. | Mide peso de las pensiones asociadas a retiro por edad. |
+| 19 | Pensionados por sobrevivencia (%) | Proporción de pensionados por sobrevivencia. | Mide peso de beneficios derivados para beneficiarios. |
+| 26 | Traspasos del sistema | Total de movimientos de traslado entre administradoras/fondos. | Indica movilidad de afiliados dentro del sistema. |
+| 27 | Traspasos / afiliados (%) | Traspasos respecto al total de afiliados. | Mide intensidad relativa de movilidad en el sistema. |
+| 28 | Fondos administrados | Valor total del portafolio administrado por los fondos de pensiones, convertido a millones de USD. | Indica tamaño financiero del sistema pensional. |
+| 29 | Fondos administrados / PIB (%) | Proporción del valor total de los fondos frente al Producto Interno Bruto del país. | Responde qué tan grande es el sistema de fondos de pensiones frente al tamaño total de la economía. |
+| 30 | Portafolio total en USD | Valor total del portafolio de referencia convertido por TRM. | Base monetaria para analizar composición del portafolio. |
+| 31 | Deuda gubernamental local (%) | Proporción del portafolio total invertida en deuda gubernamental local o interna. | Mide exposición del portafolio a deuda pública interna. |
+| 32 | Depósitos / efectivo locales (%) | Proporción local en instrumentos de liquidez o efectivo, según clasificación de límites. | Mide liquidez local dentro del portafolio. |
+| 33 | Deuda no financiera local (%) | Proporción invertida en emisores no financieros locales. | Indica exposición a deuda corporativa o instrumentos locales no financieros. |
+| 34 | Acciones locales (%) | Proporción invertida en renta variable local. | Mide exposición del portafolio al mercado accionario colombiano. |
+| 35 | Fondos locales (%) | Proporción invertida en fondos o vehículos locales. | Mide uso de vehículos colectivos locales dentro del portafolio. |
+| 36 | Categoría local no usada | Valor constante cero. | Reserva de plantilla sin dato activo. |
+| 37 | Deuda gubernamental exterior (%) | Proporción del portafolio invertida en deuda gubernamental extranjera. | Mide exposición soberana internacional. |
+| 38 | Depósitos / efectivo exterior (%) | Proporción en liquidez o efectivo en el exterior. | Mide liquidez internacional del portafolio. |
+| 39 | Deuda no financiera exterior (%) | Proporción en deuda privada o no financiera del exterior. | Mide exposición crediticia internacional no soberana. |
+| 40 | Acciones exterior (%) | Proporción en renta variable extranjera. | Mide exposición accionaria internacional. |
+| 41 | Fondos exterior (%) | Proporción invertida en fondos o vehículos del exterior. | Mide diversificación internacional mediante vehículos colectivos. |
+| 42 | Referencia normativa | Valor fijo usado por la plantilla. | Dato de control o referencia no derivado de insumos. |
+| 43 | Otros activos (%) | Proporción del portafolio en otras categorías. | Completa la clasificación de activos no cubierta por rubros anteriores. |
+| 44 | Suma de rubros exteriores seleccionados (%) | Agregado de celdas seleccionadas de límites exteriores. | Resume exposición exterior de categorías específicas. |
+| 45 | Fondos / deuda gubernamental total (%) | Fondos administrados frente a deuda gubernamental total en USD. | Mide el tamaño relativo del sistema pensional respecto al saldo de deuda pública. |
+| 46 | Referencia fija | Constante de plantilla. | Dato de control o referencia. |
+| 47 | Participación Protección + Porvenir (%) | Participación conjunta de Protección y Porvenir sobre el total del sistema. | Mide concentración de mercado en las dos administradoras indicadas. |
+| 48 | Activos en USD | Activos contables convertidos a dólares. | Mide tamaño del balance por el lado de activos. |
+| 49 | Pasivos en USD | Pasivos contables convertidos a dólares. | Mide obligaciones del balance en dólares. |
+| 50 | Patrimonio en USD | Activos menos pasivos, convertido a dólares. | Mide valor patrimonial contable. |
+| 51 | Comisiones | Ingresos por comisiones según plantilla contable. | Mide ingresos operacionales asociados a administración. |
+| 52 | Gastos | Gastos reportados en la plantilla contable. | Mide egresos operativos/administrativos. |
+| 53 | Resultado operacional | Resultado de operación antes de resultado neto. | Mide desempeño operativo. |
+| 54 | Resultado neto | Resultado final neto. | Mide utilidad o pérdida final del periodo. |
+| 55 | Gastos de administración | Rubro administrativo seleccionado. | Mide gasto administrativo relevante. |
+| 56 | Comisión 511500 en USD | Cuenta 511500 convertida a dólares. | Mide el rubro específico de comisiones en moneda comparable. |
+| 57 | Comisión 511527 en USD | Cuenta 511527 convertida a dólares. | Mide afiliaciones a fondos de pensiones en moneda comparable. |
+| 58 | Comisiones 511500 + 511527 en USD | Suma de las dos cuentas anteriores convertida a dólares. | Resume rubros de comisión/afiliación solicitados. |
+| 59 | Otros gastos operacionales en USD | Suma de cuentas de beneficios, honorarios, cambios, impuestos, arrendamientos, contribuciones, seguros, mantenimiento, adecuación, deterioro y multas, convertida a dólares. | Mide gastos operacionales seleccionados distintos de los rubros principales. |
+| 60 | Gasto de operación 510000 en USD | Cuenta 510000 convertida a dólares. | Mide gasto operacional agregado en moneda comparable. |
+| 61 | Aportes recibidos por aportante | Aportes recibidos convertidos a USD y normalizados por aportantes en miles. | Mide intensidad de aportes recibidos por población aportante. |
+| 62 | Gastos / aportes recibidos (%) | Gastos frente a aportes recibidos convertidos a USD. | Mide carga de gastos sobre los aportes recibidos. |
+| 63 | Patrimonio / fondos administrados (%) | Patrimonio de base mes en USD frente a fondos administrados. | Mide respaldo patrimonial relativo al tamaño de fondos. |
+| 64 | Patrimonio por afiliado | Patrimonio en USD dividido por afiliados y escalado. | Mide patrimonio relativo por afiliado. |
+| 65 | Resultado neto / comisiones (%) | Resultado neto frente a comisiones. | Mide rentabilidad o margen sobre ingresos por comisiones. |
+| 66 | Resultado neto / patrimonio (%) | Resultado neto frente al patrimonio. | Aproxima retorno sobre patrimonio. |
+| 67 | Gastos por afiliado | Gastos divididos por afiliados y escalados. | Mide costo promedio asociado a afiliados. |
+| 68 | Comisiones por aportante | Comisiones divididas por aportantes y escaladas. | Mide ingreso promedio por aportante. |
+| 69 | Administración / aportes por aportante | Gasto administrativo frente al indicador de fila 61. | Mide carga administrativa respecto al flujo de aportes normalizado. |
+| 70 | Referencia fija | Constante de plantilla. | Dato de control o referencia. |
+| 71 | Comisión promedio obligatoria (%) | Promedio de comisiones obligatorias de administradoras seleccionadas. | Mide costo promedio de comisión obligatoria. |
+| 72 | Aporte adicional trabajador | Constante cero. | Rubro de plantilla sin dato activo. |
+| 73 | Aporte adicional empleador | Constante cero. | Rubro de plantilla sin dato activo. |
+| 74 | Aporte trabajador | Parte trabajador de la diferencia entre 3 y comisión promedio. | Estima distribución del aporte residual hacia trabajador. |
+| 75 | Aporte empleador | Parte empleador de la diferencia entre 3 y comisión promedio. | Estima distribución del aporte residual hacia empleador. |
+| 76 | Referencia fija | Constante cero. | Rubro de plantilla sin dato activo. |
+| 77 | Comisiones | Reutiliza comisiones contables. | Base para medir comisiones respecto a fondos. |
+| 78 | Fondos administrados | Reutiliza fila 28. | Base financiera del sistema. |
+| 79 | Comisiones / fondos | Comisiones frente a fondos administrados. | Mide peso de comisiones sobre activos administrados. |
+| 80 | Años desde 1994 | Diferencia entre año de corte y 1994. | Mide antigüedad del régimen o periodo de referencia. |
+| 82 | Rentabilidad nominal 10 años | Retorno nominal anualizado de largo plazo. | Mide desempeño sin descontar inflación. |
+| 83 | Rentabilidad real 10 años | Retorno real anualizado de largo plazo. | Mide desempeño descontando inflación. |
+| 84 | Rentabilidad nominal 5 años | Retorno nominal anualizado de mediano plazo. | Mide desempeño a cinco años sin inflación. |
+| 85 | Rentabilidad real 5 años | Retorno real anualizado de mediano plazo. | Mide desempeño a cinco años descontando inflación. |
+| 86 | Rentabilidad nominal 3 años | Retorno nominal anualizado de mediano/corto plazo. | Mide desempeño a tres años sin inflación. |
+| 87 | Rentabilidad real 3 años | Retorno real anualizado de mediano/corto plazo. | Mide desempeño a tres años descontando inflación. |
+| 88 | Rentabilidad nominal 1 año | Retorno nominal anual de corto plazo. | Mide desempeño reciente sin inflación. |
+| 89 | Rentabilidad real 1 año | Retorno real anual de corto plazo. | Mide desempeño reciente descontando inflación. |
+
+### 5.1 Fila 29: Fondos administrados / PIB (%)
+
+**¿Qué representa la fila 29?**
+
+La fila 29 del archivo `Semestral_Colombia.xlsx` corresponde a la proporción del valor total de los fondos de pensiones respecto al Producto Interno Bruto (PIB) del país, expresada como porcentaje (%).
+
+**Interpretación económica**
+
+Este indicador responde: **¿qué tan grande es el sistema de fondos de pensiones frente al tamaño total de la economía?** Un valor mayor indica que los activos administrados por los fondos tienen un peso más alto frente a la producción anual del país.
+
+**Fórmula conceptual**
+
+$$
+\text{Fondos / PIB (\%)} = \frac{\text{Valor total de los fondos de pensiones}}{\text{Producto Interno Bruto (PIB)}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 29} = \frac{\text{Fila 28}}{\text{PIB semestral en COP} / \text{TRM}}
+$$
+
+En la implementación, `fila 28` ya está expresada en millones de USD; el PIB se convierte con TRM para que ambas magnitudes sean comparables.
+
+### 5.2 Fila 31: Deuda gubernamental local (%)
+
+**¿Qué representa la fila 31?**
+
+La fila 31 del archivo `Semestral_Colombia.xlsx` corresponde a la proporción del portafolio total de los fondos de pensiones que está invertida en deuda gubernamental local o interna, expresada como porcentaje (%) del total del portafolio.
+
+**Interpretación económica**
+
+Este indicador muestra la exposición del portafolio administrado a títulos de deuda pública interna. Permite evaluar qué parte de los recursos pensionales financia deuda gubernamental local y qué tan concentrada está la inversión en este tipo de activo.
+
+**Fórmula conceptual**
+
+$$
+\text{Deuda gubernamental local (\%)} = \frac{\text{Valor invertido en deuda gubernamental local}}{\text{Valor total del portafolio de fondos}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 31} = \text{LIMITES!AIOS!C4}
+$$
+
+El archivo `LIMITES` ya entrega la proporción calculada para la categoría de deuda gubernamental local. Por eso la fila toma directamente el ratio de la celda `C4`.
+
+### 5.3 Otras fórmulas conceptuales clave
+
+$$
+\text{Afiliados / PEA (\%)} = \frac{\text{Afiliados}}{\text{Población Económicamente Activa}} \times 100
+$$
+
+$$
+\text{Aportantes / PEA (\%)} = \frac{\text{Aportantes}}{\text{Población Económicamente Activa}} \times 100
+$$
+
+$$
+\text{Traspasos / Afiliados (\%)} = \frac{\text{Traspasos del sistema}}{\text{Afiliados}} \times 100
+$$
+
+$$
+\text{Fondos / Deuda pública total (\%)} = \frac{\text{Fondos administrados}}{\text{Deuda gubernamental total}} \times 100
+$$
+
+$$
+\text{Participación Protección + Porvenir (\%)} = \frac{\text{Fondos de Protección} + \text{Fondos de Porvenir}}{\text{Fondos totales del sistema}} \times 100
+$$
+
+$$
+\text{Resultado neto / Patrimonio (\%)} = \frac{\text{Resultado neto}}{\text{Patrimonio}} \times 100
+$$
+
+$$
+\text{Comisiones / Fondos (\%)} = \frac{\text{Comisiones}}{\text{Fondos administrados}} \times 100
+$$
+
+## 6. Parámetros de Formato 136 para fila 61
 
 | Celda | Valor escrito antes de evaluar `G6` | Ejemplo con corte `30/06/2025` |
 |---|---|---|
