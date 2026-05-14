@@ -132,6 +132,8 @@ Además de indicar la celda exacta de origen, la documentación de fórmulas inc
 
 Por ejemplo, la fila 29 no se documenta solo como `fila28 / PIB`, sino como el indicador **Fondos administrados / PIB (%)**, que mide el tamaño relativo del sistema de fondos de pensiones frente a la economía. De forma similar, la fila 31 se documenta como **Deuda gubernamental local (%)**, que mide la exposición del portafolio a deuda pública interna.
 
+La sección de fórmulas ahora extiende este mismo patrón a **todas las columnas del archivo mensual**, a **todas las hojas del archivo trimestral** y a **todas las filas pobladas del archivo semestral**. Para cada dato se documenta qué representa, cómo se interpreta y una fórmula conceptual en notación matemática.
+
 Las fórmulas conceptuales se escriben con notación matemática en Markdown, por ejemplo:
 
 $$
