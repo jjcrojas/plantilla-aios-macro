@@ -22,7 +22,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 | Insumo | Uso principal | Hojas/celdas destacadas |
 |---|---|---|
 | `Serie_Formato_ 491 AFILIADOS AFP.xlsm` | Afiliados, aportantes, género, edades, salario mínimo y datos de multifondos. | `informe de prensa`: `C11`, `D11`, `C81:D84`; `multifondos`: `E25`, `J8:J12`; `SM COLOMBIA`: `E8`. |
-| `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx` | Traspasos del sistema. | `Traslados Entre AFP`, celda `BQ11` y rangos equivalentes para mapas trimestrales. |
+| `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx` | Traspasos y movimiento de afiliados. | `Traslados Entre AFP`: `BQ11` para traspasos del sistema; `M11 / 1000` para la fila 25 después de escribir la fecha de corte en `B11`; rangos equivalentes para mapas trimestrales. |
 | `SISTEMA TOTAL` | Fondos administrados, composición y participación de entidades. | Hoja `restot`: `J14`, `C14`, `D14` y otros valores por administradora/fondo. |
 | `LIMITES` | Límites de inversión locales y del exterior. | Hoja `AIOS`: `AB4`, `C4`, `E4`, `G4`, `I4`, `K4`, `O4`, `Q4`, `S4`, `U4`, `W4`, `Y4`, `AA4`. |
 | `PIB_PEA_TRM_DG` | PEA, PIB semestral, TRM y deuda gubernamental. | Hoja `Hoja1`: fecha en columna `L`, deuda gubernamental en columna `M`, además de series de TRM/PEA/PIB usadas por los lectores. |
@@ -105,11 +105,12 @@ El informe semestral escribe filas específicas de una plantilla semestral. La c
 
 1. **Afiliados, edades, aportantes, PEA y salario mínimo**: provienen principalmente de Formato 491 y PIB/PEA/TRM.
 2. **Pensionados**: usa Formato 495 para totales y composición por invalidez, vejez y sobrevivencia.
-3. **Fondos, PIB y deuda**: combina `SISTEMA TOTAL`, TRM, PIB y deuda gubernamental total de `PIB_PEA_TRM_DG`.
-4. **Límites de inversión**: usa `LIMITES`, hoja `AIOS`.
-5. **Contabilidad y gastos**: usa `Plantilla AIOS-probable.xlsm`, hoja `CUENTAS`, y `Formato_136_Meses.xlsm` para aportes recibidos.
-6. **Comisiones y aportes**: combina comisiones trimestrales con constantes regulatorias.
-7. **Rentabilidades**: usa `RentabilidadService` sobre NAV e IPC para horizontes de 1, 3, 5 y 10 años.
+3. **Movimiento de afiliados**: para la fila 25 parametriza `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Traslados Entre AFP`, con `B11 = fechaCorte`, toma `M11` y divide el valor entre `1000`.
+4. **Fondos, PIB y deuda**: combina `SISTEMA TOTAL`, TRM, PIB y deuda gubernamental total de `PIB_PEA_TRM_DG`.
+5. **Límites de inversión**: usa `LIMITES`, hoja `AIOS`.
+6. **Contabilidad y gastos**: usa `Plantilla AIOS-probable.xlsm`, hoja `CUENTAS`, y `Formato_136_Meses.xlsm` para aportes recibidos.
+7. **Comisiones y aportes**: combina comisiones trimestrales con constantes regulatorias.
+8. **Rentabilidades**: usa `RentabilidadService` sobre NAV e IPC para horizontes de 1, 3, 5 y 10 años.
 
 ### Parámetros especiales de Formato 136
 

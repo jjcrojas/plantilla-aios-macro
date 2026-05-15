@@ -81,6 +81,9 @@ public class SemestralExcelGenerator {
                 write(hoja, 17, col, fila17);
                 write(hoja, 18, col, fila18);
                 write(hoja, 19, col, fila19);
+                BigDecimal fila25 = readFila25Trimestral493(fechaCorte);
+                write(hoja, 25, col, fila25);
+                log.info("Semestral: fila25=M11/1000 desde Formato 493 hoja Traslados Entre AFP con B11={} => {}.", fechaCorte, fila25);
                 log.info("Semestral: fila16(total_pen)={}, fila17(inv% BI62/total)={}, fila18(vej% BH62/total)={}, fila19(sob% BJ62/total)={} numeradores(inv={}, vej={}, sob={}) para fecha={} col={}.",
                         totalPensionadosSemestral,
                         fila17,
@@ -250,6 +253,7 @@ public class SemestralExcelGenerator {
     private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral, java.util.Map<Integer, String> detallesFilas) {
         String formato491 = rutaInsumo("Formato 491 afiliados", () -> Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm"));
         String formato495 = rutaInsumo("Series_Formato-495 PENSIONADOS", () -> findPensionados495File(fechaCorte));
+        String formato493 = rutaInsumo("Serie_Formato_493 MOVIMIENTO AFILIADOS", () -> locator.findRequired("493", fechaCorte));
         String sistemaTotal = rutaInsumo("SISTEMA TOTAL", () -> locator.findRequired("SISTEMA TOTAL", fechaCorte));
         String limites = rutaInsumo("LIMITES", () -> locator.findRequired("LIMITES", fechaCorte));
         String pibPeaTrmDg = rutaInsumo("PIB_PEA_TRM_DG", () -> locator.findRequired("PIB_PEA_TRM_DG", fechaCorte));
@@ -276,6 +280,7 @@ public class SemestralExcelGenerator {
         explicaciones.put(17, "valor = por Entidad!BI62 / fila 16; BI62 es pensionados por invalidez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
         explicaciones.put(18, "valor = por Entidad!BH62 / fila 16; BH62 es pensionados por vejez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
         explicaciones.put(19, "valor = por Entidad!BJ62 / fila 16; BJ62 es pensionados por sobrevivencia del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
+        explicaciones.put(25, "valor = Formato 493 hoja Traslados Entre AFP celda M11 / 1000; antes de evaluar la fórmula se escribe fechaCorte en B11; ruta=" + formato493 + ".");
         explicaciones.put(26, "valor = mensual.traspasosSistema(); total de traspasos del sistema leído por MensualDataReader desde los insumos de movimiento/formato 493 y trimestral cuando aplica.");
         explicaciones.put(27, "valor = mensual.traspasosSistema() / mensual.afiliados(); traspasos del sistema dividido entre afiliados del formato 491 ruta=" + formato491 + ".");
         explicaciones.put(28, "valor = mensual.fondoSistemaJ14() * 1000 / mensual.trm() / 1,000,000; fondoSistemaJ14 proviene de SISTEMA TOTAL hoja restot celda J14 ruta=" + sistemaTotal + "; TRM de PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
@@ -381,6 +386,7 @@ public class SemestralExcelGenerator {
             case 17 -> "valores tomados: invalidez=" + mensual.totalInv() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
             case 18 -> "valores tomados: vejez=" + mensual.totalVej() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
             case 19 -> "valores tomados: sobrevivencia=" + mensual.totalSob() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
+            case 25 -> "valores tomados: fila25=" + num(hoja, 25, col) + "; fuente=Formato 493 M11 dividido entre 1000.";
             case 26 -> "valores tomados: traspasosSistema=" + mensual.traspasosSistema() + ".";
             case 27 -> "valores tomados: traspasosSistema=" + mensual.traspasosSistema() + "; afiliados=" + mensual.afiliados() + ".";
             case 28 -> "valores tomados: fondoSistemaJ14=" + mensual.fondoSistemaJ14() + "; multiplicador=1000; TRM=" + trm(mensual) + "; divisor=1000000.";
@@ -1244,6 +1250,22 @@ public class SemestralExcelGenerator {
             String detalle = "no fue posible leer LIMITES para fecha=" + fechaCorte + ": " + e.getMessage() + ".";
             log.warn("Semestral fila44: {}", detalle);
             return new DatoDetalle(BigDecimal.ZERO, detalle);
+        }
+    }
+
+    private BigDecimal readFila25Trimestral493(LocalDate fechaCorte) {
+        Path file493 = locator.findRequired("493", fechaCorte);
+        try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
+            Sheet sheet = getSheetIgnoreCase(wb, "Traslados Entre AFP");
+            if (sheet == null) {
+                throw new IllegalStateException("No existe la hoja Traslados Entre AFP en " + file493);
+            }
+            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+            setDate(sheet, "B11", fechaCorte);
+            evaluator.clearAllCachedResultValues();
+            return divide(num(sheet, "M11", evaluator), BigDecimal.valueOf(1000));
+        } catch (Exception e) {
+            throw new IllegalStateException("Error leyendo fila 25 desde Formato 493 (B11=fecha, M11/1000)", e);
         }
     }
 

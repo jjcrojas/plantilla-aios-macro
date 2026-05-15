@@ -71,6 +71,7 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 | 17 | `por Entidad!BI62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BI62` | Ratio / porcentaje |
 | 18 | `por Entidad!BH62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BH62` | Ratio / porcentaje |
 | 19 | `por Entidad!BJ62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BJ62` | Ratio / porcentaje |
+| 25 | `Formato 493!M11 / 1000` | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Traslados Entre AFP`; se escribe la fecha de corte en `B11` y se toma `M11` | Miles |
 | 26 | `traspasosSistema` | Formato 493 / lector mensual | Valor crudo |
 | 27 | `traspasosSistema / afiliados` | Formato 493 y Formato 491 | Porcentaje (formato Excel) |
 | 28 | `(fondoSistemaJ14 * 1000 / TRM) / 1,000,000` | `SISTEMA TOTAL`, `restot`, `J14`; TRM de `PIB_PEA_TRM_DG` | MM USD |
@@ -126,6 +127,7 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 | 78 | `fila28` | Reutiliza fondos administrados de fila 28 | MM USD |
 | 79 | `fila77 / fila78` | Filas 77 y 78 | Ratio |
 | 80 | `año(fechaCorte) - 1994` | Fecha de corte | Años |
+| 81 | Sin información disponible | No se encontró mapeo o fuente implementada para esta fila en el generador semestral | No aplica |
 | 82 | `rentabilidad nominal 10 años` | `RentabilidadService`, NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` | Porcentaje |
 | 83 | `rentabilidad real 10 años` | `RentabilidadService`, nominal 10 años e IPC | Porcentaje |
 | 84 | `rentabilidad nominal 5 años` | `RentabilidadService`, NAV de `Valores_Fondo_Moder` | Porcentaje |
@@ -1087,6 +1089,30 @@ $$
 
 Se obtiene de Formato 495, hoja `por Entidad`, celda `BJ62`.
 
+#### Fila 25: Movimiento de afiliados desde Formato 493 (miles)
+
+**¿Qué representa la fila 25?**
+
+La fila 25 toma el movimiento de afiliados calculado en el archivo trimestral de referencia `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`. Para el corte solicitado se parametriza la hoja `Traslados Entre AFP` escribiendo la fecha en `B11`; luego se lee la celda `M11`.
+
+**Interpretación económica u operativa**
+
+El valor corresponde al movimiento agregado que calcula el Formato 493 para la combinación de criterios de la hoja `Traslados Entre AFP`. Se reporta en miles para mantener la escala del boletín.
+
+**Fórmula conceptual**
+
+$$
+\text{Fila 25} = \frac{\text{Formato 493!M11, con B11 = fecha de corte}}{1000}
+$$
+
+**Fórmula implementada**
+
+`SemestralExcelGenerator` abre `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, ubica la hoja `Traslados Entre AFP`, escribe `fechaCorte` en `B11`, evalúa las fórmulas del libro y escribe `M11 / 1000` en la fila 25 de la salida.
+
+**Interpretación de la fórmula Excel de `M11`**
+
+La fórmula de Excel suma cuatro bloques `SUMAR.SI.CONJUNTO` sobre `Data!U`, uno por cada categoría indicada en `L2`, `M2`, `N2` y `O2` de la hoja `Traslados Entre AFP`. En todos los bloques exige que `Data!H` sea igual a `Q2`, que `Data!J` sea igual a la categoría del bloque y que la fecha `Data!D` esté entre `A11` y `B11` inclusive. Si `D4` es diferente de `99`, también filtra `Data!B` por el código de administradora de `D4`; si `D4` es `99`, omite ese filtro y suma el total del sistema. En términos simples: `M11` es la suma de `Data!U` para el periodo `A11:B11`, el concepto de `Q2` y las cuatro categorías `L2:O2`, con filtro opcional de administradora según `D4`.
+
 #### Fila 26: Traspasos del sistema
 
 **¿Qué representa la fila 26?**
@@ -1327,6 +1353,30 @@ $$
 
 El valor proviene del archivo `LIMITES`, hoja `AIOS`, o del campo mensual equivalente para esta categoría.
 
+#### Fila 36: Categoría local no usada
+
+**¿Qué representa la fila 36?**
+
+La fila 36 es una categoría reservada de la plantilla sin dato activo.
+
+**Interpretación económica u operativa**
+
+Mantiene la estructura de la plantilla y evita desplazar filas posteriores.
+
+**Fórmula conceptual**
+
+$$
+\text{Fila 36} = 0
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 36} = 0
+$$
+
+Es una constante.
+
 #### Fila 37: Deuda gubernamental exterior (%)
 
 **¿Qué representa la fila 37?**
@@ -1446,30 +1496,6 @@ $$
 $$
 
 El valor proviene del archivo `LIMITES`, hoja `AIOS`, o del campo mensual equivalente para esta categoría.
-
-#### Fila 36: Categoría local no usada
-
-**¿Qué representa la fila 36?**
-
-La fila 36 es una categoría reservada de la plantilla sin dato activo.
-
-**Interpretación económica u operativa**
-
-Mantiene la estructura de la plantilla y evita desplazar filas posteriores.
-
-**Fórmula conceptual**
-
-$$
-\text{Fila 36} = 0
-$$
-
-**Fórmula implementada**
-
-$$
-\text{Fila 36} = 0
-$$
-
-Es una constante.
 
 #### Fila 42: Referencia fija
 
@@ -2406,6 +2432,26 @@ $$
 $$
 
 La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 81: Sin información disponible
+
+**¿Qué representa la fila 81?**
+
+No se tiene información disponible para la fila 81 del archivo semestral dentro del mapeo implementado actualmente.
+
+**Interpretación económica u operativa**
+
+No es posible asignar una interpretación económica u operativa sin una fuente o definición funcional confirmada para esta fila.
+
+**Fórmula conceptual**
+
+No aplica.
+
+**Fórmula implementada**
+
+No aplica.
+
+No se encontró escritura de la fila 81 en `SemestralExcelGenerator`; por tanto se documenta explícitamente como información no disponible.
 
 #### Fila 82: Rentabilidad nominal 10 años
 
