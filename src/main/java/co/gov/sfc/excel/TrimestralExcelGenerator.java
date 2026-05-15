@@ -21,9 +21,20 @@ public class TrimestralExcelGenerator {
     }
 
     public Path generar(LocalDate fechaCorte, TrimestralData data) {
-        Path base = properties.salidasReferenciaDir().resolve("Boletin_AIOS TRIMESTRAL.xlsx");
+        return generarDesdePlantilla(fechaCorte, data, "Boletin_AIOS TRIMESTRAL.xlsx", "Boletin_AIOS TRIMESTRAL.xlsx");
+    }
+
+    public Path generarSemestral(LocalDate fechaCorte, TrimestralData data) {
+        return generarDesdePlantilla(fechaCorte, data, "Boletin_AIOS SEMESTRAL.xlsx", "Boletin_AIOS SEMESTRAL.xlsx");
+    }
+
+    private Path generarDesdePlantilla(LocalDate fechaCorte, TrimestralData data, String plantillaNombre, String salidaNombre) {
+        Path base = properties.salidasReferenciaDir().resolve(plantillaNombre);
+        if (!Files.isRegularFile(base) && "Boletin_AIOS SEMESTRAL.xlsx".equals(plantillaNombre)) {
+            base = properties.salidasReferenciaDir().resolve("Boletin_AIOS TRIMESTRAL.xlsx");
+        }
         Path outDir = Path.of("target", "aios-output");
-        Path out = outDir.resolve("Boletin_AIOS TRIMESTRAL.xlsx");
+        Path out = outDir.resolve(salidaNombre);
 
         try {
             Files.createDirectories(outDir);
@@ -52,7 +63,7 @@ public class TrimestralExcelGenerator {
             }
             return out;
         } catch (Exception e) {
-            throw new IllegalStateException("No fue posible generar boletín trimestral", e);
+            throw new IllegalStateException("No fue posible generar boletín " + salidaNombre, e);
         }
     }
 
