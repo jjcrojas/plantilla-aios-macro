@@ -71,7 +71,7 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 | 17 | `por Entidad!BI62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BI62` | Ratio / porcentaje |
 | 18 | `por Entidad!BH62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BH62` | Ratio / porcentaje |
 | 19 | `por Entidad!BJ62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BJ62` | Ratio / porcentaje |
-| 25 | `Formato 493!M11 / 1000` | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Traslados Entre AFP`; se escribe la fecha de corte en `B11` y se toma `M11` | Miles |
+| 25 | `Formato 493!M11 / 1000` | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Fallecidos`; se escribe la fecha de corte en `B11`, `D4=99`, y se toma `M11` | Miles |
 | 26 | `traspasosSistema` | Formato 493 / lector mensual | Valor crudo |
 | 27 | `traspasosSistema / afiliados` | Formato 493 y Formato 491 | Porcentaje (formato Excel) |
 | 28 | `(fondoSistemaJ14 * 1000 / TRM) / 1,000,000` | `SISTEMA TOTAL`, `restot`, `J14`; TRM de `PIB_PEA_TRM_DG` | MM USD |
@@ -161,6 +161,7 @@ Esta sección complementa la tabla técnica anterior. La tabla técnica indica *
 | 17 | Pensionados por invalidez (%) | Proporción de pensionados cuya modalidad es invalidez. | Mide composición de beneficios por riesgo de invalidez. |
 | 18 | Pensionados por vejez (%) | Proporción de pensionados cuya modalidad es vejez. | Mide peso de las pensiones asociadas a retiro por edad. |
 | 19 | Pensionados por sobrevivencia (%) | Proporción de pensionados por sobrevivencia. | Mide peso de beneficios derivados para beneficiarios. |
+| 25 | Afiliados fallecidos en miles | Total de afiliados fallecidos del sistema calculado por Formato 493, hoja `Fallecidos`, celda `M11`, con `B11` igual a la fecha de corte y `D4=99`. | Dimensiona en miles el flujo de afiliados fallecidos acumulado en el periodo definido por la fila 11 del insumo. |
 | 26 | Traspasos del sistema | Total de movimientos de traslado entre administradoras/fondos. | Indica movilidad de afiliados dentro del sistema. |
 | 27 | Traspasos / afiliados (%) | Traspasos respecto al total de afiliados. | Mide intensidad relativa de movilidad en el sistema. |
 | 28 | Fondos administrados | Valor total del portafolio administrado por los fondos de pensiones, convertido a millones de USD. | Indica tamaño financiero del sistema pensional. |
@@ -1093,25 +1094,25 @@ Se obtiene de Formato 495, hoja `por Entidad`, celda `BJ62`.
 
 **¿Qué representa la fila 25?**
 
-La fila 25 toma el movimiento de afiliados calculado en el archivo trimestral de referencia `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`. Para el corte solicitado se parametriza la hoja `Traslados Entre AFP` escribiendo la fecha en `B11`; luego se lee la celda `M11`.
+La fila 25 toma el total de afiliados fallecidos calculado en el archivo trimestral de referencia `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`. Para el corte solicitado se parametriza la hoja `Fallecidos` escribiendo la fecha en `B11` y el código de entidad `99` en `D4`; luego se lee la celda `M11`.
 
 **Interpretación económica u operativa**
 
-El valor corresponde al movimiento agregado que calcula el Formato 493 para la combinación de criterios de la hoja `Traslados Entre AFP`. Se reporta en miles para mantener la escala del boletín.
+El valor corresponde al total de fallecidos del sistema que calcula el Formato 493 para el rango de fechas de la fila 11 y los rangos de edad/sexo de la hoja `Fallecidos`. Se reporta en miles para mantener la escala del boletín.
 
 **Fórmula conceptual**
 
 $$
-\text{Fila 25} = \frac{\text{Formato 493!M11, con B11 = fecha de corte}}{1000}
+\text{Fila 25} = \frac{\text{Formato 493 hoja Fallecidos!M11, con B11 = fecha de corte y D4 = 99}}{1000}
 $$
 
 **Fórmula implementada**
 
-`SemestralExcelGenerator` abre `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, ubica la hoja `Traslados Entre AFP`, escribe `fechaCorte` en `B11`, evalúa las fórmulas del libro y escribe `M11 / 1000` en la fila 25 de la salida.
+`SemestralExcelGenerator` abre `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, ubica la hoja `Fallecidos`, escribe `fechaCorte` en `B11`, fija `D4=99` para leer el total del sistema, evalúa las fórmulas del libro y escribe `M11 / 1000` en la fila 25 de la salida.
 
 **Interpretación de la fórmula Excel de `M11`**
 
-La fórmula de Excel suma cuatro bloques `SUMAR.SI.CONJUNTO` sobre `Data!U`, uno por cada categoría indicada en `L2`, `M2`, `N2` y `O2` de la hoja `Traslados Entre AFP`. En todos los bloques exige que `Data!H` sea igual a `Q2`, que `Data!J` sea igual a la categoría del bloque y que la fecha `Data!D` esté entre `A11` y `B11` inclusive. Si `D4` es diferente de `99`, también filtra `Data!B` por el código de administradora de `D4`; si `D4` es `99`, omite ese filtro y suma el total del sistema. En términos simples: `M11` es la suma de `Data!U` para el periodo `A11:B11`, el concepto de `Q2` y las cuatro categorías `L2:O2`, con filtro opcional de administradora según `D4`.
+La fórmula de Excel suma cuatro bloques `SUMAR.SI.CONJUNTO` sobre `Data!U`, uno por cada categoría indicada en `L2`, `M2`, `N2` y `O2` de la hoja `Fallecidos`. En todos los bloques exige que `Data!H` sea igual a `Q2`, que `Data!J` sea igual a la categoría del bloque y que la fecha `Data!D` esté entre `A11` y `B11` inclusive. Si `D4` es diferente de `99`, también filtra `Data!B` por el código de administradora de `D4`; si `D4` es `99`, omite ese filtro y suma el total del sistema. En términos simples: `M11` es la suma de `Data!U` para el periodo `A11:B11`, el concepto de `Q2` y las cuatro categorías `L2:O2`, con filtro opcional de administradora según `D4`.
 
 #### Fila 26: Traspasos del sistema
 
