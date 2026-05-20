@@ -58,7 +58,7 @@ public class SemestralExcelGenerator {
                 java.util.Map<Integer, String> detallesFilas = new java.util.LinkedHashMap<>();
 
                 // Bloque A - principales (según EscribirSemestral_Integral)
-                write(hoja, 3, col, mensual.afiliados());
+                write(hoja, 3, col, mensual.afiliadosActivos());
                 write(hoja, 4, col, pct(safeDivide(mensual.afiliadosMenor30(), mensual.afiliados())));
                 write(hoja, 5, col, pct(safeDivide(mensual.afiliados30a44(), mensual.afiliados())));
                 write(hoja, 6, col, pct(safeDivide(mensual.afiliados45a59(), mensual.afiliados())));
