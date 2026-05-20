@@ -1023,3 +1023,26 @@ SELECT	TIPO_ENTIDAD, CODIGO_ENTIDAD, NOMBRE_ENTIDAD, FECHA_CORTE,
 		RNT_TMP_VRBL_RNT_VTLC_INMDT_S, RTR_PRGRMD_SIN_NGCCN_BONO_V_H,
 		RTR_PRGRMD_SIN_NGCCN_BONO_V_M, TIPO_INFORME, CIDT
 FROM PROD_DWH_CONSULTA.S9_FORMATO_495		 
+
+## Query operativo Formato 491 (implementado en aplicación)
+
+### Total afiliados (mensual, columna B)
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_TOTAL, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+### Total afiliados activos (semestral, fila 3)
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_ACTIVOS_TOTAL, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+### Numeradores de porcentaje por edad (semestral, filas 4-7)
+Las reglas de subcuenta y unidad de captura se implementan directamente en SQL con `CAST(TRIM(... ) AS INTEGER)` para compatibilidad con Teradata.
