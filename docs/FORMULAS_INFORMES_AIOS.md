@@ -16,7 +16,7 @@
 
 | Columna destino | Fórmula / dato | Fuente, hoja y celda | Unidad escrita |
 |---:|---|---|---|
-| B | `afiliados = hombres + mujeres` | Formato 491, `informe de prensa`, `C11 + D11` | Valor crudo (personas) |
+| B | `afiliados` | Query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491` (`RENGLON=999`, suma `TOTAL_AFILIADOS_TOTAL`, fondos 1000/5000/6000/7000/8000) | Valor crudo (personas) |
 | C | `aportantes` | Formato 491, `multifondos`, `E25` | Valor crudo (personas) |
 | D | `traspasosSistema` | Formato 493, `Traslados Entre AFP`, `BQ11` | Valor crudo |
 | E | `vrFondo / TRM` | `SISTEMA TOTAL`, hoja `restot`, total sistema; TRM de `PIB_PEA_TRM_DG` | USD |
@@ -54,11 +54,11 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 
 | Fila | Fórmula / dato | Fuente, hoja y celda | Unidad escrita |
 |---:|---|---|---|
-| 3 | `afiliados = hombres + mujeres` | Formato 491, `informe de prensa`, `C11 + D11` | Valor crudo (personas) |
-| 4 | `(afiliadosMenor30 / afiliados) * 100` | Formato 491, `informe de prensa`, `C81 + D81`; fila 3 | Porcentaje |
-| 5 | `(afiliados30a44 / afiliados) * 100` | Formato 491, `informe de prensa`, `C82 + D82`; fila 3 | Porcentaje |
-| 6 | `(afiliados45a59 / afiliados) * 100` | Formato 491, `informe de prensa`, `C83 + D83`; fila 3 | Porcentaje |
-| 7 | `(afiliadosMayor60 / afiliados) * 100` | Formato 491, `informe de prensa`, `C84 + D84`; fila 3 | Porcentaje |
+| 3 | `afiliados activos` | Query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491` (`RENGLON=999`, suma `TOTAL_AFILIADOS_ACTIVOS_TOTAL`, fondos 1000/5000/6000/7000/8000) | Valor crudo (personas) |
+| 4 | `(afiliadosMenor30 / afiliados) * 100` | Query Teradata Formato 491 con reglas de subcuenta/unidad de captura; denominador = total afiliados (`RENGLON=999`) | Porcentaje |
+| 5 | `(afiliados30a44 / afiliados) * 100` | Query Teradata Formato 491 con reglas de subcuenta/unidad de captura; denominador = total afiliados (`RENGLON=999`) | Porcentaje |
+| 6 | `(afiliados45a59 / afiliados) * 100` | Query Teradata Formato 491 con reglas de subcuenta/unidad de captura; denominador = total afiliados (`RENGLON=999`) | Porcentaje |
+| 7 | `(afiliadosMayor60 / afiliados) * 100` | Query Teradata Formato 491 con reglas de subcuenta/unidad de captura; denominador = total afiliados (`RENGLON=999`) | Porcentaje |
 | 8 | `100` | Constante | Porcentaje |
 | 9 | `afiliados / 1000` | Formato 491; fila 3 | Miles de personas |
 | 10 | `(mujeres / afiliados) * 100` | Formato 491, `informe de prensa`, `D11`; fila 3 | Porcentaje |
