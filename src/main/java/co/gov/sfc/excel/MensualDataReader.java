@@ -522,7 +522,7 @@ public class MensualDataReader {
     private Path resolveFormato491Path(LocalDate fechaCorte) {
         Path local491 = Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm");
         if (Files.exists(local491) && Files.isRegularFile(local491)) {
-            log.info("Se usará Formato 491 local (insumos_ejemplo) para fechaCorte={}: {}", fechaCorte, local491.toAbsolutePath());
+            log.info("Se usará Formato 491 local (insumos_ejemplo) solo para celdas aún no migradas a query (ej. aportantes/multifondos) fechaCorte={}: {}", fechaCorte, local491.toAbsolutePath());
             return local491;
         }
         throw new IllegalStateException("No se encontró Formato 491 en ./insumos_ejemplo/Serie_Formato_ 491 AFILIADOS AFP.xlsm");
