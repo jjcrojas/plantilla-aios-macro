@@ -32,6 +32,35 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 | `Rent_Vr_Uni_Moderado.xlsm` | IPC y rentabilidad real/nominal cuando aplica fallback. | Hojas o series de IPC/rentabilidad moderada. |
 | `Valores_Fondo_Moder` / `MODERADO` | NAV histórico para rentabilidades semestrales. | Series de valor de unidad/NAV por fecha. |
 
+
+## 3.1 Conexión a Teradata (para queries de Formato 491)
+
+Desde esta versión, el proceso también consulta Teradata para obtener agregados del Formato 491 (afiliados totales, afiliados activos y grupos de edad).
+
+Propiedades relevantes en `application.properties`:
+
+- `spring.datasource.url=${TERADATA_JDBC_URL:jdbc:teradata://${TERADATA_HOST:localhost}/DATABASE=${TERADATA_DATABASE:DBC},TMODE=ANSI,CHARSET=UTF8}`
+- `spring.datasource.driver-class-name=com.teradata.jdbc.TeraDriver`
+- `spring.datasource.username=${TERADATA_USER:${DB_USER:}}`
+- `spring.datasource.password=${TERADATA_PASSWORD:${DB_PASS:}}`
+
+Pool Hikari (opcionales):
+
+- `TERADATA_POOL_MAX_SIZE`
+- `TERADATA_POOL_MIN_IDLE`
+- `TERADATA_CONNECTION_TIMEOUT_MS`
+- `TERADATA_VALIDATION_TIMEOUT_MS`
+- `TERADATA_INIT_FAIL_TIMEOUT_MS`
+
+Variables mínimas recomendadas para ambiente:
+
+- `TERADATA_HOST`
+- `TERADATA_DATABASE`
+- `TERADATA_USER`
+- `TERADATA_PASSWORD`
+
+Si se prefiere, puede pasarse una URL completa en `TERADATA_JDBC_URL`.
+
 ## 4. Flujo general del programa
 
 ```mermaid

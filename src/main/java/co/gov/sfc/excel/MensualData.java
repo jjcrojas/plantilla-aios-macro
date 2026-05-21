@@ -11,6 +11,7 @@ public record MensualData(
         BigDecimal afiliados45a59,
         BigDecimal afiliadosMayor60,
         BigDecimal afiliados,
+        BigDecimal afiliadosActivos,
         BigDecimal aportantes,
         BigDecimal traspasosSistema,
         BigDecimal vrFondo,
