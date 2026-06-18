@@ -37,29 +37,35 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 
 Desde esta versión, el proceso también consulta Teradata para obtener agregados del Formato 491 (afiliados totales, afiliados activos y grupos de edad).
 
+La conexión se configura con un namespace exclusivo de esta aplicación. No se
+usan propiedades `spring.datasource.*`, porque Spring puede sobrescribirlas con
+variables globales como `SPRING_DATASOURCE_URL` pertenecientes a otra
+aplicación.
+
 Propiedades relevantes en `application.properties`:
 
-- `spring.datasource.url=${TERADATA_JDBC_URL:jdbc:teradata://${TERADATA_HOST:localhost}/DATABASE=${TERADATA_DATABASE:DBC},TMODE=ANSI,CHARSET=UTF8}`
-- `spring.datasource.driver-class-name=com.teradata.jdbc.TeraDriver`
-- `spring.datasource.username=${TERADATA_USER:${DB_USER:}}`
-- `spring.datasource.password=${TERADATA_PASSWORD:${DB_PASS:}}`
+- `aios.datasource.url=jdbc:teradata://10.40.176.8/DATABASE=prod_dwh_consulta,LOGMECH=LDAP`
+- `aios.datasource.driver-class-name=com.teradata.jdbc.TeraDriver`
+- `aios.datasource.username=${AIOS_DB_USER:}`
+- `aios.datasource.password=${AIOS_PASS:}`
 
 Pool Hikari (opcionales):
 
-- `TERADATA_POOL_MAX_SIZE`
-- `TERADATA_POOL_MIN_IDLE`
-- `TERADATA_CONNECTION_TIMEOUT_MS`
-- `TERADATA_VALIDATION_TIMEOUT_MS`
-- `TERADATA_INIT_FAIL_TIMEOUT_MS`
+- `AIOS_DB_POOL_MAX_SIZE`
+- `AIOS_DB_POOL_MIN_IDLE`
+- `AIOS_DB_CONNECTION_TIMEOUT_MS`
+- `AIOS_DB_VALIDATION_TIMEOUT_MS`
+- `AIOS_DB_INIT_FAIL_TIMEOUT_MS`
 
 Variables mínimas recomendadas para ambiente:
 
-- `TERADATA_HOST`
-- `TERADATA_DATABASE`
-- `TERADATA_USER`
-- `TERADATA_PASSWORD`
+- `AIOS_DB_USER`
+- `AIOS_PASS`
 
-Si se prefiere, puede pasarse una URL completa en `TERADATA_JDBC_URL`.
+`AiosDataSourceConfiguration` construye explícitamente el pool
+`AiosTeradataPool` a partir de `aios.datasource.*`. Por lo tanto, una variable
+global como `SPRING_DATASOURCE_URL=jdbc:oracle:...` no reemplaza la URL de
+Teradata utilizada por AIOS.
 
 ## 4. Flujo general del programa
 
