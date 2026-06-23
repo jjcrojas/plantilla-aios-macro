@@ -21,7 +21,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 
 | Insumo | Uso principal | Hojas/celdas destacadas |
 |---|---|---|
-| `Serie_Formato_ 491 AFILIADOS AFP.xlsm` | Afiliados, aportantes, género, edades, salario mínimo y datos de multifondos. | `informe de prensa`: `C11`, `D11`, `C81:D84`; `multifondos`: `E25`, `J8:J12`; `SM COLOMBIA`: `E8`. |
+| `Serie_Formato_ 491 AFILIADOS AFP.xlsm` | Datos 491 aún no migrados a query, como género, salario mínimo y concentración de multifondos. Afiliados, afiliados activos, edades y aportantes se consultan en Teradata. | `informe de prensa`: `D11` cuando aplica género; `multifondos`: `J8:J12`; `SM COLOMBIA`: `E8`. |
 | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx` | Traspasos y movimiento de afiliados. | `Traslados Entre AFP`: `BQ11` para traspasos del sistema y rangos equivalentes para mapas trimestrales; `Fallecidos`: `M11 / 1000` para la fila 25 después de escribir la fecha de corte en `B11` y `D4=99`. |
 | `SISTEMA TOTAL` | Fondos administrados, composición y participación de entidades. | Hoja `restot`: `J14`, `C14`, `D14` y otros valores por administradora/fondo. |
 | `LIMITES` | Límites de inversión locales y del exterior. | Hoja `AIOS`: `AB4`, `C4`, `E4`, `G4`, `I4`, `K4`, `O4`, `Q4`, `S4`, `U4`, `W4`, `Y4`, `AA4`. |
@@ -35,7 +35,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 
 ## 3.1 Conexión a Teradata (para queries de Formato 491)
 
-Desde esta versión, el proceso también consulta Teradata para obtener agregados del Formato 491 (afiliados totales, afiliados activos y grupos de edad).
+Desde esta versión, el proceso también consulta Teradata para obtener agregados del Formato 491 (afiliados totales, afiliados activos, aportantes y grupos de edad).
 
 La conexión se configura con un namespace exclusivo de esta aplicación. No se
 usan propiedades `spring.datasource.*`, porque Spring puede sobrescribirlas con
@@ -112,7 +112,7 @@ El informe mensual usa `MensualDataReader` para leer los insumos base y `Mensual
 
 El boletín mensual combina:
 
-- **Valores crudos**: afiliados, aportantes, traspasos y TRM.
+- **Valores crudos**: afiliados y aportantes desde Teradata/Formato 491, traspasos y TRM desde sus insumos correspondientes.
 - **Valores monetarios en USD**: fondos administrados y total de límites se dividen por TRM.
 - **Porcentajes**: límites y rentabilidades se multiplican por 100 antes de escribirse.
 - **Constantes**: la columna mensual asociada al número fijo `4` no depende de insumos externos.
@@ -138,7 +138,7 @@ Hojas escritas:
 
 El informe semestral escribe filas específicas de una plantilla semestral. La columna destino se determina por la fecha de corte. La lógica agrupa los datos en bloques:
 
-1. **Afiliados, edades, aportantes, PEA y salario mínimo**: provienen principalmente de Formato 491 y PIB/PEA/TRM.
+1. **Afiliados, edades, aportantes, PEA y salario mínimo**: afiliados/edades/aportantes provienen de queries Teradata del Formato 491; PEA/TRM y salario mínimo se toman de sus fuentes correspondientes.
 2. **Pensionados**: usa Formato 495 para totales y composición por invalidez, vejez y sobrevivencia.
 3. **Movimiento de afiliados**: para la fila 25 parametriza `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Fallecidos`, con `B11 = fechaCorte` y `D4=99`, toma `M11` y divide el valor entre `1000`.
 4. **Fondos, PIB y deuda**: combina `SISTEMA TOTAL`, TRM, PIB y deuda gubernamental total de `PIB_PEA_TRM_DG`.

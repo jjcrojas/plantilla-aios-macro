@@ -73,7 +73,7 @@ class AiosGeneracionServiceTest {
         java.math.BigDecimal one = java.math.BigDecimal.ONE;
         MensualData mensual = new MensualData("jun-25",
                 one, one, one, one, one, one,
-                one, one, one, one, one, one,
+                one, one, one, one, one, one, one,
                 one, one, one, one, one, one,
                 one, one, one, one, one, one,
                 one, one, one, one, one, one,

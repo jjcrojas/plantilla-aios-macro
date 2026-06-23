@@ -66,10 +66,10 @@ public class SemestralExcelGenerator {
                 write(hoja, 8, col, BigDecimal.valueOf(100));
                 write(hoja, 9, col, divide(mensual.afiliados(), BigDecimal.valueOf(1000)));
                 write(hoja, 10, col, pct(safeDivide(mensual.mujeres(), mensual.afiliados())));
-                write(hoja, 11, col, mensual.aportantes());
+                write(hoja, 11, col, mensual.aportantesSemestral());
                 write(hoja, 12, col, pct(safeDivide(mensual.afiliados(), mensual.pea())));
-                write(hoja, 13, col, pct(safeDivide(mensual.aportantes(), mensual.pea())));
-                write(hoja, 14, col, pct(safeDivide(mensual.aportantes(), mensual.afiliados())));
+                write(hoja, 13, col, pct(safeDivide(mensual.aportantesSemestral(), mensual.pea())));
+                write(hoja, 14, col, pct(safeDivide(mensual.aportantesSemestral(), mensual.afiliados())));
                 write(hoja, 15, col, mensual.smColombiaUsd());
                 BigDecimal totalPensionadosSemestral = readTotalPensionados495(fechaCorte, mensual.totalPen());
                 PensionadosPorEntidad pensionadosPorEntidad = readPensionadosPorEntidad495(fechaCorte,
@@ -180,7 +180,7 @@ public class SemestralExcelGenerator {
                 detallesFilas.put(60, "detalle fuente cuenta 510000: hoja=cuentas celda=C15 valorCOP=" + cuentas.gastoOperacion510000() + "; TRM=" + trm + "; operación=C15/TRM.");
 
                 BigDecimal aportesUsd = safeDivide(aportesRecibidos, trm);
-                BigDecimal aportantesMiles = safeDivide(mensual.aportantes(), BigDecimal.valueOf(1000));
+                BigDecimal aportantesMiles = safeDivide(mensual.aportantesSemestral(), BigDecimal.valueOf(1000));
                 BigDecimal fila61 = safeDivide(aportesUsd, aportantesMiles).multiply(BigDecimal.valueOf(1000));
                 write(hoja, 61, col, fila61);
                 write(hoja, 62, col, safeDivide(cuentas.gastos(), aportesUsd).multiply(BigDecimal.valueOf(100)));
@@ -192,7 +192,7 @@ public class SemestralExcelGenerator {
                 write(hoja, 65, col, safeDivide(cuentas.resultadoNeto(), cuentas.comisiones()).multiply(BigDecimal.valueOf(100)));
                 write(hoja, 66, col, safeDivide(cuentas.resultadoNeto(), patrimonioUsd).multiply(BigDecimal.valueOf(100)));
                 write(hoja, 67, col, safeDivide(cuentas.gastos(), mensual.afiliados()).multiply(BigDecimal.valueOf(1_000_000)));
-                write(hoja, 68, col, safeDivide(cuentas.comisiones(), mensual.aportantes()).multiply(BigDecimal.valueOf(1_000_000)));
+                write(hoja, 68, col, safeDivide(cuentas.comisiones(), mensual.aportantesSemestral()).multiply(BigDecimal.valueOf(1_000_000)));
                 write(hoja, 69, col, safeDivide(cuentas.admon(), fila61));
                 write(hoja, 70, col, BigDecimal.valueOf(16));
                 write(hoja, 77, col, cuentas.comisiones());
@@ -205,7 +205,7 @@ public class SemestralExcelGenerator {
                 log.info("Semestral traza filas51-80: comisiones={} gastos={} resultadoOper={} resultadoNeto={} admon={} fila56(511500/TRM)={} fila57(511527/TRM)={} fila58((511500+511527)/TRM)={} fila59(otros/TRM)={} fila60(510000/TRM)={} aportesRecibidosCOP={} aportesUsd={} aportantes={} fila61={} p1={} fila63(%)={} patrimonioBaseMesMMCop={} patrimonioBaseMesMMUsd={} fondoUsdMM={}",
                         cuentas.comisiones(), cuentas.gastos(), cuentas.resultadoOperacion(), cuentas.resultadoNeto(), cuentas.admon(),
                         fila56, fila57, fila58, fila59, fila60,
-                        aportesRecibidos, aportesUsd, mensual.aportantes(), fila61, p1, fila63, patrimonioBaseMesMMCop, patrimonioBaseMesMMUsd, fondoUsdMM);
+                        aportesRecibidos, aportesUsd, mensual.aportantesSemestral(), fila61, p1, fila63, patrimonioBaseMesMMCop, patrimonioBaseMesMMUsd, fondoUsdMM);
                 BigDecimal comisionPromedioPct = promedioComisionObligatoria(trimestral).multiply(BigDecimal.valueOf(100));
                 write(hoja, 71, col, comisionPromedioPct);
                 write(hoja, 72, col, BigDecimal.ZERO);
@@ -271,10 +271,10 @@ public class SemestralExcelGenerator {
         explicaciones.put(8, "valor fijo = 100; representa el total porcentual de rangos de edad.");
         explicaciones.put(9, "valor = mensual.afiliados() / 1000; afiliados=fila 3=" + mensual.afiliados() + ".");
         explicaciones.put(10, "valor = (mensual.mujeres() / mensual.afiliados()) * 100; mujeres=Excel 491 informe de prensa D11=" + mensual.mujeres() + ", afiliados=fila 3=" + mensual.afiliados() + ".");
-        explicaciones.put(11, "valor = mensual.aportantes(); aportantes leídos desde Formato 491 hoja multifondos celda E25 con fechaCorte escrita en C4, aportantes=" + mensual.aportantes() + ".");
+        explicaciones.put(11, "valor = mensual.aportantesSemestral(); fuente=Query Teradata PROD_DWH_CONSULTA.FORMATO491 (RENGLON=999, SUM(TOTAL_AFILIADOS_COTIZANTES), fondos 1000/5000/6000/7000/8000), aportantes=" + mensual.aportantesSemestral() + ".");
         explicaciones.put(12, "valor = (mensual.afiliados() / mensual.pea()) * 100; afiliados del formato 491 ruta=" + formato491 + "; PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(13, "valor = (mensual.aportantes() / mensual.pea()) * 100; aportantes del lector mensual y PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(14, "valor = (mensual.aportantes() / mensual.afiliados()) * 100; ambos operandos vienen de MensualDataReader/formato 491 ruta=" + formato491 + ".");
+        explicaciones.put(13, "valor = (mensual.aportantesSemestral() / mensual.pea()) * 100; aportantes por query Teradata sin filtro de CODIGO_ENTIDAD y PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(14, "valor = (mensual.aportantesSemestral() / mensual.afiliados()) * 100; aportantes por query Teradata sin filtro de CODIGO_ENTIDAD y afiliados por query Teradata.");
         explicaciones.put(15, "valor = salario mínimo Colombia en COP / TRM; salario mínimo desde formato 491 hoja SM COLOMBIA celda E8 ruta=" + formato491 + "; TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(16, "valor = total pensionados de Series_Formato-495 PENSIONADOS hoja TOTAL PENSIONADOS: se escribe fecha parámetro en B4 y se toma columna I de la fila cuya fecha en columna B corresponde al corte; ruta=" + formato495 + ".");
         explicaciones.put(17, "valor = por Entidad!BI62 / fila 16; BI62 es pensionados por invalidez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
@@ -316,14 +316,14 @@ public class SemestralExcelGenerator {
         explicaciones.put(58, "valor = (cuenta 511500 + cuenta 511527) / TRM; cuentas desde Plantilla AIOS-probable hoja cuentas celdas C21 y C22, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(59, "valor = suma de cuentas 512000, 513000, 513500, 514000, 514500, 515000, 515500, 516000, 516500, 517000 y 517200 / TRM; celdas C24,C28,C29,C31,C32,C33,C34,C35,C36,C37,C38 de Plantilla AIOS-probable hoja cuentas, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(60, "valor = cuenta 510000 / TRM; cuenta 510000 proviene de Plantilla AIOS-probable hoja cuentas celda C15, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(61, "valor = (aportesRecibidos136 / TRM) / (mensual.aportantes() / 1000) * 1000; aportesRecibidos136 desde Formato 136 hoja FORMATO OBL configurando C7 con el día 1 del mismo mes un año antes del corte, D6 y D7 con la fecha de corte, ruta=" + formato136 + "; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(61, "valor = (aportesRecibidos136 / TRM) / (mensual.aportantesSemestral() / 1000) * 1000; aportesRecibidos136 desde Formato 136 hoja FORMATO OBL configurando C7 con el día 1 del mismo mes un año antes del corte, D6 y D7 con la fecha de corte, ruta=" + formato136 + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(62, "valor = cuentas.gastos() / (aportesRecibidos136 / TRM) * 100; gastos desde CUENTAS ruta=" + plantillaAios + "; aportes desde Formato 136 ruta=" + formato136 + ".");
         explicaciones.put(63, "valor = (patrimonioBaseMesMMCop / TRM) / fila 28 * 100; patrimonio base_mes desde Plantilla AIOS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(64, "valor = patrimonioUsd / mensual.afiliados() * 1,000,000; patrimonioUsd=(activos-pasivos)/TRM desde CUENTAS ruta=" + plantillaAios + " y afiliados desde formato 491 ruta=" + formato491 + ".");
         explicaciones.put(65, "valor = cuentas.resultadoNeto() / cuentas.comisiones() * 100; ambos operandos desde Plantilla AIOS hoja CUENTAS ruta=" + plantillaAios + ".");
         explicaciones.put(66, "valor = cuentas.resultadoNeto() / patrimonioUsd * 100; resultado neto desde CUENTAS ruta=" + plantillaAios + " y patrimonioUsd=(activos-pasivos)/TRM.");
         explicaciones.put(67, "valor = cuentas.gastos() / mensual.afiliados() * 1,000,000; gastos desde CUENTAS ruta=" + plantillaAios + "; afiliados desde formato 491 ruta=" + formato491 + ".");
-        explicaciones.put(68, "valor = cuentas.comisiones() / mensual.aportantes() * 1,000,000; comisiones desde CUENTAS ruta=" + plantillaAios + "; aportantes desde MensualDataReader.");
+        explicaciones.put(68, "valor = cuentas.comisiones() / mensual.aportantesSemestral() * 1,000,000; comisiones desde CUENTAS ruta=" + plantillaAios + "; aportantes semestrales desde query Teradata.");
         explicaciones.put(69, "valor = cuentas.admon() / fila 61; administración desde CUENTAS ruta=" + plantillaAios + " y fila 61 calculada con Formato 136 ruta=" + formato136 + ".");
         explicaciones.put(70, "valor fijo = 16; no usa insumo externo.");
         explicaciones.put(71, "valor = promedio(trimestral.comisionesPct col_obl, por_obl, pro_obl, ska_obl) * 100; comisiones trimestrales leídas por TrimestralDataReader.");
@@ -377,10 +377,10 @@ public class SemestralExcelGenerator {
             case 8 -> "valores tomados: constante=100.";
             case 9 -> "valores tomados: afiliados=" + mensual.afiliados() + "; divisor=1000.";
             case 10 -> "valores tomados: mujeres=" + mensual.mujeres() + "; afiliados=" + mensual.afiliados() + ".";
-            case 11 -> "valores tomados: aportantes=" + mensual.aportantes() + ".";
+            case 11 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + ".";
             case 12 -> "valores tomados: afiliados=" + mensual.afiliados() + "; PEA=" + mensual.pea() + ".";
-            case 13 -> "valores tomados: aportantes=" + mensual.aportantes() + "; PEA=" + mensual.pea() + ".";
-            case 14 -> "valores tomados: aportantes=" + mensual.aportantes() + "; afiliados=" + mensual.afiliados() + ".";
+            case 13 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + "; PEA=" + mensual.pea() + ".";
+            case 14 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + "; afiliados=" + mensual.afiliados() + ".";
             case 15 -> "valores tomados: salarioMinimoUsd=" + mensual.smColombiaUsd() + "; TRM=" + trm(mensual) + ".";
             case 16 -> "valores tomados: totalPensionados=" + num(hoja, 16, col) + "; fallback mensual.totalPen=" + mensual.totalPen() + ".";
             case 17 -> "valores tomados: invalidez=" + mensual.totalInv() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
@@ -422,14 +422,14 @@ public class SemestralExcelGenerator {
             case 58 -> "valores tomados: fila56=" + num(hoja, 56, col) + "; fila57=" + num(hoja, 57, col) + "; TRM=" + trm(mensual) + ".";
             case 59 -> "valores tomados: suma otros gastos/TRM=fila59=" + num(hoja, 59, col) + "; TRM=" + trm(mensual) + ".";
             case 60 -> "valores tomados: cuenta510000/TRM=fila60=" + num(hoja, 60, col) + "; TRM=" + trm(mensual) + ".";
-            case 61 -> "valores tomados: aportantes=" + mensual.aportantes() + "; TRM=" + trm(mensual) + "; fila61=" + num(hoja, 61, col) + ".";
+            case 61 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + "; TRM=" + trm(mensual) + "; fila61=" + num(hoja, 61, col) + ".";
             case 62 -> "valores tomados: gastos=fila52=" + num(hoja, 52, col) + "; fila62=" + num(hoja, 62, col) + ".";
             case 63 -> "valores tomados: fila28=" + num(hoja, 28, col) + "; fila63=" + num(hoja, 63, col) + "; TRM=" + trm(mensual) + ".";
             case 64 -> "valores tomados: patrimonioUsd=fila50=" + num(hoja, 50, col) + "; afiliados=" + mensual.afiliados() + ".";
             case 65 -> "valores tomados: resultadoNeto=fila54=" + num(hoja, 54, col) + "; comisiones=fila51=" + num(hoja, 51, col) + ".";
             case 66 -> "valores tomados: resultadoNeto=fila54=" + num(hoja, 54, col) + "; patrimonioUsd=fila50=" + num(hoja, 50, col) + ".";
             case 67 -> "valores tomados: gastos=fila52=" + num(hoja, 52, col) + "; afiliados=" + mensual.afiliados() + ".";
-            case 68 -> "valores tomados: comisiones=fila51=" + num(hoja, 51, col) + "; aportantes=" + mensual.aportantes() + ".";
+            case 68 -> "valores tomados: comisiones=fila51=" + num(hoja, 51, col) + "; aportantesSemestral=" + mensual.aportantesSemestral() + ".";
             case 69 -> "valores tomados: administracion=fila55=" + num(hoja, 55, col) + "; fila61=" + num(hoja, 61, col) + ".";
             case 70 -> "valores tomados: constante=16.";
             case 71 -> "valores tomados: col_obl=" + trimestral.comisionesPct().getOrDefault("col_obl", BigDecimal.ZERO) + "; por_obl=" + trimestral.comisionesPct().getOrDefault("por_obl", BigDecimal.ZERO) + "; pro_obl=" + trimestral.comisionesPct().getOrDefault("pro_obl", BigDecimal.ZERO) + "; ska_obl=" + trimestral.comisionesPct().getOrDefault("ska_obl", BigDecimal.ZERO) + ".";

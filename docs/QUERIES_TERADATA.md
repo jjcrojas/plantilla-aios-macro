@@ -1046,3 +1046,34 @@ WHERE FECBAL = ?
 
 ### Numeradores de porcentaje por edad (semestral, filas 4-7)
 Las reglas de subcuenta y unidad de captura se implementan directamente en SQL con `CAST(TRIM(... ) AS INTEGER)` para compatibilidad con Teradata.
+
+
+### Total aportantes (mensual, columna C; sin filtro de entidad)
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_COTIZANTES, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+### Aportantes por administradora (trimestral, hoja `aportantes`; con filtro por entidad)
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_COTIZANTES, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND CODIGO_ENTIDAD = ?
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+El proceso ejecuta esta consulta para las AFP del trimestral: Colfondos (`10`), Porvenir (`3`), Protección (`2`) y Skandia (`9`).
+
+### Total aportantes semestral (fila 11; sin filtro de entidad)
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_COTIZANTES, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```

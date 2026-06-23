@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -19,6 +20,7 @@ class TrimestralDataReaderTest {
     void shouldReadTraspasosPerAfpFrom493UsingMacroCodes() {
         MensualDataReader mensualDataReader = mock(MensualDataReader.class);
         InsumosLocator locator = mock(InsumosLocator.class);
+        Formato491QueryService formato491QueryService = mock(Formato491QueryService.class);
 
         LocalDate fecha = LocalDate.of(2025, 6, 30);
         when(locator.findRequired("493", fecha)).thenReturn(Path.of("insumos_ejemplo", "Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx"));
@@ -28,7 +30,7 @@ class TrimestralDataReaderTest {
         when(mensualDataReader.read(fecha)).thenReturn(new MensualData(
                 "jun-25",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.valueOf(4000), BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
@@ -44,7 +46,9 @@ class TrimestralDataReaderTest {
                 BigDecimal.ZERO
         ));
 
-        TrimestralDataReader reader = new TrimestralDataReader(mensualDataReader, locator);
+        when(formato491QueryService.leerAportantesPorEntidad(fecha)).thenReturn(Map.of());
+
+        TrimestralDataReader reader = new TrimestralDataReader(mensualDataReader, locator, formato491QueryService);
         TrimestralData data = reader.read(fecha);
 
         assertTrue(data.traspasos().getOrDefault("colf", BigDecimal.ZERO).signum() >= 0);

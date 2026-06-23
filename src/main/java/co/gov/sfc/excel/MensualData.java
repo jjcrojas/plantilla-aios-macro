@@ -13,6 +13,7 @@ public record MensualData(
         BigDecimal afiliados,
         BigDecimal afiliadosActivos,
         BigDecimal aportantes,
+        BigDecimal aportantesSemestral,
         BigDecimal traspasosSistema,
         BigDecimal vrFondo,
         BigDecimal trm,

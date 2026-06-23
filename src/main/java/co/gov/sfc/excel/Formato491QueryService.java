@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 
 @Component
 public class Formato491QueryService {
@@ -35,16 +37,39 @@ public class Formato491QueryService {
 
         BigDecimal afiliadosMayor60 = scalar("afiliados_mayor_60", sqlMayor60(), fecha);
 
-        return new Resumen491(afiliados, afiliadosActivos, menores30, afiliados30a44, afiliados45a59, afiliadosMayor60);
+        BigDecimal aportantes = leerAportantesTotal(fechaCorte);
+        BigDecimal aportantesSemestral = aportantes;
+
+        return new Resumen491(afiliados, afiliadosActivos, menores30, afiliados30a44, afiliados45a59, afiliadosMayor60, aportantes, aportantesSemestral);
     }
 
-    private BigDecimal scalar(String metric, String sql, Date fechaCorte) {
-        log.info("Formato491QueryService ejecutando metric={} fechaCorte={} sql=\"{}\"",
+
+    public BigDecimal leerAportantesTotal(LocalDate fechaCorte) {
+        return scalar("aportantes_total", sqlAportantesTotal(), Date.valueOf(fechaCorte));
+    }
+
+    public BigDecimal leerAportantesSemestral(LocalDate fechaCorte) {
+        return leerAportantesTotal(fechaCorte);
+    }
+
+    public Map<String, BigDecimal> leerAportantesPorEntidad(LocalDate fechaCorte) {
+        Date fecha = Date.valueOf(fechaCorte);
+        Map<String, BigDecimal> out = new HashMap<>();
+        out.put("colf", scalar("aportantes_trimestral_colfondos_codigo_entidad_10", sqlAportantesPorEntidad(), fecha, 10));
+        out.put("porv", scalar("aportantes_trimestral_porvenir_codigo_entidad_3", sqlAportantesPorEntidad(), fecha, 3));
+        out.put("prot", scalar("aportantes_trimestral_proteccion_codigo_entidad_2", sqlAportantesPorEntidad(), fecha, 2));
+        out.put("sk", scalar("aportantes_trimestral_skandia_codigo_entidad_9", sqlAportantesPorEntidad(), fecha, 9));
+        log.info("Formato491QueryService resultado metric=aportantes_trimestral_por_entidad fechaCorte={} valores={}", fecha, out);
+        return out;
+    }
+
+    private BigDecimal scalar(String metric, String sql, Object... params) {
+        log.info("Formato491QueryService ejecutando metric={} params={} sql=\"{}\"",
                 metric,
-                fechaCorte,
+                java.util.Arrays.toString(params),
                 sql.replace("\n", " ").replaceAll("\\s+", " ").trim());
-        BigDecimal value = jdbcTemplate.queryForObject(sql, BigDecimal.class, fechaCorte);
-        log.info("Formato491QueryService resultado metric={} fechaCorte={} valor={}", metric, fechaCorte, value);
+        BigDecimal value = jdbcTemplate.queryForObject(sql, BigDecimal.class, params);
+        log.info("Formato491QueryService resultado metric={} valor={}", metric, value);
         return value == null ? BigDecimal.ZERO : value;
     }
 
@@ -109,12 +134,37 @@ public class Formato491QueryService {
                       OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) > 1 AND CAST(TRIM(RENGLON) AS INTEGER) BETWEEN 55 AND 80))
                 """.formatted(FONDOS_FILTRO); }
 
+
+
+    private String sqlAportantesTotal() {
+        return """
+                SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_COTIZANTES, 0)), 0)
+                FROM PROD_DWH_CONSULTA.FORMATO491
+                WHERE FECBAL = ?
+                  AND RENGLON = '999'
+                  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN %s
+                """.formatted(FONDOS_FILTRO);
+    }
+
+    private String sqlAportantesPorEntidad() {
+        return """
+                SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_COTIZANTES, 0)), 0)
+                FROM PROD_DWH_CONSULTA.FORMATO491
+                WHERE FECBAL = ?
+                  AND RENGLON = '999'
+                  AND CODIGO_ENTIDAD = ?
+                  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN %s
+                """.formatted(FONDOS_FILTRO);
+    }
+
     public record Resumen491(
             BigDecimal afiliados,
             BigDecimal afiliadosActivos,
             BigDecimal afiliadosMenor30,
             BigDecimal afiliados30a44,
             BigDecimal afiliados45a59,
-            BigDecimal afiliadosMayor60
+            BigDecimal afiliadosMayor60,
+            BigDecimal aportantes,
+            BigDecimal aportantesSemestral
     ) {}
 }
