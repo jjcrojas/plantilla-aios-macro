@@ -73,15 +73,12 @@ class AiosGeneracionServiceTest {
         java.math.BigDecimal one = java.math.BigDecimal.ONE;
         MensualData mensual = new MensualData("jun-25",
                 one, one, one, one, one, one,
+                one, one, one, one, one, one, one,
                 one, one, one, one, one, one,
                 one, one, one, one, one, one,
                 one, one, one, one, one, one,
                 one, one, one, one, one, one,
-                one, one, one, one, one, one,
-                one,
-                one,
-                one,
-                one,
+                one, one, one, one, one,
                 one);
         TrimestralData data = new TrimestralData("jun-25", Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         when(mensualDataReader.read(fecha)).thenReturn(mensual);

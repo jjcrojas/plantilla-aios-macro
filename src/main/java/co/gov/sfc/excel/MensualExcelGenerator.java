@@ -34,7 +34,7 @@ public class MensualExcelGenerator {
                 Sheet sheet = wb.getSheet("HOJA1");
                 int row = findDateRow(sheet, data.textoFecha());
                 write(sheet, row, 2, data.afiliados(), "Serie_Formato_ 491 AFILIADOS AFP.xlsm", "informe de prensa", "C11+D11");
-                write(sheet, row, 3, data.aportantes(), "Serie_Formato_ 491 AFILIADOS AFP.xlsm", "multifondos", "E25");
+                write(sheet, row, 3, data.aportantes(), "Query Teradata PROD_DWH_CONSULTA.FORMATO491", "FORMATO491", "SUM(TOTAL_AFILIADOS_COTIZANTES), RENGLON=999");
                 write(sheet, row, 4, data.traspasosSistema(), "Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx", "Traslados Entre AFP", "BQ11");
                 write(sheet, row, 5, divide(data.vrFondo(), trm(data)), "SISTEMA TOTAL *.xls", "restot", "SISTEMA/MAX");
                 write(sheet, row, 6, divide(data.total1(), trm(data)), "LIMITES del nuevo.xlsm", "AIOS", "AB4");
@@ -48,7 +48,7 @@ public class MensualExcelGenerator {
                 write(sheet, row, 14, pct(data.tmpNominal1()), "Rent_Vr_Uni_Moderado.xlsm", "(primera)", "D11");
                 write(sheet, row, 15, pct(data.tmpReal1()), "Rent_Vr_Uni_Moderado.xlsm", "(primera)", "D10");
                 write(sheet, row, 16, BigDecimal.valueOf(4), "constante", "", "");
-                write(sheet, row, 17, data.consFdosAdmon(), "Serie_Formato_ 491 AFILIADOS AFP.xlsm", "multifondos", "J8+J9/J12");
+                write(sheet, row, 17, data.consFdosAdmon(), "Query Teradata PROD_DWH_CONSULTA.FORMATO491", "FORMATO491", "Top 2 AFP por TOTAL_AFILIADOS_TOTAL / total sistema");
                 write(sheet, row, 18, data.porcVrFondo(), "SISTEMA TOTAL *.xls", "restot", "(PROTECCION+PORVENIR)/SISTEMA/10");
                 write(sheet, row, 19, trm(data), "series PIB_PEA_TRM_DG.xlsm", "Hoja1", "TRM<=fecha");
 
