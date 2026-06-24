@@ -1077,3 +1077,34 @@ WHERE FECBAL = ?
   AND RENGLON = '999'
   AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
 ```
+
+
+### Concentración de afiliados/personas (mensual, columna Q)
+
+La concentración de afiliados cuenta personas. Se diferencia de la concentración de saldos/fondos administrados usada en otros indicadores, por ejemplo la fila 47 del semestral.
+
+Total del sistema:
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_TOTAL, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+Afiliados por entidad para determinar las dos AFP con más afiliados:
+```sql
+SELECT CODIGO_ENTIDAD,
+       COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_TOTAL, 0)), 0) AS AFILIADOS
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000')
+GROUP BY CODIGO_ENTIDAD;
+```
+
+La aplicación ordena estas entidades por `AFILIADOS`, suma las dos mayores y calcula:
+
+```text
+concentracion_afiliados = afiliados_top_2_afp / afiliados_total_sistema * 100
+```

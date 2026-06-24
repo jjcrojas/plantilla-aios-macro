@@ -68,10 +68,8 @@ public class MensualDataReader {
         if (macroRecalc) {
             try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
                 Sheet informe = wb.getSheet("informe de prensa");
-                Sheet multifondos = wb.getSheet("multifondos");
                 FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
                 setDate(informe, "C3", fechaCorte);
-                setDate(multifondos, "C4", fechaCorte);
                 evaluator.clearAllCachedResultValues();
                 hombres = num(informe, "C11", evaluator);
                 mujeres = num(informe, "D11", evaluator);
@@ -81,10 +79,6 @@ public class MensualDataReader {
                 afiliadosMayor60 = num(informe, "C84", evaluator).add(num(informe, "D84", evaluator));
                 Sheet smColombia = getSheetIgnoreCase(wb, "SM COLOMBIA");
                 if (smColombia != null) smColombiaCop = num(smColombia, "E8", evaluator);
-                var j8 = num(multifondos, "J8", evaluator);
-                var j9 = num(multifondos, "J9", evaluator);
-                var j12 = num(multifondos, "J12", evaluator);
-                consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
                 log.debug("491 recalculado con fechaCorte={}: hombres={}, mujeres={}", fechaCorte, hombres, mujeres);
             } catch (OutOfMemoryError oom) {
                 log.warn("OOM en recálculo macro 491; se usa modo seguro XML cacheado");
@@ -100,10 +94,6 @@ public class MensualDataReader {
                 afiliadosMayor60 = readNumericCellFromSheetXml(file491, "informe de prensa", "C84")
                         .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D84"));
                 smColombiaCop = readNumericCellFromSheetXml(file491, "SM COLOMBIA", "E8");
-                var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
-                var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
-                var j12 = readNumericCellFromSheetXml(file491, "multifondos", "J12");
-                consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
             } catch (Exception e) {
                 throw new IllegalStateException("Error leyendo Formato 491", e);
             }
@@ -121,10 +111,6 @@ public class MensualDataReader {
                 afiliadosMayor60 = readNumericCellFromSheetXml(file491, "informe de prensa", "C84")
                         .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D84"));
                 smColombiaCop = readNumericCellFromSheetXml(file491, "SM COLOMBIA", "E8");
-                var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
-                var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
-                var j12 = readNumericCellFromSheetXml(file491, "multifondos", "J12");
-                consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
             } catch (Exception e) {
                 throw new IllegalStateException("Error leyendo Formato 491", e);
             }
@@ -135,6 +121,7 @@ public class MensualDataReader {
         afiliadosActivos = resumen491.afiliadosActivos();
         aportantes = resumen491.aportantes();
         aportantesSemestral = resumen491.aportantesSemestral();
+        consFdosAdmon = resumen491.concentracionAfiliados();
         afiliadosMenor30 = resumen491.afiliadosMenor30();
         afiliados30a44 = resumen491.afiliados30a44();
         afiliados45a59 = resumen491.afiliados45a59();
@@ -523,7 +510,7 @@ public class MensualDataReader {
     private Path resolveFormato491Path(LocalDate fechaCorte) {
         Path local491 = Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm");
         if (Files.exists(local491) && Files.isRegularFile(local491)) {
-            log.info("Se usará Formato 491 local (insumos_ejemplo) solo para celdas aún no migradas a query (ej. multifondos/concentración) fechaCorte={}: {}", fechaCorte, local491.toAbsolutePath());
+            log.info("Se usará Formato 491 local (insumos_ejemplo) solo para celdas aún no migradas a query (ej. género/salario mínimo) fechaCorte={}: {}", fechaCorte, local491.toAbsolutePath());
             return local491;
         }
         throw new IllegalStateException("No se encontró Formato 491 en ./insumos_ejemplo/Serie_Formato_ 491 AFILIADOS AFP.xlsm");

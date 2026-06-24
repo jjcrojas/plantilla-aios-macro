@@ -8,7 +8,9 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -39,8 +41,9 @@ public class Formato491QueryService {
 
         BigDecimal aportantes = leerAportantesTotal(fechaCorte);
         BigDecimal aportantesSemestral = aportantes;
+        BigDecimal concentracionAfiliados = leerConcentracionAfiliados(fechaCorte);
 
-        return new Resumen491(afiliados, afiliadosActivos, menores30, afiliados30a44, afiliados45a59, afiliadosMayor60, aportantes, aportantesSemestral);
+        return new Resumen491(afiliados, afiliadosActivos, menores30, afiliados30a44, afiliados45a59, afiliadosMayor60, aportantes, aportantesSemestral, concentracionAfiliados);
     }
 
 
@@ -50,6 +53,32 @@ public class Formato491QueryService {
 
     public BigDecimal leerAportantesSemestral(LocalDate fechaCorte) {
         return leerAportantesTotal(fechaCorte);
+    }
+
+
+    public BigDecimal leerConcentracionAfiliados(LocalDate fechaCorte) {
+        Date fecha = Date.valueOf(fechaCorte);
+        BigDecimal totalAfiliados = scalar("concentracion_afiliados_total_sistema", sqlAfiliadosTotal(), fecha);
+        String sql = sqlAfiliadosPorEntidad();
+        log.info("Formato491QueryService ejecutando metric=concentracion_afiliados_por_entidad params={} sql=\"{}\"",
+                java.util.Arrays.toString(new Object[]{fecha}),
+                sql.replace("\n", " ").replaceAll("\\s+", " ").trim());
+        List<EntidadAfiliados> afiliadosPorEntidad = jdbcTemplate.query(sql, (rs, rowNum) -> new EntidadAfiliados(
+                rs.getInt("CODIGO_ENTIDAD"),
+                rs.getBigDecimal("AFILIADOS") == null ? BigDecimal.ZERO : rs.getBigDecimal("AFILIADOS")
+        ), fecha);
+
+        BigDecimal topDos = afiliadosPorEntidad.stream()
+                .sorted(Comparator.comparing(EntidadAfiliados::afiliados).reversed())
+                .limit(2)
+                .map(EntidadAfiliados::afiliados)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal resultado = totalAfiliados.signum() == 0
+                ? BigDecimal.ZERO
+                : topDos.divide(totalAfiliados, 8, java.math.RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+        log.info("Formato491QueryService resultado metric=concentracion_afiliados fechaCorte={} topDos={} totalAfiliados={} valor={} entidades={}",
+                fecha, topDos, totalAfiliados, resultado, afiliadosPorEntidad);
+        return resultado;
     }
 
     public Map<String, BigDecimal> leerAportantesPorEntidad(LocalDate fechaCorte) {
@@ -157,6 +186,22 @@ public class Formato491QueryService {
                 """.formatted(FONDOS_FILTRO);
     }
 
+
+
+    private String sqlAfiliadosPorEntidad() {
+        return """
+                SELECT CODIGO_ENTIDAD,
+                       COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_TOTAL, 0)), 0) AS AFILIADOS
+                FROM PROD_DWH_CONSULTA.FORMATO491
+                WHERE FECBAL = ?
+                  AND RENGLON = '999'
+                  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN %s
+                GROUP BY CODIGO_ENTIDAD
+                """.formatted(FONDOS_FILTRO);
+    }
+
+    private record EntidadAfiliados(Integer codigoEntidad, BigDecimal afiliados) {}
+
     public record Resumen491(
             BigDecimal afiliados,
             BigDecimal afiliadosActivos,
@@ -165,6 +210,7 @@ public class Formato491QueryService {
             BigDecimal afiliados45a59,
             BigDecimal afiliadosMayor60,
             BigDecimal aportantes,
-            BigDecimal aportantesSemestral
+            BigDecimal aportantesSemestral,
+            BigDecimal concentracionAfiliados
     ) {}
 }

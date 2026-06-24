@@ -31,7 +31,7 @@
 | N | `tmpNominal1 * 100` | `Rent_Vr_Uni_Moderado`, primera hoja, `D11` | Porcentaje |
 | O | `tmpReal1 * 100` | `Rent_Vr_Uni_Moderado`, primera hoja, `D10` | Porcentaje |
 | P | `4` | Constante | Valor crudo |
-| Q | `consFdosAdmon` | Formato 491, `multifondos`, cálculo con `J8`, `J9`, `J12` | Valor crudo / ratio según plantilla |
+| Q | `consFdosAdmon` | Query Teradata Formato 491: concentración de afiliados/personas = dos AFP con más `TOTAL_AFILIADOS_TOTAL` / total sistema | Porcentaje |
 | R | `porcVrFondo` | `SISTEMA TOTAL`, `restot`, `(Protección + Porvenir) / Sistema` | Ratio / porcentaje según plantilla |
 | S | `TRM` | `PIB_PEA_TRM_DG`, último valor aplicable a la fecha de corte | COP por USD |
 
@@ -502,11 +502,11 @@ $$
 \text{Referencia} = 4
 $$
 
-#### Columna Q: Concentración de fondos administrados
+#### Columna Q: Concentración de afiliados (personas)
 
 **¿Qué representa?**
 
-La columna Q del archivo mensual corresponde a un indicador de concentración construido desde multifondos.
+La columna Q del archivo mensual corresponde a la concentración de afiliados, es decir, personas afiliadas. Se calcula con query sobre `PROD_DWH_CONSULTA.FORMATO491`, no con el Excel 491.
 
 **Interpretación**
 
@@ -515,7 +515,7 @@ Mide peso relativo de fondos/administradoras seleccionadas dentro del sistema.
 **Fórmula conceptual**
 
 $$
-\text{Concentración} = \text{Indicador calculado desde multifondos}
+\text{Concentración afiliados} = \frac{\text{Afiliados de las dos AFP con más afiliados}}{\text{Afiliados totales del sistema}} \times 100
 $$
 
 #### Columna R: Participación Protección + Porvenir (%)
@@ -1622,7 +1622,7 @@ Es una constante.
 
 **¿Qué representa la fila 47?**
 
-La fila 47 corresponde a la participación conjunta de Protección y Porvenir sobre el total del sistema.
+La fila 47 corresponde a la participación conjunta de Protección y Porvenir sobre el total del sistema. A diferencia de la columna Q mensual, esta fila no mide concentración de afiliados/personas sino concentración sobre saldos/fondos administrados según la fuente `SISTEMA TOTAL`.
 
 **Interpretación económica u operativa**
 
