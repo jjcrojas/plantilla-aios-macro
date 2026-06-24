@@ -61,7 +61,7 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 | 7 | `(afiliadosMayor60 / afiliados) * 100` | Query Teradata Formato 491 con reglas de subcuenta/unidad de captura; denominador = total afiliados (`RENGLON=999`) | Porcentaje |
 | 8 | `100` | Constante | Porcentaje |
 | 9 | `afiliados / 1000` | Afiliados totales por query Teradata Formato 491 (`TOTAL_AFILIADOS_TOTAL`, `RENGLON=999`) | Miles de personas |
-| 10 | `(mujeres / afiliados) * 100` | Formato 491, `informe de prensa`, `D11`; fila 3 | Porcentaje |
+| 10 | `(mujeres / afiliados) * 100` | Query Teradata Formato 491 (`SUM(TOTAL_AFILIADOS_M)`, `RENGLON=999`, fondos 1000/5000/6000/7000/8000); denominador = total afiliados por query | Porcentaje |
 | 11 | `aportantes` | Query Teradata sobre Formato 491 (`SUM(TOTAL_AFILIADOS_COTIZANTES)`, `RENGLON=999`, fondos 1000/5000/6000/7000/8000, sin filtro por `CODIGO_ENTIDAD`) | Valor crudo (personas) |
 | 12 | `(afiliados / PEA) * 100` | Afiliados totales por query Teradata Formato 491; PEA de `PIB_PEA_TRM_DG` | Porcentaje |
 | 13 | `(aportantes / PEA) * 100` | Aportantes por query Teradata del Formato 491; PEA de `PIB_PEA_TRM_DG` | Porcentaje |
@@ -872,7 +872,7 @@ $$
 \text{Fila 10} = \frac{\text{mensual.mujeres}}{\text{mensual.afiliados}} \times 100
 $$
 
-Mujeres se lee de Formato 491, `informe de prensa`, celda `D11`.
+Mujeres se lee por query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, sumando `TOTAL_AFILIADOS_M` para `RENGLON = '999'` y los fondos obligatorios `1000`, `5000`, `6000`, `7000` y `8000`. El denominador `mensual.afiliados` usa el total de afiliados por query (`SUM(TOTAL_AFILIADOS_TOTAL)`) con los mismos filtros.
 
 #### Fila 11: Aportantes
 

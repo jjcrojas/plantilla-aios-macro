@@ -71,20 +71,15 @@ public class MensualDataReader {
                 FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
                 setDate(informe, "C3", fechaCorte);
                 evaluator.clearAllCachedResultValues();
-                hombres = num(informe, "C11", evaluator);
-                mujeres = num(informe, "D11", evaluator);
                 afiliadosMenor30 = num(informe, "C81", evaluator).add(num(informe, "D81", evaluator));
                 afiliados30a44 = num(informe, "C82", evaluator).add(num(informe, "D82", evaluator));
                 afiliados45a59 = num(informe, "C83", evaluator).add(num(informe, "D83", evaluator));
                 afiliadosMayor60 = num(informe, "C84", evaluator).add(num(informe, "D84", evaluator));
                 Sheet smColombia = getSheetIgnoreCase(wb, "SM COLOMBIA");
                 if (smColombia != null) smColombiaCop = num(smColombia, "E8", evaluator);
-                log.debug("491 recalculado con fechaCorte={}: hombres={}, mujeres={}", fechaCorte, hombres, mujeres);
+                log.debug("491 recalculado con fechaCorte={} para celdas aún no migradas (salario mínimo y fallback de edades)", fechaCorte);
             } catch (OutOfMemoryError oom) {
                 log.warn("OOM en recálculo macro 491; se usa modo seguro XML cacheado");
-                SexTotals st = readAfiliadosFromDataXml(file491, fechaCorte);
-                hombres = st.hombres();
-                mujeres = st.mujeres();
                 afiliadosMenor30 = readNumericCellFromSheetXml(file491, "informe de prensa", "C81")
                         .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D81"));
                 afiliados30a44 = readNumericCellFromSheetXml(file491, "informe de prensa", "C82")
@@ -99,9 +94,6 @@ public class MensualDataReader {
             }
         } else {
             try {
-                SexTotals st = readAfiliadosFromDataXml(file491, fechaCorte);
-                hombres = st.hombres();
-                mujeres = st.mujeres();
                 afiliadosMenor30 = readNumericCellFromSheetXml(file491, "informe de prensa", "C81")
                         .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D81"));
                 afiliados30a44 = readNumericCellFromSheetXml(file491, "informe de prensa", "C82")
@@ -119,6 +111,7 @@ public class MensualDataReader {
         var resumen491 = formato491QueryService.leerResumen(fechaCorte);
         BigDecimal afiliadosQuery = resumen491.afiliados();
         afiliadosActivos = resumen491.afiliadosActivos();
+        mujeres = resumen491.mujeresAfiliadas();
         aportantes = resumen491.aportantes();
         aportantesSemestral = resumen491.aportantesSemestral();
         consFdosAdmon = resumen491.concentracionAfiliados();
@@ -510,7 +503,7 @@ public class MensualDataReader {
     private Path resolveFormato491Path(LocalDate fechaCorte) {
         Path local491 = Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm");
         if (Files.exists(local491) && Files.isRegularFile(local491)) {
-            log.info("Se usará Formato 491 local (insumos_ejemplo) solo para celdas aún no migradas a query (ej. género/salario mínimo) fechaCorte={}: {}", fechaCorte, local491.toAbsolutePath());
+            log.info("Se usará Formato 491 local (insumos_ejemplo) solo para celdas aún no migradas a query (ej. salario mínimo) fechaCorte={}: {}", fechaCorte, local491.toAbsolutePath());
             return local491;
         }
         throw new IllegalStateException("No se encontró Formato 491 en ./insumos_ejemplo/Serie_Formato_ 491 AFILIADOS AFP.xlsm");

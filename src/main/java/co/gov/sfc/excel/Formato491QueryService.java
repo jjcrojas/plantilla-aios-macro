@@ -31,6 +31,8 @@ public class Formato491QueryService {
 
         BigDecimal afiliadosActivos = scalar("afiliados_activos_total", sqlAfiliadosActivosTotal(), fecha);
 
+        BigDecimal mujeresAfiliadas = scalar("mujeres_afiliadas_total", sqlMujeresAfiliadasTotal(), fecha);
+
         BigDecimal menores30 = scalar("afiliados_menor30", sqlMenor30(), fecha);
 
         BigDecimal afiliados30a44 = scalar("afiliados_30_44", sql30a44(), fecha);
@@ -43,7 +45,7 @@ public class Formato491QueryService {
         BigDecimal aportantesSemestral = aportantes;
         BigDecimal concentracionAfiliados = leerConcentracionAfiliados(fechaCorte);
 
-        return new Resumen491(afiliados, afiliadosActivos, menores30, afiliados30a44, afiliados45a59, afiliadosMayor60, aportantes, aportantesSemestral, concentracionAfiliados);
+        return new Resumen491(afiliados, afiliadosActivos, mujeresAfiliadas, menores30, afiliados30a44, afiliados45a59, afiliadosMayor60, aportantes, aportantesSemestral, concentracionAfiliados);
     }
 
 
@@ -117,6 +119,16 @@ public class Formato491QueryService {
     private String sqlAfiliadosActivosTotal() {
         return """
                 SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_ACTIVOS_TOTAL, 0)), 0)
+                FROM PROD_DWH_CONSULTA.FORMATO491
+                WHERE FECBAL = ?
+                  AND RENGLON = '999'
+                  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN %s
+                """.formatted(FONDOS_FILTRO);
+    }
+
+    private String sqlMujeresAfiliadasTotal() {
+        return """
+                SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_M, 0)), 0)
                 FROM PROD_DWH_CONSULTA.FORMATO491
                 WHERE FECBAL = ?
                   AND RENGLON = '999'
@@ -205,6 +217,7 @@ public class Formato491QueryService {
     public record Resumen491(
             BigDecimal afiliados,
             BigDecimal afiliadosActivos,
+            BigDecimal mujeresAfiliadas,
             BigDecimal afiliadosMenor30,
             BigDecimal afiliados30a44,
             BigDecimal afiliados45a59,

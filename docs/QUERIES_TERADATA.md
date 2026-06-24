@@ -1044,6 +1044,17 @@ WHERE FECBAL = ?
   AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
 ```
 
+### Mujeres afiliadas (semestral, fila 10)
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_M, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+Este valor es el numerador del porcentaje de mujeres afiliadas del semestral; el denominador es el total de afiliados (`SUM(TOTAL_AFILIADOS_TOTAL)`) con los mismos filtros.
+
 ### Numeradores de porcentaje por edad (semestral, filas 4-7)
 Las reglas de subcuenta y unidad de captura se implementan directamente en SQL con `CAST(TRIM(... ) AS INTEGER)` para compatibilidad con Teradata.
 

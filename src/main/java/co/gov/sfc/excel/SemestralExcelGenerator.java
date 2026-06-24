@@ -270,7 +270,7 @@ public class SemestralExcelGenerator {
         explicaciones.put(7, "valor = (mensual.afiliadosMayor60() / mensual.afiliados()) * 100; afiliadosMayor60=Query Teradata (regla subcuenta/unidad captura)=" + mensual.afiliadosMayor60() + ", afiliadosTotalQuery=" + mensual.afiliados() + ".");
         explicaciones.put(8, "valor fijo = 100; representa el total porcentual de rangos de edad.");
         explicaciones.put(9, "valor = mensual.afiliados() / 1000; afiliadosTotalQuery=" + mensual.afiliados() + ".");
-        explicaciones.put(10, "valor = (mensual.mujeres() / mensual.afiliados()) * 100; mujeres=Excel 491 informe de prensa D11=" + mensual.mujeres() + ", afiliadosTotalQuery=" + mensual.afiliados() + ".");
+        explicaciones.put(10, "valor = (mensual.mujeres() / mensual.afiliados()) * 100; mujeres=Query Teradata PROD_DWH_CONSULTA.FORMATO491 (RENGLON=999, SUM(TOTAL_AFILIADOS_M), fondos 1000/5000/6000/7000/8000)=" + mensual.mujeres() + ", afiliadosTotalQuery=" + mensual.afiliados() + ".");
         explicaciones.put(11, "valor = mensual.aportantesSemestral(); fuente=Query Teradata PROD_DWH_CONSULTA.FORMATO491 (RENGLON=999, SUM(TOTAL_AFILIADOS_COTIZANTES), fondos 1000/5000/6000/7000/8000), aportantes=" + mensual.aportantesSemestral() + ".");
         explicaciones.put(12, "valor = (mensual.afiliados() / mensual.pea()) * 100; afiliados por query Teradata Formato491; PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(13, "valor = (mensual.aportantesSemestral() / mensual.pea()) * 100; aportantes por query Teradata sin filtro de CODIGO_ENTIDAD y PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
@@ -376,7 +376,7 @@ public class SemestralExcelGenerator {
             case 7 -> "valores tomados: afiliadosMayor60=" + mensual.afiliadosMayor60() + "; afiliados=" + mensual.afiliados() + ".";
             case 8 -> "valores tomados: constante=100.";
             case 9 -> "valores tomados: afiliados=" + mensual.afiliados() + "; divisor=1000.";
-            case 10 -> "valores tomados: mujeres=" + mensual.mujeres() + "; afiliados=" + mensual.afiliados() + ".";
+            case 10 -> "valores tomados: mujeresAfiliadasQuery=" + mensual.mujeres() + "; afiliadosTotalQuery=" + mensual.afiliados() + ".";
             case 11 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + ".";
             case 12 -> "valores tomados: afiliados=" + mensual.afiliados() + "; PEA=" + mensual.pea() + ".";
             case 13 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + "; PEA=" + mensual.pea() + ".";

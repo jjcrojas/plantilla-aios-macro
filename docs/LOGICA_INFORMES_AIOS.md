@@ -21,7 +21,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 
 | Insumo | Uso principal | Hojas/celdas destacadas |
 |---|---|---|
-| `Serie_Formato_ 491 AFILIADOS AFP.xlsm` | Datos 491 aún no migrados a query, como género y salario mínimo. Afiliados, afiliados activos, edades, aportantes y concentración de afiliados/personas se consultan en Teradata. | `informe de prensa`: `D11` cuando aplica género; `SM COLOMBIA`: `E8`. |
+| `Serie_Formato_ 491 AFILIADOS AFP.xlsm` | Datos 491 aún no migrados a query, como salario mínimo. Afiliados, mujeres afiliadas, afiliados activos, edades, aportantes y concentración de afiliados/personas se consultan en Teradata. | `SM COLOMBIA`: `E8`. |
 | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx` | Traspasos y movimiento de afiliados. | `Traslados Entre AFP`: `BQ11` para traspasos del sistema y rangos equivalentes para mapas trimestrales; `Fallecidos`: `M11 / 1000` para la fila 25 después de escribir la fecha de corte en `B11` y `D4=99`. |
 | `SISTEMA TOTAL` | Fondos administrados, composición y participación de entidades. | Hoja `restot`: `J14`, `C14`, `D14` y otros valores por administradora/fondo. |
 | `LIMITES` | Límites de inversión locales y del exterior. | Hoja `AIOS`: `AB4`, `C4`, `E4`, `G4`, `I4`, `K4`, `O4`, `Q4`, `S4`, `U4`, `W4`, `Y4`, `AA4`. |
@@ -35,7 +35,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 
 ## 3.1 Conexión a Teradata (para queries de Formato 491)
 
-Desde esta versión, el proceso también consulta Teradata para obtener agregados del Formato 491 (afiliados totales, afiliados activos, aportantes, concentración de afiliados/personas y grupos de edad).
+Desde esta versión, el proceso también consulta Teradata para obtener agregados del Formato 491 (afiliados totales, mujeres afiliadas, afiliados activos, aportantes, concentración de afiliados/personas y grupos de edad).
 
 La conexión se configura con un namespace exclusivo de esta aplicación. No se
 usan propiedades `spring.datasource.*`, porque Spring puede sobrescribirlas con
