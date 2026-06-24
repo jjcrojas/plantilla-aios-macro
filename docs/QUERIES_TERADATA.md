@@ -1023,3 +1023,99 @@ SELECT	TIPO_ENTIDAD, CODIGO_ENTIDAD, NOMBRE_ENTIDAD, FECHA_CORTE,
 		RNT_TMP_VRBL_RNT_VTLC_INMDT_S, RTR_PRGRMD_SIN_NGCCN_BONO_V_H,
 		RTR_PRGRMD_SIN_NGCCN_BONO_V_M, TIPO_INFORME, CIDT
 FROM PROD_DWH_CONSULTA.S9_FORMATO_495		 
+
+## Query operativo Formato 491 (implementado en aplicación)
+
+### Total afiliados (mensual, columna B)
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_TOTAL, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+### Total afiliados activos (semestral, fila 3)
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_ACTIVOS_TOTAL, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+### Mujeres afiliadas (semestral, fila 10)
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_M, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+Este valor es el numerador del porcentaje de mujeres afiliadas del semestral; el denominador es el total de afiliados (`SUM(TOTAL_AFILIADOS_TOTAL)`) con los mismos filtros.
+
+### Numeradores de porcentaje por edad (semestral, filas 4-7)
+Las reglas de subcuenta y unidad de captura se implementan directamente en SQL con `CAST(TRIM(... ) AS INTEGER)` para compatibilidad con Teradata.
+
+
+### Total aportantes (mensual, columna C; sin filtro de entidad)
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_COTIZANTES, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+### Aportantes por administradora (trimestral, hoja `aportantes`; con filtro por entidad)
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_COTIZANTES, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND CODIGO_ENTIDAD = ?
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+El proceso ejecuta esta consulta para las AFP del trimestral: Colfondos (`10`), Porvenir (`3`), Protección (`2`) y Skandia (`9`).
+
+### Total aportantes semestral (fila 11; sin filtro de entidad)
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_COTIZANTES, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+
+### Concentración de afiliados/personas (mensual, columna Q)
+
+La concentración de afiliados cuenta personas. Se diferencia de la concentración de saldos/fondos administrados usada en otros indicadores, por ejemplo la fila 47 del semestral.
+
+Total del sistema:
+```sql
+SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_TOTAL, 0)), 0)
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
+```
+
+Afiliados por entidad para determinar las dos AFP con más afiliados:
+```sql
+SELECT CODIGO_ENTIDAD,
+       COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_TOTAL, 0)), 0) AS AFILIADOS
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000')
+GROUP BY CODIGO_ENTIDAD;
+```
+
+La aplicación ordena estas entidades por `AFILIADOS`, suma las dos mayores y calcula:
+
+```text
+concentracion_afiliados = afiliados_top_2_afp / afiliados_total_sistema * 100
+```

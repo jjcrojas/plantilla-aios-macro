@@ -26,10 +26,12 @@ public class TrimestralDataReader {
     private static final Logger log = LoggerFactory.getLogger(TrimestralDataReader.class);
     private final MensualDataReader mensualDataReader;
     private final InsumosLocator locator;
+    private final Formato491QueryService formato491QueryService;
 
-    public TrimestralDataReader(MensualDataReader mensualDataReader, InsumosLocator locator) {
+    public TrimestralDataReader(MensualDataReader mensualDataReader, InsumosLocator locator, Formato491QueryService formato491QueryService) {
         this.mensualDataReader = mensualDataReader;
         this.locator = locator;
+        this.formato491QueryService = formato491QueryService;
     }
 
     public TrimestralData read(LocalDate fechaCorte) {
@@ -39,7 +41,7 @@ public class TrimestralDataReader {
     public TrimestralData read(LocalDate fechaCorte, MensualData mensual) {
 
         Map<String, BigDecimal> afiliados = readAfiliadosFrom491(fechaCorte);
-        Map<String, BigDecimal> aportantes = readCotizantesFrom491(fechaCorte);
+        Map<String, BigDecimal> aportantes = formato491QueryService.leerAportantesPorEntidad(fechaCorte);
         Map<String, BigDecimal> traspasos = readTraspasosFrom493(fechaCorte);
         Map<String, BigDecimal> colombiaUsd = readColombiaUsd(fechaCorte, mensual.trm());
         Map<String, BigDecimal> gastosUsd = readGastosUsd(fechaCorte, mensual.trm());
