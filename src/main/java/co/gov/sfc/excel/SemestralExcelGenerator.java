@@ -264,15 +264,15 @@ public class SemestralExcelGenerator {
 
         java.util.Map<Integer, String> explicaciones = new java.util.LinkedHashMap<>();
         explicaciones.put(3, "valor = mensual.afiliadosActivos(); fuente=Query Teradata PROD_DWH_CONSULTA.FORMATO491 (RENGLON=999, SUM(TOTAL_AFILIADOS_ACTIVOS_TOTAL), fondos 1000/5000/6000/7000/8000).");
-        explicaciones.put(4, "valor = (mensual.afiliadosMenor30() / mensual.afiliados()) * 100; afiliadosMenor30=Query Teradata (regla subcuenta/unidad captura)=" + mensual.afiliadosMenor30() + ", afiliados=fila 3=" + mensual.afiliados() + ".");
-        explicaciones.put(5, "valor = (mensual.afiliados30a44() / mensual.afiliados()) * 100; afiliados30a44=Query Teradata (regla subcuenta/unidad captura)=" + mensual.afiliados30a44() + ", afiliados=fila 3=" + mensual.afiliados() + ".");
-        explicaciones.put(6, "valor = (mensual.afiliados45a59() / mensual.afiliados()) * 100; afiliados45a59=Query Teradata (regla subcuenta/unidad captura)=" + mensual.afiliados45a59() + ", afiliados=fila 3=" + mensual.afiliados() + ".");
-        explicaciones.put(7, "valor = (mensual.afiliadosMayor60() / mensual.afiliados()) * 100; afiliadosMayor60=Query Teradata (regla subcuenta/unidad captura)=" + mensual.afiliadosMayor60() + ", afiliados=fila 3=" + mensual.afiliados() + ".");
+        explicaciones.put(4, "valor = (mensual.afiliadosMenor30() / mensual.afiliados()) * 100; afiliadosMenor30=Query Teradata (regla subcuenta/unidad captura)=" + mensual.afiliadosMenor30() + ", afiliadosTotalQuery=" + mensual.afiliados() + ".");
+        explicaciones.put(5, "valor = (mensual.afiliados30a44() / mensual.afiliados()) * 100; afiliados30a44=Query Teradata (regla subcuenta/unidad captura)=" + mensual.afiliados30a44() + ", afiliadosTotalQuery=" + mensual.afiliados() + ".");
+        explicaciones.put(6, "valor = (mensual.afiliados45a59() / mensual.afiliados()) * 100; afiliados45a59=Query Teradata (regla subcuenta/unidad captura)=" + mensual.afiliados45a59() + ", afiliadosTotalQuery=" + mensual.afiliados() + ".");
+        explicaciones.put(7, "valor = (mensual.afiliadosMayor60() / mensual.afiliados()) * 100; afiliadosMayor60=Query Teradata (regla subcuenta/unidad captura)=" + mensual.afiliadosMayor60() + ", afiliadosTotalQuery=" + mensual.afiliados() + ".");
         explicaciones.put(8, "valor fijo = 100; representa el total porcentual de rangos de edad.");
-        explicaciones.put(9, "valor = mensual.afiliados() / 1000; afiliados=fila 3=" + mensual.afiliados() + ".");
-        explicaciones.put(10, "valor = (mensual.mujeres() / mensual.afiliados()) * 100; mujeres=Excel 491 informe de prensa D11=" + mensual.mujeres() + ", afiliados=fila 3=" + mensual.afiliados() + ".");
+        explicaciones.put(9, "valor = mensual.afiliados() / 1000; afiliadosTotalQuery=" + mensual.afiliados() + ".");
+        explicaciones.put(10, "valor = (mensual.mujeres() / mensual.afiliados()) * 100; mujeres=Excel 491 informe de prensa D11=" + mensual.mujeres() + ", afiliadosTotalQuery=" + mensual.afiliados() + ".");
         explicaciones.put(11, "valor = mensual.aportantesSemestral(); fuente=Query Teradata PROD_DWH_CONSULTA.FORMATO491 (RENGLON=999, SUM(TOTAL_AFILIADOS_COTIZANTES), fondos 1000/5000/6000/7000/8000), aportantes=" + mensual.aportantesSemestral() + ".");
-        explicaciones.put(12, "valor = (mensual.afiliados() / mensual.pea()) * 100; afiliados del formato 491 ruta=" + formato491 + "; PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(12, "valor = (mensual.afiliados() / mensual.pea()) * 100; afiliados por query Teradata Formato491; PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(13, "valor = (mensual.aportantesSemestral() / mensual.pea()) * 100; aportantes por query Teradata sin filtro de CODIGO_ENTIDAD y PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(14, "valor = (mensual.aportantesSemestral() / mensual.afiliados()) * 100; aportantes por query Teradata sin filtro de CODIGO_ENTIDAD y afiliados por query Teradata.");
         explicaciones.put(15, "valor = salario mínimo Colombia en COP / TRM; salario mínimo desde formato 491 hoja SM COLOMBIA celda E8 ruta=" + formato491 + "; TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
@@ -282,7 +282,7 @@ public class SemestralExcelGenerator {
         explicaciones.put(19, "valor = por Entidad!BJ62 / fila 16; BJ62 es pensionados por sobrevivencia del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
         explicaciones.put(25, "valor = Formato 493 hoja Fallecidos celda M11 / 1000; antes de evaluar la fórmula se escribe fechaCorte en B11 y D4=99 para tomar el total del sistema; ruta=" + formato493 + ".");
         explicaciones.put(26, "valor = mensual.traspasosSistema(); total de traspasos del sistema leído por MensualDataReader desde los insumos de movimiento/formato 493 y trimestral cuando aplica.");
-        explicaciones.put(27, "valor = mensual.traspasosSistema() / mensual.afiliados(); traspasos del sistema dividido entre afiliados del formato 491 ruta=" + formato491 + ".");
+        explicaciones.put(27, "valor = mensual.traspasosSistema() / mensual.afiliados(); traspasos del sistema dividido entre afiliados por query Teradata Formato491.");
         explicaciones.put(28, "valor = mensual.fondoSistemaJ14() * 1000 / mensual.trm() / 1,000,000; fondoSistemaJ14 proviene de SISTEMA TOTAL hoja restot celda J14 ruta=" + sistemaTotal + "; TRM de PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(29, "valor = fila 28 / (mensual.pibSemestral() / mensual.trm()); PIB semestral y TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(30, "valor = mensual.total1() / mensual.trm(); total1 desde límites/composición leída por MensualDataReader; TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
@@ -319,10 +319,10 @@ public class SemestralExcelGenerator {
         explicaciones.put(61, "valor = (aportesRecibidos136 / TRM) / (mensual.aportantesSemestral() / 1000) * 1000; aportesRecibidos136 desde Formato 136 hoja FORMATO OBL configurando C7 con el día 1 del mismo mes un año antes del corte, D6 y D7 con la fecha de corte, ruta=" + formato136 + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(62, "valor = cuentas.gastos() / (aportesRecibidos136 / TRM) * 100; gastos desde CUENTAS ruta=" + plantillaAios + "; aportes desde Formato 136 ruta=" + formato136 + ".");
         explicaciones.put(63, "valor = (patrimonioBaseMesMMCop / TRM) / fila 28 * 100; patrimonio base_mes desde Plantilla AIOS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(64, "valor = patrimonioUsd / mensual.afiliados() * 1,000,000; patrimonioUsd=(activos-pasivos)/TRM desde CUENTAS ruta=" + plantillaAios + " y afiliados desde formato 491 ruta=" + formato491 + ".");
+        explicaciones.put(64, "valor = patrimonioUsd / mensual.afiliados() * 1,000,000; patrimonioUsd=(activos-pasivos)/TRM desde CUENTAS ruta=" + plantillaAios + " y afiliados por query Teradata Formato491.");
         explicaciones.put(65, "valor = cuentas.resultadoNeto() / cuentas.comisiones() * 100; ambos operandos desde Plantilla AIOS hoja CUENTAS ruta=" + plantillaAios + ".");
         explicaciones.put(66, "valor = cuentas.resultadoNeto() / patrimonioUsd * 100; resultado neto desde CUENTAS ruta=" + plantillaAios + " y patrimonioUsd=(activos-pasivos)/TRM.");
-        explicaciones.put(67, "valor = cuentas.gastos() / mensual.afiliados() * 1,000,000; gastos desde CUENTAS ruta=" + plantillaAios + "; afiliados desde formato 491 ruta=" + formato491 + ".");
+        explicaciones.put(67, "valor = cuentas.gastos() / mensual.afiliados() * 1,000,000; gastos desde CUENTAS ruta=" + plantillaAios + "; afiliados por query Teradata Formato491.");
         explicaciones.put(68, "valor = cuentas.comisiones() / mensual.aportantesSemestral() * 1,000,000; comisiones desde CUENTAS ruta=" + plantillaAios + "; aportantes semestrales desde query Teradata.");
         explicaciones.put(69, "valor = cuentas.admon() / fila 61; administración desde CUENTAS ruta=" + plantillaAios + " y fila 61 calculada con Formato 136 ruta=" + formato136 + ".");
         explicaciones.put(70, "valor fijo = 16; no usa insumo externo.");
