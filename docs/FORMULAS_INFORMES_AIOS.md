@@ -16,8 +16,8 @@
 
 | Columna destino | Fórmula / dato | Fuente, hoja y celda | Unidad escrita |
 |---:|---|---|---|
-| B | `afiliados = hombres + mujeres` | Formato 491, `informe de prensa`, `C11 + D11` | Valor crudo (personas) |
-| C | `aportantes` | Formato 491, `multifondos`, `E25` | Valor crudo (personas) |
+| B | `afiliados` | Query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491` (`RENGLON=999`, suma `TOTAL_AFILIADOS_TOTAL`, fondos 1000/5000/6000/7000/8000) | Valor crudo (personas) |
+| C | `aportantes` | Query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491` (`RENGLON=999`, suma `TOTAL_AFILIADOS_COTIZANTES`, fondos 1000/5000/6000/7000/8000, sin filtro por `CODIGO_ENTIDAD`) | Valor crudo (personas) |
 | D | `traspasosSistema` | Formato 493, `Traslados Entre AFP`, `BQ11` | Valor crudo |
 | E | `vrFondo / TRM` | `SISTEMA TOTAL`, hoja `restot`, total sistema; TRM de `PIB_PEA_TRM_DG` | USD |
 | F | `total1 / TRM` | `LIMITES`, hoja `AIOS`, `AB4`; TRM de `PIB_PEA_TRM_DG` | USD |
@@ -31,7 +31,7 @@
 | N | `tmpNominal1 * 100` | `Rent_Vr_Uni_Moderado`, primera hoja, `D11` | Porcentaje |
 | O | `tmpReal1 * 100` | `Rent_Vr_Uni_Moderado`, primera hoja, `D10` | Porcentaje |
 | P | `4` | Constante | Valor crudo |
-| Q | `consFdosAdmon` | Formato 491, `multifondos`, cálculo con `J8`, `J9`, `J12` | Valor crudo / ratio según plantilla |
+| Q | `consFdosAdmon` | Query Teradata Formato 491: concentración de afiliados/personas = dos AFP con más `TOTAL_AFILIADOS_TOTAL` / total sistema | Porcentaje |
 | R | `porcVrFondo` | `SISTEMA TOTAL`, `restot`, `(Protección + Porvenir) / Sistema` | Ratio / porcentaje según plantilla |
 | S | `TRM` | `PIB_PEA_TRM_DG`, último valor aplicable a la fecha de corte | COP por USD |
 
@@ -41,8 +41,8 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 
 | Hoja | Fórmula / mapeo | Fuente principal | Unidad escrita |
 |---|---|---|---|
-| `afiliados` | Valores por fondo y administradora (`mod_*`, `con_*`, `mr_*`, combinaciones) | Formato 491 / archivos trimestrales de referencia | Valor crudo (personas) |
-| `aportantes` | `colf`, `porv`, `prot`, `sk` y ceros para entidades no aplicables | Formato 491 / datos trimestrales | Valor crudo (personas) |
+| `afiliados` | Valores por fondo y administradora (`mod_*`, `con_*`, `mr_*`, combinaciones) | Query Teradata sobre Formato 491 (`TOTAL_AFILIADOS_TOTAL`, `RENGLON=999`, filtros por `CODIGO_ENTIDAD`, fondo y unidad de captura) | Valor crudo (personas) |
+| `aportantes` | `colf`, `porv`, `prot`, `sk` y ceros para entidades no aplicables | Query Teradata Formato 491 filtrada por `CODIGO_ENTIDAD` para cada AFP: 10, 3, 2 y 9 | Valor crudo (personas) |
 | `colombia` | Saldos por fondo/administradora, con agregados como `mod_sk + mod_alt` | `SISTEMA TOTAL` y datos de fondos | USD o MM USD según plantilla |
 | `traspasos` | Traspasos por administradora | Formato 493 | Valor crudo |
 | `gastos` | `gastoNetoCOP / TRM` | Base anual / cuentas de gasto; TRM de `PIB_PEA_TRM_DG` | USD |
@@ -54,26 +54,26 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 
 | Fila | Fórmula / dato | Fuente, hoja y celda | Unidad escrita |
 |---:|---|---|---|
-| 3 | `afiliados = hombres + mujeres` | Formato 491, `informe de prensa`, `C11 + D11` | Valor crudo (personas) |
-| 4 | `(afiliadosMenor30 / afiliados) * 100` | Formato 491, `informe de prensa`, `C81 + D81`; fila 3 | Porcentaje |
-| 5 | `(afiliados30a44 / afiliados) * 100` | Formato 491, `informe de prensa`, `C82 + D82`; fila 3 | Porcentaje |
-| 6 | `(afiliados45a59 / afiliados) * 100` | Formato 491, `informe de prensa`, `C83 + D83`; fila 3 | Porcentaje |
-| 7 | `(afiliadosMayor60 / afiliados) * 100` | Formato 491, `informe de prensa`, `C84 + D84`; fila 3 | Porcentaje |
+| 3 | `afiliados activos` | Query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491` (`RENGLON=999`, suma `TOTAL_AFILIADOS_ACTIVOS_TOTAL`, fondos 1000/5000/6000/7000/8000) | Valor crudo (personas) |
+| 4 | `(afiliadosMenor30 / afiliados) * 100` | Query Teradata Formato 491 con reglas de subcuenta/unidad de captura; denominador = total afiliados (`RENGLON=999`) | Porcentaje |
+| 5 | `(afiliados30a44 / afiliados) * 100` | Query Teradata Formato 491 con reglas de subcuenta/unidad de captura; denominador = total afiliados (`RENGLON=999`) | Porcentaje |
+| 6 | `(afiliados45a59 / afiliados) * 100` | Query Teradata Formato 491 con reglas de subcuenta/unidad de captura; denominador = total afiliados (`RENGLON=999`) | Porcentaje |
+| 7 | `(afiliadosMayor60 / afiliados) * 100` | Query Teradata Formato 491 con reglas de subcuenta/unidad de captura; denominador = total afiliados (`RENGLON=999`) | Porcentaje |
 | 8 | `100` | Constante | Porcentaje |
-| 9 | `afiliados / 1000` | Formato 491; fila 3 | Miles de personas |
-| 10 | `(mujeres / afiliados) * 100` | Formato 491, `informe de prensa`, `D11`; fila 3 | Porcentaje |
-| 11 | `aportantes` | Formato 491, `multifondos`, `E25` | Valor crudo (personas) |
-| 12 | `(afiliados / PEA) * 100` | Afiliados de Formato 491; PEA de `PIB_PEA_TRM_DG` | Porcentaje |
-| 13 | `(aportantes / PEA) * 100` | Aportantes de Formato 491; PEA de `PIB_PEA_TRM_DG` | Porcentaje |
-| 14 | `(aportantes / afiliados) * 100` | Formato 491 | Porcentaje |
-| 15 | `salario mínimo Colombia COP / TRM` | Formato 491, hoja `SM COLOMBIA`, `E8`; TRM de `PIB_PEA_TRM_DG` | USD |
+| 9 | `afiliados / 1000` | Afiliados totales por query Teradata Formato 491 (`TOTAL_AFILIADOS_TOTAL`, `RENGLON=999`) | Miles de personas |
+| 10 | `(mujeres / afiliados) * 100` | Query Teradata Formato 491 (`SUM(TOTAL_AFILIADOS_M)`, `RENGLON=999`, fondos 1000/5000/6000/7000/8000); denominador = total afiliados por query | Porcentaje |
+| 11 | `aportantes` | Query Teradata sobre Formato 491 (`SUM(TOTAL_AFILIADOS_COTIZANTES)`, `RENGLON=999`, fondos 1000/5000/6000/7000/8000, sin filtro por `CODIGO_ENTIDAD`) | Valor crudo (personas) |
+| 12 | `(afiliados / PEA) * 100` | Afiliados totales por query Teradata Formato 491; PEA de `PIB_PEA_TRM_DG` | Porcentaje |
+| 13 | `(aportantes / PEA) * 100` | Aportantes por query Teradata del Formato 491; PEA de `PIB_PEA_TRM_DG` | Porcentaje |
+| 14 | `(aportantes / afiliados) * 100` | Aportantes y afiliados por query Teradata del Formato 491 | Porcentaje |
+| 15 | `salario mínimo ponderado COP / TRM` | Query Teradata Formato 491 para IBC ponderado con salario oficial de `SalarioMinimo.csv`; TRM de `PIB_PEA_TRM_DG` | USD |
 | 16 | `total pensionados` | Formato 495, `TOTAL PENSIONADOS`, parámetro `B4`, valor en columna `I` para la fecha | Valor crudo (personas) |
 | 17 | `por Entidad!BI62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BI62` | Ratio / porcentaje |
 | 18 | `por Entidad!BH62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BH62` | Ratio / porcentaje |
 | 19 | `por Entidad!BJ62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BJ62` | Ratio / porcentaje |
 | 25 | `Formato 493!M11 / 1000` | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Fallecidos`; se escribe la fecha de corte en `B11`, `D4=99`, y se toma `M11` | Miles |
 | 26 | `traspasosSistema` | Formato 493 / lector mensual | Valor crudo |
-| 27 | `traspasosSistema / afiliados` | Formato 493 y Formato 491 | Porcentaje (formato Excel) |
+| 27 | `traspasosSistema / afiliados` | Traspasos de Formato 493 y afiliados totales por query Teradata Formato 491 | Porcentaje (formato Excel) |
 | 28 | `(fondoSistemaJ14 * 1000 / TRM) / 1,000,000` | `SISTEMA TOTAL`, `restot`, `J14`; TRM de `PIB_PEA_TRM_DG` | MM USD |
 | 29 | `fila28 / (pibSemestral / TRM)` | PIB semestral y TRM de `PIB_PEA_TRM_DG` | Ratio / porcentaje |
 | 30 | `total1 / TRM` | `LIMITES`, hoja `AIOS`, total equivalente; TRM | USD |
@@ -107,14 +107,14 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 | 58 | `(C21 + C22) / TRM` | `Plantilla AIOS-probable`, hoja `cuentas`, cuentas `511500` y `511527`; TRM | USD |
 | 59 | `(C24 + C28 + C29 + C31 + C32 + C33 + C34 + C35 + C36 + C37 + C38) / TRM` | `Plantilla AIOS-probable`, hoja `cuentas`, cuentas `512000`, `513000`, `513500`, `514000`, `514500`, `515000`, `515500`, `516000`, `516500`, `517000`, `517200`; TRM | USD |
 | 60 | `C15 / TRM` | `Plantilla AIOS-probable`, hoja `cuentas`, cuenta `510000`, celda `C15`; TRM | USD |
-| 61 | `(aportesRecibidos136 / TRM) / (aportantes / 1000) * 1000` | `Formato_136_Meses`, hoja `FORMATO OBL`, parámetros `C7`, `D6`, `D7`, resultado `G6`; aportantes de Formato 491; TRM | USD por mil aportantes |
+| 61 | `(aportesRecibidos136 / TRM) / (aportantes / 1000) * 1000` | `Formato_136_Meses`, hoja `FORMATO OBL`, parámetros `C7`, `D6`, `D7`, resultado `G6`; aportantes por query Teradata Formato 491; TRM | USD por mil aportantes |
 | 62 | `gastos / (aportesRecibidos136 / TRM) * 100` | Gastos de `CUENTAS`; aportes de Formato 136; TRM | Porcentaje |
 | 63 | `(patrimonioBaseMesMMCop / TRM) / fila28 * 100` | `Plantilla AIOS-probable`, base mes; TRM; fila 28 | Porcentaje |
-| 64 | `patrimonioUsd / afiliados * 1,000,000` | Fila 50 y afiliados de Formato 491 | USD por afiliado |
+| 64 | `patrimonioUsd / afiliados * 1,000,000` | Fila 50 y afiliados totales por query Teradata Formato 491 | USD por afiliado |
 | 65 | `resultadoNeto / comisiones * 100` | `CUENTAS`, filas 54 y 51 | Porcentaje |
 | 66 | `resultadoNeto / patrimonioUsd * 100` | `CUENTAS` y fila 50 | Porcentaje |
-| 67 | `gastos / afiliados * 1,000,000` | `CUENTAS` y Formato 491 | Valor por afiliado |
-| 68 | `comisiones / aportantes * 1,000,000` | `CUENTAS` y Formato 491 | Valor por aportante |
+| 67 | `gastos / afiliados * 1,000,000` | `CUENTAS` y afiliados totales por query Teradata Formato 491 | Valor por afiliado |
+| 68 | `comisiones / aportantes * 1,000,000` | `CUENTAS` y aportantes por query Teradata Formato 491 | Valor por aportante |
 | 69 | `admon / fila61` | `CUENTAS` y fila 61 | Ratio |
 | 70 | `16` | Constante | Valor crudo |
 | 71 | `promedio(col_obl, por_obl, pro_obl, ska_obl) * 100` | `TrimestralData.comisionesPct` | Porcentaje |
@@ -502,11 +502,11 @@ $$
 \text{Referencia} = 4
 $$
 
-#### Columna Q: Concentración de fondos administrados
+#### Columna Q: Concentración de afiliados (personas)
 
 **¿Qué representa?**
 
-La columna Q del archivo mensual corresponde a un indicador de concentración construido desde multifondos.
+La columna Q del archivo mensual corresponde a la concentración de afiliados, es decir, personas afiliadas. Se calcula con query sobre `PROD_DWH_CONSULTA.FORMATO491`, no con el Excel 491.
 
 **Interpretación**
 
@@ -515,7 +515,7 @@ Mide peso relativo de fondos/administradoras seleccionadas dentro del sistema.
 **Fórmula conceptual**
 
 $$
-\text{Concentración} = \text{Indicador calculado desde multifondos}
+\text{Concentración afiliados} = \frac{\text{Afiliados de las dos AFP con más afiliados}}{\text{Afiliados totales del sistema}} \times 100
 $$
 
 #### Columna R: Participación Protección + Porvenir (%)
@@ -556,7 +556,7 @@ $$
 
 **¿Qué representa?**
 
-La hoja `afiliados` del archivo trimestral corresponde al número de afiliados distribuido por administradora y tipo de fondo.
+La hoja `afiliados` del archivo trimestral corresponde al número de afiliados distribuido por administradora y tipo de fondo. Desde la migración a Teradata, estos valores no dependen del Excel local del Formato 491; se consultan desde `PROD_DWH_CONSULTA.FORMATO491` con `RENGLON = 999`, códigos de entidad de AFP y reglas de unidad de captura/tipo de fondo equivalentes a la hoja `multifondos`.
 
 **Interpretación**
 
@@ -704,7 +704,7 @@ $$
 \text{Fila 3} = \text{mensual.afiliados}
 $$
 
-Se obtiene desde Formato 491, hoja `informe de prensa`, sumando hombres y mujeres.
+Se obtiene desde query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, sumando `TOTAL_AFILIADOS_TOTAL` para `RENGLON=999` y fondos 1000/5000/6000/7000/8000.
 
 #### Fila 4: Afiliados menores de 30 años (%)
 
@@ -728,7 +728,7 @@ $$
 \text{Fila 4} = \frac{\text{mensual.afiliadosMenor30}}{\text{mensual.afiliados}} \times 100
 $$
 
-Los afiliados menores de 30 provienen de Formato 491, `informe de prensa`, celdas `C81 + D81`.
+Los afiliados menores de 30 provienen de query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, con las reglas de subcuenta y unidad de captura documentadas para el rango de edad.
 
 #### Fila 5: Afiliados de 30 a 44 años (%)
 
@@ -752,7 +752,7 @@ $$
 \text{Fila 5} = \frac{\text{mensual.afiliados30a44}}{\text{mensual.afiliados}} \times 100
 $$
 
-El numerador proviene de Formato 491, `informe de prensa`, celdas `C82 + D82`.
+El numerador proviene de query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, usando las subcuentas/unidades de captura parametrizadas para el rango de 30 a 44 años.
 
 #### Fila 6: Afiliados de 45 a 59 años (%)
 
@@ -776,7 +776,7 @@ $$
 \text{Fila 6} = \frac{\text{mensual.afiliados45a59}}{\text{mensual.afiliados}} \times 100
 $$
 
-El numerador proviene de Formato 491, `informe de prensa`, celdas `C83 + D83`.
+El numerador proviene de query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, usando las subcuentas/unidades de captura parametrizadas para el rango de 45 a 59 años.
 
 #### Fila 7: Afiliados mayores de 60 años (%)
 
@@ -800,7 +800,7 @@ $$
 \text{Fila 7} = \frac{\text{mensual.afiliadosMayor60}}{\text{mensual.afiliados}} \times 100
 $$
 
-El numerador proviene de Formato 491, `informe de prensa`, celdas `C84 + D84`.
+El numerador proviene de query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, usando las subcuentas/unidades de captura parametrizadas para mayores de 60 años.
 
 #### Fila 8: Total de distribución por edad
 
@@ -872,7 +872,7 @@ $$
 \text{Fila 10} = \frac{\text{mensual.mujeres}}{\text{mensual.afiliados}} \times 100
 $$
 
-Mujeres se lee de Formato 491, `informe de prensa`, celda `D11`.
+Mujeres se lee por query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, sumando `TOTAL_AFILIADOS_M` para `RENGLON = '999'` y los fondos obligatorios `1000`, `5000`, `6000`, `7000` y `8000`. El denominador `mensual.afiliados` usa el total de afiliados por query (`SUM(TOTAL_AFILIADOS_TOTAL)`) con los mismos filtros.
 
 #### Fila 11: Aportantes
 
@@ -896,7 +896,7 @@ $$
 \text{Fila 11} = \text{mensual.aportantes}
 $$
 
-Se lee desde Formato 491, hoja `multifondos`, celda `E25`.
+Se lee por query Teradata desde `PROD_DWH_CONSULTA.FORMATO491`, sumando `TOTAL_AFILIADOS_COTIZANTES` para `RENGLON=999`, fondos 1000/5000/6000/7000/8000 y sin filtro por `CODIGO_ENTIDAD` en el semestral.
 
 #### Fila 12: Afiliados / PEA (%)
 
@@ -944,7 +944,7 @@ $$
 \text{Fila 13} = \frac{\text{mensual.aportantes}}{\text{mensual.pea}} \times 100
 $$
 
-Combina aportantes de Formato 491 con PEA de `PIB_PEA_TRM_DG`.
+Combina aportantes por query Teradata del Formato 491 con PEA de `PIB_PEA_TRM_DG`.
 
 #### Fila 14: Aportantes / afiliados (%)
 
@@ -968,7 +968,7 @@ $$
 \text{Fila 14} = \frac{\text{mensual.aportantes}}{\text{mensual.afiliados}} \times 100
 $$
 
-Ambos operandos provienen del lector mensual basado principalmente en Formato 491.
+Los aportantes y afiliados provienen de queries Teradata del Formato 491.
 
 #### Fila 15: Salario mínimo en USD
 
@@ -992,7 +992,7 @@ $$
 \text{Fila 15} = \text{mensual.smColombiaUsd}
 $$
 
-El salario mínimo se toma de Formato 491, hoja `SM COLOMBIA`, celda `E8`; la TRM de `PIB_PEA_TRM_DG`.
+El salario mínimo ponderado en COP ya no se toma de la celda `E8` del Excel del Formato 491. La aplicación lee el salario mínimo oficial del año desde `SalarioMinimo.csv` y ejecuta una consulta a `PROD_DWH_CONSULTA.FORMATO491` que pondera los afiliados por rangos de IBC (`1`, `2`, `3`, `4`, `8`, `12`, `16`, `20` y `25` salarios mínimos) con las reglas de `UNIDAD_CAPTURA` y fondo indicadas para moderado, conservador y mayor riesgo. La TRM continúa saliendo de `PIB_PEA_TRM_DG`.
 
 #### Fila 16: Pensionados totales
 
@@ -1622,7 +1622,7 @@ Es una constante.
 
 **¿Qué representa la fila 47?**
 
-La fila 47 corresponde a la participación conjunta de Protección y Porvenir sobre el total del sistema.
+La fila 47 corresponde a la participación conjunta de Protección y Porvenir sobre el total del sistema. A diferencia de la columna Q mensual, esta fila no mide concentración de afiliados/personas sino concentración sobre saldos/fondos administrados según la fuente `SISTEMA TOTAL`.
 
 **Interpretación económica u operativa**
 

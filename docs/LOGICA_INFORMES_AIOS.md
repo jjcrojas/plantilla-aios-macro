@@ -21,7 +21,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 
 | Insumo | Uso principal | Hojas/celdas destacadas |
 |---|---|---|
-| `Serie_Formato_ 491 AFILIADOS AFP.xlsm` | Afiliados, aportantes, género, edades, salario mínimo y datos de multifondos. | `informe de prensa`: `C11`, `D11`, `C81:D84`; `multifondos`: `E25`, `J8:J12`; `SM COLOMBIA`: `E8`. |
+| `Serie_Formato_ 491 AFILIADOS AFP.xlsm` | Ya no se requiere para los agregados migrados del Formato 491. Afiliados mensuales, mujeres afiliadas, afiliados activos, edades, aportantes, concentración, salario mínimo ponderado y afiliados trimestrales por fondo se consultan o calculan con Teradata. | No aplica para los campos migrados; se conserva solo como referencia histórica/integración si se requiere validar manualmente. |
 | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx` | Traspasos y movimiento de afiliados. | `Traslados Entre AFP`: `BQ11` para traspasos del sistema y rangos equivalentes para mapas trimestrales; `Fallecidos`: `M11 / 1000` para la fila 25 después de escribir la fecha de corte en `B11` y `D4=99`. |
 | `SISTEMA TOTAL` | Fondos administrados, composición y participación de entidades. | Hoja `restot`: `J14`, `C14`, `D14` y otros valores por administradora/fondo. |
 | `LIMITES` | Límites de inversión locales y del exterior. | Hoja `AIOS`: `AB4`, `C4`, `E4`, `G4`, `I4`, `K4`, `O4`, `Q4`, `S4`, `U4`, `W4`, `Y4`, `AA4`. |
@@ -31,6 +31,41 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 | `Plantilla AIOS-probable.xlsm` | Datos contables de cuentas, activos/pasivos, patrimonio y resultados. | Hoja `CUENTAS`: `C4`, `C6`, `C15`, `C21`, `C22`, `C24`, `C28`, `C29`, `C31:C38`, `E13`, `G15`, `E41`, `E44`, `H24`. |
 | `Rent_Vr_Uni_Moderado.xlsm` | IPC y rentabilidad real/nominal cuando aplica fallback. | Hojas o series de IPC/rentabilidad moderada. |
 | `Valores_Fondo_Moder` / `MODERADO` | NAV histórico para rentabilidades semestrales. | Series de valor de unidad/NAV por fecha. |
+
+
+## 3.1 Conexión a Teradata (para queries de Formato 491)
+
+Desde esta versión, el proceso también consulta Teradata para obtener agregados del Formato 491 (afiliados totales, mujeres afiliadas, afiliados activos, aportantes, concentración de afiliados/personas, grupos de edad y salario mínimo ponderado para la fila 15 semestral).
+
+La conexión se configura con un namespace exclusivo de esta aplicación. No se
+usan propiedades `spring.datasource.*`, porque Spring puede sobrescribirlas con
+variables globales como `SPRING_DATASOURCE_URL` pertenecientes a otra
+aplicación.
+
+Propiedades relevantes en `application.properties`:
+
+- `aios.datasource.url=jdbc:teradata://10.40.176.8/DATABASE=prod_dwh_consulta,LOGMECH=LDAP`
+- `aios.datasource.driver-class-name=com.teradata.jdbc.TeraDriver`
+- `aios.datasource.username=${AIOS_DB_USER:}`
+- `aios.datasource.password=${AIOS_PASS:}`
+
+Pool Hikari (opcionales):
+
+- `AIOS_DB_POOL_MAX_SIZE`
+- `AIOS_DB_POOL_MIN_IDLE`
+- `AIOS_DB_CONNECTION_TIMEOUT_MS`
+- `AIOS_DB_VALIDATION_TIMEOUT_MS`
+- `AIOS_DB_INIT_FAIL_TIMEOUT_MS`
+
+Variables mínimas recomendadas para ambiente:
+
+- `AIOS_DB_USER`
+- `AIOS_PASS`
+
+`AiosDataSourceConfiguration` construye explícitamente el pool
+`AiosTeradataPool` a partir de `aios.datasource.*`. Por lo tanto, una variable
+global como `SPRING_DATASOURCE_URL=jdbc:oracle:...` no reemplaza la URL de
+Teradata utilizada por AIOS.
 
 ## 4. Flujo general del programa
 
@@ -77,14 +112,14 @@ El informe mensual usa `MensualDataReader` para leer los insumos base y `Mensual
 
 El boletín mensual combina:
 
-- **Valores crudos**: afiliados, aportantes, traspasos y TRM.
+- **Valores crudos**: afiliados y aportantes desde Teradata/Formato 491, traspasos y TRM desde sus insumos correspondientes.
 - **Valores monetarios en USD**: fondos administrados y total de límites se dividen por TRM.
 - **Porcentajes**: límites y rentabilidades se multiplican por 100 antes de escribirse.
 - **Constantes**: la columna mensual asociada al número fijo `4` no depende de insumos externos.
 
 ## 6. Lógica del informe trimestral
 
-El informe trimestral genera una nueva fila, o reutiliza una existente, en cada hoja de la plantilla trimestral. Cada hoja contiene un conjunto de columnas por administradora o fondo. Los datos se transportan en mapas (`Map<String, BigDecimal>`) con claves como `colf`, `porv`, `prot`, `sk`, `mod_colf`, `con_porv`, `mr_sk`, etc.
+El informe trimestral genera una nueva fila, o reutiliza una existente, en cada hoja de la plantilla trimestral. Cada hoja contiene un conjunto de columnas por administradora o fondo. Los datos se transportan en mapas (`Map<String, BigDecimal>`) con claves como `colf`, `porv`, `prot`, `sk`, `mod_colf`, `con_porv`, `mr_sk`, etc. La hoja `afiliados` usa query Teradata sobre Formato 491 en vez del Excel local `Serie_Formato_ 491 AFILIADOS AFP.xlsm`.
 
 Hojas escritas:
 
@@ -103,7 +138,7 @@ Hojas escritas:
 
 El informe semestral escribe filas específicas de una plantilla semestral. La columna destino se determina por la fecha de corte. La lógica agrupa los datos en bloques:
 
-1. **Afiliados, edades, aportantes, PEA y salario mínimo**: provienen principalmente de Formato 491 y PIB/PEA/TRM.
+1. **Afiliados, edades, aportantes, PEA y salario mínimo**: afiliados/edades/aportantes provienen de queries Teradata del Formato 491; el salario mínimo oficial se lee de `SalarioMinimo.csv` y el salario mínimo ponderado de la fila 15 se calcula con query Teradata; PEA/TRM se toman de sus fuentes correspondientes.
 2. **Pensionados**: usa Formato 495 para totales y composición por invalidez, vejez y sobrevivencia.
 3. **Movimiento de afiliados**: para la fila 25 parametriza `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Fallecidos`, con `B11 = fechaCorte` y `D4=99`, toma `M11` y divide el valor entre `1000`.
 4. **Fondos, PIB y deuda**: combina `SISTEMA TOTAL`, TRM, PIB y deuda gubernamental total de `PIB_PEA_TRM_DG`.
