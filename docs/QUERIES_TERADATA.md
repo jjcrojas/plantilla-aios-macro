@@ -1110,6 +1110,31 @@ WHERE FECBAL = ?
   AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000');
 ```
 
+### Afiliados por administradora y fondo (trimestral, hoja `afiliados`)
+```sql
+SELECT CODIGO_ENTIDAD,
+       CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) AS UNIDAD_CAPTURA_NUM,
+       SUBSTR(NUMERO_IDENTIFICACION, 9, 4) AS FONDO,
+       COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_TOTAL, 0)), 0) AS AFILIADOS
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL = ?
+  AND RENGLON = '999'
+  AND CODIGO_ENTIDAD IN (2, 3, 9, 10)
+  AND (
+      (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) = 1
+       AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000', '5000', '6000', '8000'))
+      OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) = 2
+          AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) = '5000')
+      OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) = 3
+          AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) = '5000')
+      OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) = 4
+          AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) = '1000')
+  )
+GROUP BY 1, 2, 3;
+```
+
+La aplicación mapea `CODIGO_ENTIDAD` a `colf` (10), `porv` (3), `prot` (2) y `sk` (9). Los fondos/unidades se traducen a `mod`, `con`, `mr`, `con_mod`, `con_mr`, `mod_mr` y `alt`; además `mod_sk_total = mod_sk + alt_sk` para conservar la estructura del boletín trimestral.
+
 ### Aportantes por administradora (trimestral, hoja `aportantes`; con filtro por entidad)
 ```sql
 SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_COTIZANTES, 0)), 0)

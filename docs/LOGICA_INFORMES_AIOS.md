@@ -21,7 +21,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 
 | Insumo | Uso principal | Hojas/celdas destacadas |
 |---|---|---|
-| `Serie_Formato_ 491 AFILIADOS AFP.xlsm` | Algunas lecturas trimestrales de afiliados por fondo aún usan el Excel. Los agregados mensuales/semestrales migrados —afiliados, mujeres afiliadas, afiliados activos, edades, aportantes, concentración de afiliados/personas y salario mínimo ponderado— se consultan o calculan con Teradata. | `multifondos` para afiliados por fondo trimestral cuando aplique. |
+| `Serie_Formato_ 491 AFILIADOS AFP.xlsm` | Ya no se requiere para los agregados migrados del Formato 491. Afiliados mensuales, mujeres afiliadas, afiliados activos, edades, aportantes, concentración, salario mínimo ponderado y afiliados trimestrales por fondo se consultan o calculan con Teradata. | No aplica para los campos migrados; se conserva solo como referencia histórica/integración si se requiere validar manualmente. |
 | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx` | Traspasos y movimiento de afiliados. | `Traslados Entre AFP`: `BQ11` para traspasos del sistema y rangos equivalentes para mapas trimestrales; `Fallecidos`: `M11 / 1000` para la fila 25 después de escribir la fecha de corte en `B11` y `D4=99`. |
 | `SISTEMA TOTAL` | Fondos administrados, composición y participación de entidades. | Hoja `restot`: `J14`, `C14`, `D14` y otros valores por administradora/fondo. |
 | `LIMITES` | Límites de inversión locales y del exterior. | Hoja `AIOS`: `AB4`, `C4`, `E4`, `G4`, `I4`, `K4`, `O4`, `Q4`, `S4`, `U4`, `W4`, `Y4`, `AA4`. |
@@ -119,7 +119,7 @@ El boletín mensual combina:
 
 ## 6. Lógica del informe trimestral
 
-El informe trimestral genera una nueva fila, o reutiliza una existente, en cada hoja de la plantilla trimestral. Cada hoja contiene un conjunto de columnas por administradora o fondo. Los datos se transportan en mapas (`Map<String, BigDecimal>`) con claves como `colf`, `porv`, `prot`, `sk`, `mod_colf`, `con_porv`, `mr_sk`, etc.
+El informe trimestral genera una nueva fila, o reutiliza una existente, en cada hoja de la plantilla trimestral. Cada hoja contiene un conjunto de columnas por administradora o fondo. Los datos se transportan en mapas (`Map<String, BigDecimal>`) con claves como `colf`, `porv`, `prot`, `sk`, `mod_colf`, `con_porv`, `mr_sk`, etc. La hoja `afiliados` usa query Teradata sobre Formato 491 en vez del Excel local `Serie_Formato_ 491 AFILIADOS AFP.xlsm`.
 
 Hojas escritas:
 

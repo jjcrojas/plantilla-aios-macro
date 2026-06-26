@@ -41,7 +41,7 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 
 | Hoja | Fórmula / mapeo | Fuente principal | Unidad escrita |
 |---|---|---|---|
-| `afiliados` | Valores por fondo y administradora (`mod_*`, `con_*`, `mr_*`, combinaciones) | Formato 491 / archivos trimestrales de referencia | Valor crudo (personas) |
+| `afiliados` | Valores por fondo y administradora (`mod_*`, `con_*`, `mr_*`, combinaciones) | Query Teradata sobre Formato 491 (`TOTAL_AFILIADOS_TOTAL`, `RENGLON=999`, filtros por `CODIGO_ENTIDAD`, fondo y unidad de captura) | Valor crudo (personas) |
 | `aportantes` | `colf`, `porv`, `prot`, `sk` y ceros para entidades no aplicables | Query Teradata Formato 491 filtrada por `CODIGO_ENTIDAD` para cada AFP: 10, 3, 2 y 9 | Valor crudo (personas) |
 | `colombia` | Saldos por fondo/administradora, con agregados como `mod_sk + mod_alt` | `SISTEMA TOTAL` y datos de fondos | USD o MM USD según plantilla |
 | `traspasos` | Traspasos por administradora | Formato 493 | Valor crudo |
@@ -556,7 +556,7 @@ $$
 
 **¿Qué representa?**
 
-La hoja `afiliados` del archivo trimestral corresponde al número de afiliados distribuido por administradora y tipo de fondo.
+La hoja `afiliados` del archivo trimestral corresponde al número de afiliados distribuido por administradora y tipo de fondo. Desde la migración a Teradata, estos valores no dependen del Excel local del Formato 491; se consultan desde `PROD_DWH_CONSULTA.FORMATO491` con `RENGLON = 999`, códigos de entidad de AFP y reglas de unidad de captura/tipo de fondo equivalentes a la hoja `multifondos`.
 
 **Interpretación**
 
@@ -728,7 +728,7 @@ $$
 \text{Fila 4} = \frac{\text{mensual.afiliadosMenor30}}{\text{mensual.afiliados}} \times 100
 $$
 
-Los afiliados menores de 30 provienen de Formato 491, `informe de prensa`, celdas `C81 + D81`.
+Los afiliados menores de 30 provienen de query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, con las reglas de subcuenta y unidad de captura documentadas para el rango de edad.
 
 #### Fila 5: Afiliados de 30 a 44 años (%)
 
@@ -752,7 +752,7 @@ $$
 \text{Fila 5} = \frac{\text{mensual.afiliados30a44}}{\text{mensual.afiliados}} \times 100
 $$
 
-El numerador proviene de Formato 491, `informe de prensa`, celdas `C82 + D82`.
+El numerador proviene de query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, usando las subcuentas/unidades de captura parametrizadas para el rango de 30 a 44 años.
 
 #### Fila 6: Afiliados de 45 a 59 años (%)
 
@@ -776,7 +776,7 @@ $$
 \text{Fila 6} = \frac{\text{mensual.afiliados45a59}}{\text{mensual.afiliados}} \times 100
 $$
 
-El numerador proviene de Formato 491, `informe de prensa`, celdas `C83 + D83`.
+El numerador proviene de query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, usando las subcuentas/unidades de captura parametrizadas para el rango de 45 a 59 años.
 
 #### Fila 7: Afiliados mayores de 60 años (%)
 
@@ -800,7 +800,7 @@ $$
 \text{Fila 7} = \frac{\text{mensual.afiliadosMayor60}}{\text{mensual.afiliados}} \times 100
 $$
 
-El numerador proviene de Formato 491, `informe de prensa`, celdas `C84 + D84`.
+El numerador proviene de query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, usando las subcuentas/unidades de captura parametrizadas para mayores de 60 años.
 
 #### Fila 8: Total de distribución por edad
 

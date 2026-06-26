@@ -40,7 +40,8 @@ public class TrimestralDataReader {
 
     public TrimestralData read(LocalDate fechaCorte, MensualData mensual) {
 
-        Map<String, BigDecimal> afiliados = readAfiliadosFrom491(fechaCorte);
+        log.info("Afiliados trimestrales del Formato 491 se consultarán en Teradata; no se requiere archivo Excel local 491 para fechaCorte={}", fechaCorte);
+        Map<String, BigDecimal> afiliados = formato491QueryService.leerAfiliadosTrimestralPorFondo(fechaCorte);
         Map<String, BigDecimal> aportantes = formato491QueryService.leerAportantesPorEntidad(fechaCorte);
         Map<String, BigDecimal> traspasos = readTraspasosFrom493(fechaCorte);
         Map<String, BigDecimal> colombiaUsd = readColombiaUsd(fechaCorte, mensual.trm());
@@ -55,75 +56,6 @@ public class TrimestralDataReader {
                 .toLowerCase() + "-" + String.format("%02d", fechaCorte.getYear() % 100);
 
         return new TrimestralData(etiquetaFecha, afiliados, aportantes, traspasos, colombiaUsd, gastosUsd, comisionesPct, rentNominalPct, rentRealPct);
-    }
-
-    private Map<String, BigDecimal> readAfiliadosFrom491(LocalDate fechaCorte) {
-        Path file491 = Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm");
-        if (!Files.isRegularFile(file491)) {
-            throw new IllegalStateException("No se encontró Formato 491 en ./insumos_ejemplo/Serie_Formato_ 491 AFILIADOS AFP.xlsm");
-        }
-        Map<String, BigDecimal> out = new HashMap<>();
-        try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
-            Sheet s = wb.getSheet("multifondos");
-            FormulaEvaluator eval = wb.getCreationHelper().createFormulaEvaluator();
-            setDate(s, "C4", fechaCorte);
-            eval.clearAllCachedResultValues();
-
-            // Row mapping per macro
-            readAfiliadoRow(out, s, eval, "porv", 8);
-            readAfiliadoRow(out, s, eval, "prot", 9);
-            readAfiliadoRow(out, s, eval, "colf", 10);
-            readAfiliadoRow(out, s, eval, "sk", 11);
-            out.put("mod_sk_total", out.getOrDefault("mod_sk", BigDecimal.ZERO).add(out.getOrDefault("alt_sk", BigDecimal.ZERO)));
-            return out;
-        } catch (Exception e) {
-            throw new IllegalStateException("Error leyendo afiliados por fondo desde 491", e);
-        }
-    }
-
-    private void readAfiliadoRow(Map<String, BigDecimal> out, Sheet s, FormulaEvaluator eval, String p, int row) {
-        out.put("mod_" + p, num(s, "C" + row, eval));
-        out.put("con_" + p, num(s, "D" + row, eval));
-        out.put("mr_" + p, num(s, "E" + row, eval));
-        out.put("con_mod_" + p, num(s, "F" + row, eval));
-        out.put("con_mr_" + p, num(s, "G" + row, eval));
-        out.put("mod_mr_" + p, num(s, "H" + row, eval));
-        if ("sk".equals(p)) out.put("alt_sk", num(s, "I" + row, eval));
-    }
-
-    private Map<String, BigDecimal> readCotizantesFrom491(LocalDate fechaCorte) {
-        Path local491 = Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm");
-        if (!Files.isRegularFile(local491)) throw new IllegalStateException("No se encontró Formato 491 en ./insumos_ejemplo/Serie_Formato_ 491 AFILIADOS AFP.xlsm");
-
-        Map<String, BigDecimal> out = new HashMap<>();
-        try (Workbook wb = WorkbookFactory.create(local491.toFile(), null, true)) {
-            Sheet sheet = wb.getSheet("multifondos");
-            int entidadCol = -1, cotizantesCol = -1, headerRow = -1;
-            DataFormatter formatter = new DataFormatter();
-            for (int r = 0; r <= Math.min(sheet.getLastRowNum(), 200); r++) {
-                Row row = sheet.getRow(r);
-                if (row == null) continue;
-                for (Cell cell : row) {
-                    String txt = normalize(formatter.formatCellValue(cell));
-                    if (txt.contains("entidad")) entidadCol = cell.getColumnIndex();
-                    if (txt.contains("cotizantes") || txt.contains("aportantes")) cotizantesCol = cell.getColumnIndex();
-                }
-                if (entidadCol >= 0 && cotizantesCol >= 0) { headerRow = r; break; }
-            }
-            for (int r = headerRow + 1; r <= Math.min(sheet.getLastRowNum(), headerRow + 150); r++) {
-                Row row = sheet.getRow(r);
-                if (row == null) continue;
-                String entidad = normalize(formatter.formatCellValue(row.getCell(entidadCol)));
-                BigDecimal cot = parseNumber(row.getCell(cotizantesCol), formatter);
-                if (entidad.contains("colfond")) out.put("colf", cot);
-                else if (entidad.contains("porvenir")) out.put("porv", cot);
-                else if (entidad.contains("protec")) out.put("prot", cot);
-                else if (entidad.contains("skand")) out.put("sk", cot);
-            }
-            return out;
-        } catch (Exception e) {
-            throw new IllegalStateException("Error leyendo cotizantes 491", e);
-        }
     }
 
     private Map<String, BigDecimal> readTraspasosFrom493(LocalDate fechaCorte) {

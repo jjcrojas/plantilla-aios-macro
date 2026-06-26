@@ -106,6 +106,55 @@ public class Formato491QueryService {
         return out;
     }
 
+    public Map<String, BigDecimal> leerAfiliadosTrimestralPorFondo(LocalDate fechaCorte) {
+        Date fecha = Date.valueOf(fechaCorte);
+        String sql = sqlAfiliadosTrimestralPorFondo();
+        log.info("Formato491QueryService ejecutando metric=afiliados_trimestral_por_fondo params={} sql=\"{}\"",
+                java.util.Arrays.toString(new Object[]{fecha}),
+                sql.replace("\n", " ").replaceAll("\\s+", " ").trim());
+        Map<String, BigDecimal> out = new HashMap<>();
+        jdbcTemplate.query(sql, rs -> {
+            String prefijoEntidad = prefijoEntidad(rs.getInt("CODIGO_ENTIDAD"));
+            if (prefijoEntidad == null) {
+                return;
+            }
+            int unidadCaptura = rs.getInt("UNIDAD_CAPTURA_NUM");
+            String fondo = rs.getString("FONDO");
+            String prefijoFondo = prefijoFondoTrimestral(unidadCaptura, fondo);
+            if (prefijoFondo == null) {
+                return;
+            }
+            BigDecimal afiliados = rs.getBigDecimal("AFILIADOS");
+            out.put(prefijoFondo + "_" + prefijoEntidad, afiliados == null ? BigDecimal.ZERO : afiliados);
+        }, fecha);
+        out.put("mod_sk_total", out.getOrDefault("mod_sk", BigDecimal.ZERO).add(out.getOrDefault("alt_sk", BigDecimal.ZERO)));
+        log.info("Formato491QueryService resultado metric=afiliados_trimestral_por_fondo fechaCorte={} valores={}", fecha, out);
+        return out;
+    }
+
+    private String prefijoEntidad(int codigoEntidad) {
+        return switch (codigoEntidad) {
+            case 10 -> "colf";
+            case 3 -> "porv";
+            case 2 -> "prot";
+            case 9 -> "sk";
+            default -> null;
+        };
+    }
+
+    private String prefijoFondoTrimestral(int unidadCaptura, String fondo) {
+        return switch (unidadCaptura + ":" + fondo) {
+            case "1:1000" -> "mod";
+            case "1:5000" -> "con";
+            case "1:6000" -> "mr";
+            case "2:5000" -> "con_mod";
+            case "3:5000" -> "con_mr";
+            case "4:1000" -> "mod_mr";
+            case "1:8000" -> "alt";
+            default -> null;
+        };
+    }
+
     private BigDecimal scalar(String metric, String sql, Object... params) {
         log.info("Formato491QueryService ejecutando metric={} params={} sql=\"{}\"",
                 metric,
@@ -208,6 +257,32 @@ public class Formato491QueryService {
                   AND CODIGO_ENTIDAD = ?
                   AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN %s
                 """.formatted(FONDOS_FILTRO);
+    }
+
+
+
+    private String sqlAfiliadosTrimestralPorFondo() {
+        return """
+                SELECT CODIGO_ENTIDAD,
+                       CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) AS UNIDAD_CAPTURA_NUM,
+                       SUBSTR(NUMERO_IDENTIFICACION, 9, 4) AS FONDO,
+                       COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_TOTAL, 0)), 0) AS AFILIADOS
+                FROM PROD_DWH_CONSULTA.FORMATO491
+                WHERE FECBAL = ?
+                  AND RENGLON = '999'
+                  AND CODIGO_ENTIDAD IN (2, 3, 9, 10)
+                  AND (
+                      (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) = 1
+                       AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000', '5000', '6000', '8000'))
+                      OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) = 2
+                          AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) = '5000')
+                      OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) = 3
+                          AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) = '5000')
+                      OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) = 4
+                          AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) = '1000')
+                  )
+                GROUP BY 1, 2, 3
+                """;
     }
 
 
