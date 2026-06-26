@@ -29,10 +29,12 @@ public class MensualDataReader {
     private static final Logger log = LoggerFactory.getLogger(MensualDataReader.class);
     private final InsumosLocator locator;
     private final AiosProperties properties;
+    private final Formato491QueryService formato491QueryService;
 
-    public MensualDataReader(InsumosLocator locator, AiosProperties properties) {
+    public MensualDataReader(InsumosLocator locator, AiosProperties properties, Formato491QueryService formato491QueryService) {
         this.locator = locator;
         this.properties = properties;
+        this.formato491QueryService = formato491QueryService;
         // Evitar asignaciones gigantes en POI que pueden terminar en OOM con archivos grandes.
         // 100 MB es suficiente para los insumos actuales y más conservador en memoria.
         IOUtils.setByteArrayMaxOverride(100_000_000);
@@ -48,6 +50,8 @@ public class MensualDataReader {
         BigDecimal afiliados45a59 = BigDecimal.ZERO;
         BigDecimal afiliadosMayor60 = BigDecimal.ZERO;
         BigDecimal aportantes = BigDecimal.ZERO;
+        BigDecimal aportantesSemestral = BigDecimal.ZERO;
+        BigDecimal afiliadosActivos = BigDecimal.ZERO;
         BigDecimal consFdosAdmon = BigDecimal.ZERO;
         BigDecimal smColombiaCop = BigDecimal.ZERO;
         BigDecimal totalPen = BigDecimal.ZERO;
@@ -55,79 +59,23 @@ public class MensualDataReader {
         BigDecimal totalVej = BigDecimal.ZERO;
         BigDecimal totalSob = BigDecimal.ZERO;
 
-        var file491 = resolveFormato491Path(fechaCorte);
         var file493 = locator.findRequired("493", fechaCorte);
         boolean macroRecalc = !Boolean.FALSE.equals(properties.macroRecalc491493());
         BigDecimal traspasosSistema = BigDecimal.ZERO;
 
-        // 491: siempre intentar lógica macro con fecha del parámetro; fallback solo para 491.
-        if (macroRecalc) {
-            try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
-                Sheet informe = wb.getSheet("informe de prensa");
-                Sheet multifondos = wb.getSheet("multifondos");
-                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-                setDate(informe, "C3", fechaCorte);
-                setDate(multifondos, "C4", fechaCorte);
-                evaluator.clearAllCachedResultValues();
-                hombres = num(informe, "C11", evaluator);
-                mujeres = num(informe, "D11", evaluator);
-                afiliadosMenor30 = num(informe, "C81", evaluator).add(num(informe, "D81", evaluator));
-                afiliados30a44 = num(informe, "C82", evaluator).add(num(informe, "D82", evaluator));
-                afiliados45a59 = num(informe, "C83", evaluator).add(num(informe, "D83", evaluator));
-                afiliadosMayor60 = num(informe, "C84", evaluator).add(num(informe, "D84", evaluator));
-                aportantes = num(multifondos, "E25", evaluator);
-                Sheet smColombia = getSheetIgnoreCase(wb, "SM COLOMBIA");
-                if (smColombia != null) smColombiaCop = num(smColombia, "E8", evaluator);
-                var j8 = num(multifondos, "J8", evaluator);
-                var j9 = num(multifondos, "J9", evaluator);
-                var j12 = num(multifondos, "J12", evaluator);
-                consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
-                log.debug("491 recalculado con fechaCorte={}: hombres={}, mujeres={}", fechaCorte, hombres, mujeres);
-            } catch (OutOfMemoryError oom) {
-                log.warn("OOM en recálculo macro 491; se usa modo seguro XML cacheado");
-                SexTotals st = readAfiliadosFromDataXml(file491, fechaCorte);
-                hombres = st.hombres();
-                mujeres = st.mujeres();
-                afiliadosMenor30 = readNumericCellFromSheetXml(file491, "informe de prensa", "C81")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D81"));
-                afiliados30a44 = readNumericCellFromSheetXml(file491, "informe de prensa", "C82")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D82"));
-                afiliados45a59 = readNumericCellFromSheetXml(file491, "informe de prensa", "C83")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D83"));
-                afiliadosMayor60 = readNumericCellFromSheetXml(file491, "informe de prensa", "C84")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D84"));
-                aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
-                smColombiaCop = readNumericCellFromSheetXml(file491, "SM COLOMBIA", "E8");
-                var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
-                var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
-                var j12 = readNumericCellFromSheetXml(file491, "multifondos", "J12");
-                consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
-            } catch (Exception e) {
-                throw new IllegalStateException("Error leyendo Formato 491", e);
-            }
-        } else {
-            try {
-                SexTotals st = readAfiliadosFromDataXml(file491, fechaCorte);
-                hombres = st.hombres();
-                mujeres = st.mujeres();
-                afiliadosMenor30 = readNumericCellFromSheetXml(file491, "informe de prensa", "C81")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D81"));
-                afiliados30a44 = readNumericCellFromSheetXml(file491, "informe de prensa", "C82")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D82"));
-                afiliados45a59 = readNumericCellFromSheetXml(file491, "informe de prensa", "C83")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D83"));
-                afiliadosMayor60 = readNumericCellFromSheetXml(file491, "informe de prensa", "C84")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D84"));
-                aportantes = readNumericCellFromSheetXml(file491, "multifondos", "E25");
-                smColombiaCop = readNumericCellFromSheetXml(file491, "SM COLOMBIA", "E8");
-                var j8 = readNumericCellFromSheetXml(file491, "multifondos", "J8");
-                var j9 = readNumericCellFromSheetXml(file491, "multifondos", "J9");
-                var j12 = readNumericCellFromSheetXml(file491, "multifondos", "J12");
-                consFdosAdmon = j12.signum() == 0 ? BigDecimal.ZERO : j8.add(j9).divide(j12, 8, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
-            } catch (Exception e) {
-                throw new IllegalStateException("Error leyendo Formato 491", e);
-            }
-        }
+        // El resumen 491 se consulta una sola vez; de aquí salen todos los campos migrados a Teradata.
+        final var resumen491 = formato491QueryService.leerResumen(fechaCorte);
+        BigDecimal afiliadosQuery = resumen491.afiliados();
+        afiliadosActivos = resumen491.afiliadosActivos();
+        mujeres = resumen491.mujeresAfiliadas();
+        aportantes = resumen491.aportantes();
+        aportantesSemestral = resumen491.aportantesSemestral();
+        consFdosAdmon = resumen491.concentracionAfiliados();
+        afiliadosMenor30 = resumen491.afiliadosMenor30();
+        afiliados30a44 = resumen491.afiliados30a44();
+        afiliados45a59 = resumen491.afiliados45a59();
+        afiliadosMayor60 = resumen491.afiliadosMayor60();
+        smColombiaCop = resumen491.salarioMinimoPonderadoCop();
 
         // 493: lógica macro independiente (B11=fecha, D4=99, BQ11); fallback solo para 493.
         if (macroRecalc) {
@@ -156,7 +104,7 @@ public class MensualDataReader {
                 log.warn("No fue posible leer Formato 493; se usará 0 en traspasos_sistema. Causa: {}", e.getMessage());
             }
         }
-        log.info("Lectura Formato 491 completada para fechaCorte={}", fechaCorte);
+        log.info("Consulta Teradata Formato 491 completada para fechaCorte={}", fechaCorte);
         log.info("Lectura Formato 493 completada para fechaCorte={}", fechaCorte);
 
         BigDecimal tmpReal1;
@@ -267,6 +215,7 @@ public class MensualDataReader {
         String mes = fechaCorte.getMonth().getDisplayName(TextStyle.SHORT, new Locale("es", "CO")).replace(".", "").toLowerCase();
         String textoFecha = mes + "-" + String.format("%02d", fechaCorte.getYear() % 100);
 
+        BigDecimal afiliados = afiliadosQuery;
         BigDecimal trm = readTrmFromSeries(fechaCorte);
         BigDecimal pea = readFromFormatoPlantilla(fechaCorte, "V11");
         BigDecimal deudaG = readFromFormatoPlantilla(fechaCorte, "V16");
@@ -288,8 +237,10 @@ public class MensualDataReader {
                 afiliados30a44,
                 afiliados45a59,
                 afiliadosMayor60,
-                hombres.add(mujeres),
+                afiliados,
+                afiliadosActivos,
                 aportantes,
+                aportantesSemestral,
                 traspasosSistema,
                 vrFondo,
                 trm,
@@ -505,15 +456,6 @@ public class MensualDataReader {
     private record PensionadosData(BigDecimal totalPen, BigDecimal totalInv, BigDecimal totalVej, BigDecimal totalSob) {}
 
 
-
-    private Path resolveFormato491Path(LocalDate fechaCorte) {
-        Path local491 = Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm");
-        if (Files.exists(local491) && Files.isRegularFile(local491)) {
-            log.info("Se usará Formato 491 local (insumos_ejemplo) para fechaCorte={}: {}", fechaCorte, local491.toAbsolutePath());
-            return local491;
-        }
-        throw new IllegalStateException("No se encontró Formato 491 en ./insumos_ejemplo/Serie_Formato_ 491 AFILIADOS AFP.xlsm");
-    }
 
     private BigDecimal readTrmFromSeries(LocalDate fechaCorte) {
         try {
