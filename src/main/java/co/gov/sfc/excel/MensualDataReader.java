@@ -76,6 +76,18 @@ public class MensualDataReader {
         afiliadosMayor60 = resumen491.afiliadosMayor60();
         smColombiaCop = resumen491.salarioMinimoPonderadoCop();
 
+        var resumen491 = formato491QueryService.leerResumen(fechaCorte);
+        BigDecimal afiliadosQuery = resumen491.afiliados();
+        afiliadosActivos = resumen491.afiliadosActivos();
+        mujeres = resumen491.mujeresAfiliadas();
+        aportantes = resumen491.aportantes();
+        aportantesSemestral = resumen491.aportantesSemestral();
+        consFdosAdmon = resumen491.concentracionAfiliados();
+        afiliadosMenor30 = resumen491.afiliadosMenor30();
+        afiliados30a44 = resumen491.afiliados30a44();
+        afiliados45a59 = resumen491.afiliados45a59();
+        afiliadosMayor60 = resumen491.afiliadosMayor60();
+
         // 493: lógica macro independiente (B11=fecha, D4=99, BQ11); fallback solo para 493.
         if (macroRecalc) {
             try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
