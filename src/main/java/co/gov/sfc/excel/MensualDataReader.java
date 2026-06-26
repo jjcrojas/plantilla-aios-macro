@@ -59,54 +59,22 @@ public class MensualDataReader {
         BigDecimal totalVej = BigDecimal.ZERO;
         BigDecimal totalSob = BigDecimal.ZERO;
 
-        var file491 = resolveFormato491Path(fechaCorte);
         var file493 = locator.findRequired("493", fechaCorte);
         boolean macroRecalc = !Boolean.FALSE.equals(properties.macroRecalc491493());
         BigDecimal traspasosSistema = BigDecimal.ZERO;
 
-        // 491: siempre intentar lógica macro con fecha del parámetro; fallback solo para 491.
-        if (macroRecalc) {
-            try (Workbook wb = WorkbookFactory.create(file491.toFile(), null, true)) {
-                Sheet informe = wb.getSheet("informe de prensa");
-                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-                setDate(informe, "C3", fechaCorte);
-                evaluator.clearAllCachedResultValues();
-                afiliadosMenor30 = num(informe, "C81", evaluator).add(num(informe, "D81", evaluator));
-                afiliados30a44 = num(informe, "C82", evaluator).add(num(informe, "D82", evaluator));
-                afiliados45a59 = num(informe, "C83", evaluator).add(num(informe, "D83", evaluator));
-                afiliadosMayor60 = num(informe, "C84", evaluator).add(num(informe, "D84", evaluator));
-                Sheet smColombia = getSheetIgnoreCase(wb, "SM COLOMBIA");
-                if (smColombia != null) smColombiaCop = num(smColombia, "E8", evaluator);
-                log.debug("491 recalculado con fechaCorte={} para celdas aún no migradas (salario mínimo y fallback de edades)", fechaCorte);
-            } catch (OutOfMemoryError oom) {
-                log.warn("OOM en recálculo macro 491; se usa modo seguro XML cacheado");
-                afiliadosMenor30 = readNumericCellFromSheetXml(file491, "informe de prensa", "C81")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D81"));
-                afiliados30a44 = readNumericCellFromSheetXml(file491, "informe de prensa", "C82")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D82"));
-                afiliados45a59 = readNumericCellFromSheetXml(file491, "informe de prensa", "C83")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D83"));
-                afiliadosMayor60 = readNumericCellFromSheetXml(file491, "informe de prensa", "C84")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D84"));
-                smColombiaCop = readNumericCellFromSheetXml(file491, "SM COLOMBIA", "E8");
-            } catch (Exception e) {
-                throw new IllegalStateException("Error leyendo Formato 491", e);
-            }
-        } else {
-            try {
-                afiliadosMenor30 = readNumericCellFromSheetXml(file491, "informe de prensa", "C81")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D81"));
-                afiliados30a44 = readNumericCellFromSheetXml(file491, "informe de prensa", "C82")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D82"));
-                afiliados45a59 = readNumericCellFromSheetXml(file491, "informe de prensa", "C83")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D83"));
-                afiliadosMayor60 = readNumericCellFromSheetXml(file491, "informe de prensa", "C84")
-                        .add(readNumericCellFromSheetXml(file491, "informe de prensa", "D84"));
-                smColombiaCop = readNumericCellFromSheetXml(file491, "SM COLOMBIA", "E8");
-            } catch (Exception e) {
-                throw new IllegalStateException("Error leyendo Formato 491", e);
-            }
-        }
+        var resumen491 = formato491QueryService.leerResumen(fechaCorte);
+        BigDecimal afiliadosQuery = resumen491.afiliados();
+        afiliadosActivos = resumen491.afiliadosActivos();
+        mujeres = resumen491.mujeresAfiliadas();
+        aportantes = resumen491.aportantes();
+        aportantesSemestral = resumen491.aportantesSemestral();
+        consFdosAdmon = resumen491.concentracionAfiliados();
+        afiliadosMenor30 = resumen491.afiliadosMenor30();
+        afiliados30a44 = resumen491.afiliados30a44();
+        afiliados45a59 = resumen491.afiliados45a59();
+        afiliadosMayor60 = resumen491.afiliadosMayor60();
+        smColombiaCop = resumen491.salarioMinimoPonderadoCop();
 
         var resumen491 = formato491QueryService.leerResumen(fechaCorte);
         BigDecimal afiliadosQuery = resumen491.afiliados();
@@ -147,7 +115,7 @@ public class MensualDataReader {
                 log.warn("No fue posible leer Formato 493; se usará 0 en traspasos_sistema. Causa: {}", e.getMessage());
             }
         }
-        log.info("Lectura Formato 491 completada para fechaCorte={}", fechaCorte);
+        log.info("Consulta Teradata Formato 491 completada para fechaCorte={}", fechaCorte);
         log.info("Lectura Formato 493 completada para fechaCorte={}", fechaCorte);
 
         BigDecimal tmpReal1;
@@ -499,15 +467,6 @@ public class MensualDataReader {
     private record PensionadosData(BigDecimal totalPen, BigDecimal totalInv, BigDecimal totalVej, BigDecimal totalSob) {}
 
 
-
-    private Path resolveFormato491Path(LocalDate fechaCorte) {
-        Path local491 = Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm");
-        if (Files.exists(local491) && Files.isRegularFile(local491)) {
-            log.info("Se usará Formato 491 local (insumos_ejemplo) solo para celdas aún no migradas a query (ej. salario mínimo) fechaCorte={}: {}", fechaCorte, local491.toAbsolutePath());
-            return local491;
-        }
-        throw new IllegalStateException("No se encontró Formato 491 en ./insumos_ejemplo/Serie_Formato_ 491 AFILIADOS AFP.xlsm");
-    }
 
     private BigDecimal readTrmFromSeries(LocalDate fechaCorte) {
         try {

@@ -66,7 +66,7 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 | 12 | `(afiliados / PEA) * 100` | Afiliados totales por query Teradata Formato 491; PEA de `PIB_PEA_TRM_DG` | Porcentaje |
 | 13 | `(aportantes / PEA) * 100` | Aportantes por query Teradata del Formato 491; PEA de `PIB_PEA_TRM_DG` | Porcentaje |
 | 14 | `(aportantes / afiliados) * 100` | Aportantes y afiliados por query Teradata del Formato 491 | Porcentaje |
-| 15 | `salario mínimo Colombia COP / TRM` | Formato 491, hoja `SM COLOMBIA`, `E8`; TRM de `PIB_PEA_TRM_DG` | USD |
+| 15 | `salario mínimo ponderado COP / TRM` | Query Teradata Formato 491 para IBC ponderado con salario oficial de `SalarioMinimo.csv`; TRM de `PIB_PEA_TRM_DG` | USD |
 | 16 | `total pensionados` | Formato 495, `TOTAL PENSIONADOS`, parámetro `B4`, valor en columna `I` para la fecha | Valor crudo (personas) |
 | 17 | `por Entidad!BI62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BI62` | Ratio / porcentaje |
 | 18 | `por Entidad!BH62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BH62` | Ratio / porcentaje |
@@ -992,7 +992,7 @@ $$
 \text{Fila 15} = \text{mensual.smColombiaUsd}
 $$
 
-El salario mínimo se toma de Formato 491, hoja `SM COLOMBIA`, celda `E8`; la TRM de `PIB_PEA_TRM_DG`.
+El salario mínimo ponderado en COP ya no se toma de la celda `E8` del Excel del Formato 491. La aplicación lee el salario mínimo oficial del año desde `SalarioMinimo.csv` y ejecuta una consulta a `PROD_DWH_CONSULTA.FORMATO491` que pondera los afiliados por rangos de IBC (`1`, `2`, `3`, `4`, `8`, `12`, `16`, `20` y `25` salarios mínimos) con las reglas de `UNIDAD_CAPTURA` y fondo indicadas para moderado, conservador y mayor riesgo. La TRM continúa saliendo de `PIB_PEA_TRM_DG`.
 
 #### Fila 16: Pensionados totales
 

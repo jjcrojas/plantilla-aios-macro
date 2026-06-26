@@ -1059,6 +1059,48 @@ Este valor es el numerador del porcentaje de mujeres afiliadas del semestral; el
 Las reglas de subcuenta y unidad de captura se implementan directamente en SQL con `CAST(TRIM(... ) AS INTEGER)` para compatibilidad con Teradata.
 
 
+### Salario mínimo ponderado COP (semestral, fila 15)
+
+La aplicación lee el salario mínimo oficial del año desde `src/main/resources/SalarioMinimo.csv` y lo pasa como parámetro al query. El query consolida en una sola operación la secuencia de la hoja `SM COLOMBIA`: calcula el promedio ponderado de IBC por rangos de salarios mínimos y lo pondera contra el total de afiliados del sistema.
+
+```sql
+WITH base AS (
+    SELECT
+        COALESCE(SUM(
+            (COALESCE(TOTAL_AFILIADOS_H_1, 0) + COALESCE(TOTAL_AFILIADOS_M_1, 0)) * 1 +
+            (COALESCE(TOTAL_AFILIADOS_H_1_2, 0) + COALESCE(TOTAL_AFILIADOS_M_1_2, 0)) * 2 +
+            (COALESCE(TOTAL_AFILIADOS_H_2_3, 0) + COALESCE(TOTAL_AFILIADOS_M_2_3, 0)) * 3 +
+            (COALESCE(TOTAL_AFILIADOS_H_3_4, 0) + COALESCE(TOTAL_AFILIADOS_M_3_4, 0)) * 4 +
+            (COALESCE(TOTAL_AFILIADOS_H_4_8, 0) + COALESCE(TOTAL_AFILIADOS_M_4_8, 0)) * 8 +
+            (COALESCE(TOTAL_AFILIADOS_H_8_12, 0) + COALESCE(TOTAL_AFILIADOS_M_8_12, 0)) * 12 +
+            (COALESCE(TOTAL_AFILIADOS_H_12_16, 0) + COALESCE(TOTAL_AFILIADOS_M_12_16, 0)) * 16 +
+            (COALESCE(TOTAL_AFILIADOS_H_16_20, 0) + COALESCE(TOTAL_AFILIADOS_M_16_20, 0)) * 20 +
+            (COALESCE(TOTAL_AFILIADOS_H_20, 0) + COALESCE(TOTAL_AFILIADOS_M_20, 0)) * 25
+        ), 0) AS RANGOS_PONDERADOS
+    FROM PROD_DWH_CONSULTA.FORMATO491
+    WHERE FECBAL = ?
+      AND RENGLON = '999'
+      AND (
+          (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) IN (1, 4) AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) = '1000') OR
+          (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) IN (1, 2, 3) AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) = '5000') OR
+          (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) IN (1) AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) = '6000')
+      )
+), total_sistema AS (
+    SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_TOTAL, 0)), 0) AS TOTAL_AFILIADOS
+    FROM PROD_DWH_CONSULTA.FORMATO491
+    WHERE FECBAL = ?
+      AND RENGLON = '999'
+      AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN ('1000','5000','6000','7000','8000')
+)
+SELECT CASE
+         WHEN total_sistema.TOTAL_AFILIADOS = 0 THEN 0
+         ELSE (? * base.RANGOS_PONDERADOS) / total_sistema.TOTAL_AFILIADOS
+       END
+FROM base CROSS JOIN total_sistema;
+```
+
+El tercer parámetro (`?`) es el salario mínimo oficial del año de corte. Para obtener la fila 15 del semestral, el valor COP resultante se divide entre la TRM.
+
 ### Total aportantes (mensual, columna C; sin filtro de entidad)
 ```sql
 SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_COTIZANTES, 0)), 0)

@@ -251,7 +251,6 @@ public class SemestralExcelGenerator {
 
 
     private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral, java.util.Map<Integer, String> detallesFilas) {
-        String formato491 = rutaInsumo("Formato 491 afiliados", () -> Path.of("insumos_ejemplo", "Serie_Formato_ 491 AFILIADOS AFP.xlsm"));
         String formato495 = rutaInsumo("Series_Formato-495 PENSIONADOS", () -> findPensionados495File(fechaCorte));
         String formato493 = rutaInsumo("Serie_Formato_493 MOVIMIENTO AFILIADOS", () -> locator.findRequired("493", fechaCorte));
         String sistemaTotal = rutaInsumo("SISTEMA TOTAL", () -> locator.findRequired("SISTEMA TOTAL", fechaCorte));
@@ -275,7 +274,7 @@ public class SemestralExcelGenerator {
         explicaciones.put(12, "valor = (mensual.afiliados() / mensual.pea()) * 100; afiliados por query Teradata Formato491; PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(13, "valor = (mensual.aportantesSemestral() / mensual.pea()) * 100; aportantes por query Teradata sin filtro de CODIGO_ENTIDAD y PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(14, "valor = (mensual.aportantesSemestral() / mensual.afiliados()) * 100; aportantes por query Teradata sin filtro de CODIGO_ENTIDAD y afiliados por query Teradata.");
-        explicaciones.put(15, "valor = salario mínimo Colombia en COP / TRM; salario mínimo desde formato 491 hoja SM COLOMBIA celda E8 ruta=" + formato491 + "; TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(15, "valor = salario mínimo ponderado COP calculado por query Teradata Formato491 con salario oficial desde SalarioMinimo.csv / TRM; salarioMinimoPonderadoCop=" + smCop(mensual) + "; TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(16, "valor = total pensionados de Series_Formato-495 PENSIONADOS hoja TOTAL PENSIONADOS: se escribe fecha parámetro en B4 y se toma columna I de la fila cuya fecha en columna B corresponde al corte; ruta=" + formato495 + ".");
         explicaciones.put(17, "valor = por Entidad!BI62 / fila 16; BI62 es pensionados por invalidez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
         explicaciones.put(18, "valor = por Entidad!BH62 / fila 16; BH62 es pensionados por vejez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
@@ -381,7 +380,7 @@ public class SemestralExcelGenerator {
             case 12 -> "valores tomados: afiliados=" + mensual.afiliados() + "; PEA=" + mensual.pea() + ".";
             case 13 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + "; PEA=" + mensual.pea() + ".";
             case 14 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + "; afiliados=" + mensual.afiliados() + ".";
-            case 15 -> "valores tomados: salarioMinimoUsd=" + mensual.smColombiaUsd() + "; TRM=" + trm(mensual) + ".";
+            case 15 -> "valores tomados: salarioMinimoPonderadoCop=" + smCop(mensual) + "; salarioMinimoUsd=" + mensual.smColombiaUsd() + "; TRM=" + trm(mensual) + ".";
             case 16 -> "valores tomados: totalPensionados=" + num(hoja, 16, col) + "; fallback mensual.totalPen=" + mensual.totalPen() + ".";
             case 17 -> "valores tomados: invalidez=" + mensual.totalInv() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
             case 18 -> "valores tomados: vejez=" + mensual.totalVej() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
@@ -685,6 +684,10 @@ public class SemestralExcelGenerator {
 
     private BigDecimal trm(MensualData data) {
         return data.trm().signum() == 0 ? BigDecimal.ONE : data.trm();
+    }
+
+    private BigDecimal smCop(MensualData data) {
+        return data.smColombiaUsd().multiply(trm(data));
     }
 
     private BigDecimal divide(BigDecimal a, BigDecimal b) {

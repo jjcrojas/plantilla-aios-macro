@@ -5,7 +5,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.util.Comparator;
@@ -44,8 +49,9 @@ public class Formato491QueryService {
         BigDecimal aportantes = leerAportantesTotal(fechaCorte);
         BigDecimal aportantesSemestral = aportantes;
         BigDecimal concentracionAfiliados = leerConcentracionAfiliados(fechaCorte);
+        BigDecimal salarioMinimoPonderadoCop = leerSalarioMinimoPonderadoCop(fechaCorte);
 
-        return new Resumen491(afiliados, afiliadosActivos, mujeresAfiliadas, menores30, afiliados30a44, afiliados45a59, afiliadosMayor60, aportantes, aportantesSemestral, concentracionAfiliados);
+        return new Resumen491(afiliados, afiliadosActivos, mujeresAfiliadas, menores30, afiliados30a44, afiliados45a59, afiliadosMayor60, aportantes, aportantesSemestral, concentracionAfiliados, salarioMinimoPonderadoCop);
     }
 
 
@@ -55,6 +61,12 @@ public class Formato491QueryService {
 
     public BigDecimal leerAportantesSemestral(LocalDate fechaCorte) {
         return leerAportantesTotal(fechaCorte);
+    }
+
+    public BigDecimal leerSalarioMinimoPonderadoCop(LocalDate fechaCorte) {
+        BigDecimal salarioMinimo = leerSalarioMinimoOficial(fechaCorte.getYear());
+        Date fecha = Date.valueOf(fechaCorte);
+        return scalar("salario_minimo_ponderado_cop", sqlSalarioMinimoPonderado(), fecha, fecha, salarioMinimo);
     }
 
 
@@ -212,6 +224,80 @@ public class Formato491QueryService {
                 """.formatted(FONDOS_FILTRO);
     }
 
+    private String sqlSalarioMinimoPonderado() {
+        return """
+                WITH base AS (
+                    SELECT
+                        COALESCE(SUM(
+                            (COALESCE(TOTAL_AFILIADOS_H_1, 0) + COALESCE(TOTAL_AFILIADOS_M_1, 0)) * 1 +
+                            (COALESCE(TOTAL_AFILIADOS_H_1_2, 0) + COALESCE(TOTAL_AFILIADOS_M_1_2, 0)) * 2 +
+                            (COALESCE(TOTAL_AFILIADOS_H_2_3, 0) + COALESCE(TOTAL_AFILIADOS_M_2_3, 0)) * 3 +
+                            (COALESCE(TOTAL_AFILIADOS_H_3_4, 0) + COALESCE(TOTAL_AFILIADOS_M_3_4, 0)) * 4 +
+                            (COALESCE(TOTAL_AFILIADOS_H_4_8, 0) + COALESCE(TOTAL_AFILIADOS_M_4_8, 0)) * 8 +
+                            (COALESCE(TOTAL_AFILIADOS_H_8_12, 0) + COALESCE(TOTAL_AFILIADOS_M_8_12, 0)) * 12 +
+                            (COALESCE(TOTAL_AFILIADOS_H_12_16, 0) + COALESCE(TOTAL_AFILIADOS_M_12_16, 0)) * 16 +
+                            (COALESCE(TOTAL_AFILIADOS_H_16_20, 0) + COALESCE(TOTAL_AFILIADOS_M_16_20, 0)) * 20 +
+                            (COALESCE(TOTAL_AFILIADOS_H_20, 0) + COALESCE(TOTAL_AFILIADOS_M_20, 0)) * 25
+                        ), 0) AS RANGOS_PONDERADOS
+                    FROM PROD_DWH_CONSULTA.FORMATO491
+                    WHERE FECBAL = ?
+                      AND RENGLON = '999'
+                      AND (
+                          (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) IN (1, 4) AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) = '1000') OR
+                          (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) IN (1, 2, 3) AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) = '5000') OR
+                          (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) IN (1) AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) = '6000')
+                      )
+                ), total_sistema AS (
+                    SELECT COALESCE(SUM(COALESCE(TOTAL_AFILIADOS_TOTAL, 0)), 0) AS TOTAL_AFILIADOS
+                    FROM PROD_DWH_CONSULTA.FORMATO491
+                    WHERE FECBAL = ?
+                      AND RENGLON = '999'
+                      AND SUBSTR(NUMERO_IDENTIFICACION, 9, 4) IN %s
+                )
+                SELECT CASE
+                         WHEN total_sistema.TOTAL_AFILIADOS = 0 THEN 0
+                         ELSE (? * base.RANGOS_PONDERADOS) / total_sistema.TOTAL_AFILIADOS
+                       END
+                FROM base CROSS JOIN total_sistema
+                """.formatted(FONDOS_FILTRO);
+    }
+
+    private BigDecimal leerSalarioMinimoOficial(int year) {
+        try (InputStream in = salarioMinimoInputStream();
+             BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            String line;
+            boolean header = true;
+            while ((line = reader.readLine()) != null) {
+                if (header) {
+                    header = false;
+                    continue;
+                }
+                if (line.isBlank()) {
+                    continue;
+                }
+                String[] parts = line.trim().split("[\t,;]+");
+                if (parts.length >= 2 && Integer.parseInt(parts[0].trim()) == year) {
+                    return new BigDecimal(parts[1].trim());
+                }
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("No fue posible leer SalarioMinimo.csv", e);
+        }
+        throw new IllegalStateException("No existe salario mínimo configurado para el año " + year + " en SalarioMinimo.csv");
+    }
+
+    private InputStream salarioMinimoInputStream() throws IOException {
+        InputStream classpath = getClass().getResourceAsStream("/SalarioMinimo.csv");
+        if (classpath != null) {
+            return classpath;
+        }
+        java.nio.file.Path local = java.nio.file.Path.of("SalarioMinimo.csv");
+        if (java.nio.file.Files.exists(local)) {
+            return java.nio.file.Files.newInputStream(local);
+        }
+        throw new IOException("No se encontró SalarioMinimo.csv en classpath ni en el directorio de trabajo");
+    }
+
     private record EntidadAfiliados(Integer codigoEntidad, BigDecimal afiliados) {}
 
     public record Resumen491(
@@ -224,6 +310,7 @@ public class Formato491QueryService {
             BigDecimal afiliadosMayor60,
             BigDecimal aportantes,
             BigDecimal aportantesSemestral,
-            BigDecimal concentracionAfiliados
+            BigDecimal concentracionAfiliados,
+            BigDecimal salarioMinimoPonderadoCop
     ) {}
 }

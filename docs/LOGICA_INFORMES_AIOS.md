@@ -21,7 +21,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 
 | Insumo | Uso principal | Hojas/celdas destacadas |
 |---|---|---|
-| `Serie_Formato_ 491 AFILIADOS AFP.xlsm` | Datos 491 aún no migrados a query, como salario mínimo. Afiliados, mujeres afiliadas, afiliados activos, edades, aportantes y concentración de afiliados/personas se consultan en Teradata. | `SM COLOMBIA`: `E8`. |
+| `Serie_Formato_ 491 AFILIADOS AFP.xlsm` | Algunas lecturas trimestrales de afiliados por fondo aún usan el Excel. Los agregados mensuales/semestrales migrados —afiliados, mujeres afiliadas, afiliados activos, edades, aportantes, concentración de afiliados/personas y salario mínimo ponderado— se consultan o calculan con Teradata. | `multifondos` para afiliados por fondo trimestral cuando aplique. |
 | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx` | Traspasos y movimiento de afiliados. | `Traslados Entre AFP`: `BQ11` para traspasos del sistema y rangos equivalentes para mapas trimestrales; `Fallecidos`: `M11 / 1000` para la fila 25 después de escribir la fecha de corte en `B11` y `D4=99`. |
 | `SISTEMA TOTAL` | Fondos administrados, composición y participación de entidades. | Hoja `restot`: `J14`, `C14`, `D14` y otros valores por administradora/fondo. |
 | `LIMITES` | Límites de inversión locales y del exterior. | Hoja `AIOS`: `AB4`, `C4`, `E4`, `G4`, `I4`, `K4`, `O4`, `Q4`, `S4`, `U4`, `W4`, `Y4`, `AA4`. |
@@ -35,7 +35,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 
 ## 3.1 Conexión a Teradata (para queries de Formato 491)
 
-Desde esta versión, el proceso también consulta Teradata para obtener agregados del Formato 491 (afiliados totales, mujeres afiliadas, afiliados activos, aportantes, concentración de afiliados/personas y grupos de edad).
+Desde esta versión, el proceso también consulta Teradata para obtener agregados del Formato 491 (afiliados totales, mujeres afiliadas, afiliados activos, aportantes, concentración de afiliados/personas, grupos de edad y salario mínimo ponderado para la fila 15 semestral).
 
 La conexión se configura con un namespace exclusivo de esta aplicación. No se
 usan propiedades `spring.datasource.*`, porque Spring puede sobrescribirlas con
@@ -138,7 +138,7 @@ Hojas escritas:
 
 El informe semestral escribe filas específicas de una plantilla semestral. La columna destino se determina por la fecha de corte. La lógica agrupa los datos en bloques:
 
-1. **Afiliados, edades, aportantes, PEA y salario mínimo**: afiliados/edades/aportantes provienen de queries Teradata del Formato 491; PEA/TRM y salario mínimo se toman de sus fuentes correspondientes.
+1. **Afiliados, edades, aportantes, PEA y salario mínimo**: afiliados/edades/aportantes provienen de queries Teradata del Formato 491; el salario mínimo oficial se lee de `SalarioMinimo.csv` y el salario mínimo ponderado de la fila 15 se calcula con query Teradata; PEA/TRM se toman de sus fuentes correspondientes.
 2. **Pensionados**: usa Formato 495 para totales y composición por invalidez, vejez y sobrevivencia.
 3. **Movimiento de afiliados**: para la fila 25 parametriza `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Fallecidos`, con `B11 = fechaCorte` y `D4=99`, toma `M11` y divide el valor entre `1000`.
 4. **Fondos, PIB y deuda**: combina `SISTEMA TOTAL`, TRM, PIB y deuda gubernamental total de `PIB_PEA_TRM_DG`.
