@@ -38,11 +38,13 @@ public class SemestralExcelGenerator {
     private final AiosProperties properties;
     private final InsumosLocator locator;
     private final RentabilidadService rentabilidadService;
+    private final Formato493QueryService formato493QueryService;
 
-    public SemestralExcelGenerator(AiosProperties properties, InsumosLocator locator, RentabilidadService rentabilidadService) {
+    public SemestralExcelGenerator(AiosProperties properties, InsumosLocator locator, RentabilidadService rentabilidadService, Formato493QueryService formato493QueryService) {
         this.properties = properties;
         this.locator = locator;
         this.rentabilidadService = rentabilidadService;
+        this.formato493QueryService = formato493QueryService;
     }
 
     public Path generar(LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral) {
@@ -83,7 +85,7 @@ public class SemestralExcelGenerator {
                 write(hoja, 19, col, fila19);
                 BigDecimal fila25 = readFila25Trimestral493(fechaCorte);
                 write(hoja, 25, col, fila25);
-                log.info("Semestral: fila25=M11/1000 desde Formato 493 hoja Fallecidos con B11={} y D4=99 => {}.", fechaCorte, fila25);
+                log.info("Semestral: fila25=fallecidos/1000 desde query Formato 493 para fechaCorte={} => {}.", fechaCorte, fila25);
                 log.info("Semestral: fila16(total_pen)={}, fila17(inv% BI62/total)={}, fila18(vej% BH62/total)={}, fila19(sob% BJ62/total)={} numeradores(inv={}, vej={}, sob={}) para fecha={} col={}.",
                         totalPensionadosSemestral,
                         fila17,
@@ -252,7 +254,6 @@ public class SemestralExcelGenerator {
 
     private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral, java.util.Map<Integer, String> detallesFilas) {
         String formato495 = rutaInsumo("Series_Formato-495 PENSIONADOS", () -> findPensionados495File(fechaCorte));
-        String formato493 = rutaInsumo("Serie_Formato_493 MOVIMIENTO AFILIADOS", () -> locator.findRequired("493", fechaCorte));
         String sistemaTotal = rutaInsumo("SISTEMA TOTAL", () -> locator.findRequired("SISTEMA TOTAL", fechaCorte));
         String limites = rutaInsumo("LIMITES", () -> locator.findRequired("LIMITES", fechaCorte));
         String pibPeaTrmDg = rutaInsumo("PIB_PEA_TRM_DG", () -> locator.findRequired("PIB_PEA_TRM_DG", fechaCorte));
@@ -279,9 +280,9 @@ public class SemestralExcelGenerator {
         explicaciones.put(17, "valor = por Entidad!BI62 / fila 16; BI62 es pensionados por invalidez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
         explicaciones.put(18, "valor = por Entidad!BH62 / fila 16; BH62 es pensionados por vejez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
         explicaciones.put(19, "valor = por Entidad!BJ62 / fila 16; BJ62 es pensionados por sobrevivencia del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
-        explicaciones.put(25, "valor = Formato 493 hoja Fallecidos celda M11 / 1000; antes de evaluar la fórmula se escribe fechaCorte en B11 y D4=99 para tomar el total del sistema; ruta=" + formato493 + ".");
-        explicaciones.put(26, "valor = mensual.traspasosSistema(); total de traspasos del sistema leído por MensualDataReader desde los insumos de movimiento/formato 493 y trimestral cuando aplica.");
-        explicaciones.put(27, "valor = mensual.traspasosSistema() / mensual.afiliados(); traspasos del sistema dividido entre afiliados por query Teradata Formato491.");
+        explicaciones.put(25, "valor = query Teradata PROD_DWH_CONSULTA.S9_FORMATO_493 fallecidos sistema / 1000; ventana de 12 meses por FECHA_CORTE, UNIDAD_CAPTURA=1 y RENGLON IN (165,170,175).");
+        explicaciones.put(26, "valor = mensual.traspasosSistema(); total de traspasos del sistema leído por query Teradata PROD_DWH_CONSULTA.S9_FORMATO_493 en MensualDataReader.");
+        explicaciones.put(27, "valor = mensual.traspasosSistema() / mensual.afiliados(); traspasos por query Teradata Formato493 dividido entre afiliados por query Teradata Formato491.");
         explicaciones.put(28, "valor = mensual.fondoSistemaJ14() * 1000 / mensual.trm() / 1,000,000; fondoSistemaJ14 proviene de SISTEMA TOTAL hoja restot celda J14 ruta=" + sistemaTotal + "; TRM de PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(29, "valor = fila 28 / (mensual.pibSemestral() / mensual.trm()); PIB semestral y TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(30, "valor = mensual.total1() / mensual.trm(); total1 desde límites/composición leída por MensualDataReader; TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
@@ -385,7 +386,7 @@ public class SemestralExcelGenerator {
             case 17 -> "valores tomados: invalidez=" + mensual.totalInv() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
             case 18 -> "valores tomados: vejez=" + mensual.totalVej() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
             case 19 -> "valores tomados: sobrevivencia=" + mensual.totalSob() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
-            case 25 -> "valores tomados: fila25=" + num(hoja, 25, col) + "; fuente=Formato 493 M11 dividido entre 1000.";
+            case 25 -> "valores tomados: fila25=" + num(hoja, 25, col) + "; fuente=query Teradata Formato493 fallecidos dividido entre 1000.";
             case 26 -> "valores tomados: traspasosSistema=" + mensual.traspasosSistema() + ".";
             case 27 -> "valores tomados: traspasosSistema=" + mensual.traspasosSistema() + "; afiliados=" + mensual.afiliados() + ".";
             case 28 -> "valores tomados: fondoSistemaJ14=" + mensual.fondoSistemaJ14() + "; multiplicador=1000; TRM=" + trm(mensual) + "; divisor=1000000.";
@@ -1257,20 +1258,7 @@ public class SemestralExcelGenerator {
     }
 
     private BigDecimal readFila25Trimestral493(LocalDate fechaCorte) {
-        Path file493 = locator.findRequired("493", fechaCorte);
-        try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
-            Sheet sheet = getSheetIgnoreCase(wb, "Fallecidos");
-            if (sheet == null) {
-                throw new IllegalStateException("No existe la hoja Fallecidos en " + file493);
-            }
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-            setDate(sheet, "B11", fechaCorte);
-            cell(sheet, "D4").setCellValue(99d);
-            evaluator.clearAllCachedResultValues();
-            return divide(num(sheet, "M11", evaluator), BigDecimal.valueOf(1000));
-        } catch (Exception e) {
-            throw new IllegalStateException("Error leyendo fila 25 desde Formato 493 hoja Fallecidos (B11=fecha, D4=99, M11/1000)", e);
-        }
+        return divide(formato493QueryService.leerFallecidosSistema(fechaCorte), BigDecimal.valueOf(1000));
     }
 
     private Sheet getSheetIgnoreCase(Workbook wb, String name) {

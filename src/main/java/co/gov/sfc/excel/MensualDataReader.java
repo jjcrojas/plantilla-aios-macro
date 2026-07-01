@@ -30,11 +30,13 @@ public class MensualDataReader {
     private final InsumosLocator locator;
     private final AiosProperties properties;
     private final Formato491QueryService formato491QueryService;
+    private final Formato493QueryService formato493QueryService;
 
-    public MensualDataReader(InsumosLocator locator, AiosProperties properties, Formato491QueryService formato491QueryService) {
+    public MensualDataReader(InsumosLocator locator, AiosProperties properties, Formato491QueryService formato491QueryService, Formato493QueryService formato493QueryService) {
         this.locator = locator;
         this.properties = properties;
         this.formato491QueryService = formato491QueryService;
+        this.formato493QueryService = formato493QueryService;
         // Evitar asignaciones gigantes en POI que pueden terminar en OOM con archivos grandes.
         // 100 MB es suficiente para los insumos actuales y más conservador en memoria.
         IOUtils.setByteArrayMaxOverride(100_000_000);
@@ -59,10 +61,6 @@ public class MensualDataReader {
         BigDecimal totalVej = BigDecimal.ZERO;
         BigDecimal totalSob = BigDecimal.ZERO;
 
-        var file493 = locator.findRequired("493", fechaCorte);
-        boolean macroRecalc = !Boolean.FALSE.equals(properties.macroRecalc491493());
-        BigDecimal traspasosSistema = BigDecimal.ZERO;
-
         // El resumen 491 se consulta una sola vez; de aquí salen todos los campos migrados a Teradata.
         final var resumen491 = formato491QueryService.leerResumen(fechaCorte);
         BigDecimal afiliadosQuery = resumen491.afiliados();
@@ -77,35 +75,10 @@ public class MensualDataReader {
         afiliadosMayor60 = resumen491.afiliadosMayor60();
         smColombiaCop = resumen491.salarioMinimoPonderadoCop();
 
-        // 493: lógica macro independiente (B11=fecha, D4=99, BQ11); fallback solo para 493.
-        if (macroRecalc) {
-            try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
-                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-                Sheet tras = wb.getSheet("Traslados Entre AFP");
-                if (tras == null) {
-                    throw new IllegalStateException("No existe hoja 'Traslados Entre AFP' en Formato 493");
-                }
-                setDate(tras, "B11", fechaCorte);
-                setNumeric(tras, "D4", 99);
-                evaluator.clearAllCachedResultValues();
-                traspasosSistema = num(tras, "BQ11", evaluator);
-                log.info("493 recalculado con fechaCorte={}: traspasos={}", fechaCorte, traspasosSistema);
-            } catch (OutOfMemoryError oom) {
-                log.warn("OOM en recálculo macro 493; se usa modo seguro XML cacheado");
-                traspasosSistema = readNumericCellFromSheetXml(file493, "Traslados Entre AFP", "BQ11");
-            } catch (Exception e) {
-                log.warn("No fue posible leer Formato 493 con recálculo; se intenta modo seguro. Causa: {}", e.getMessage());
-                traspasosSistema = readNumericCellFromSheetXml(file493, "Traslados Entre AFP", "BQ11");
-            }
-        } else {
-            try {
-                traspasosSistema = readNumericCellFromSheetXml(file493, "Traslados Entre AFP", "BQ11");
-            } catch (Exception e) {
-                log.warn("No fue posible leer Formato 493; se usará 0 en traspasos_sistema. Causa: {}", e.getMessage());
-            }
-        }
+        BigDecimal traspasosSistema = formato493QueryService.leerTraspasosSistema(fechaCorte);
+
         log.info("Consulta Teradata Formato 491 completada para fechaCorte={}", fechaCorte);
-        log.info("Lectura Formato 493 completada para fechaCorte={}", fechaCorte);
+        log.info("Consulta Teradata Formato 493 completada para fechaCorte={}", fechaCorte);
 
         BigDecimal tmpReal1;
         BigDecimal tmpNominal1;
