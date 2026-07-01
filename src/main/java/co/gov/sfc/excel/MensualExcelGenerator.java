@@ -35,7 +35,7 @@ public class MensualExcelGenerator {
                 int row = findDateRow(sheet, data.textoFecha());
                 write(sheet, row, 2, data.afiliados(), "Query Teradata PROD_DWH_CONSULTA.FORMATO491", "FORMATO491", "SUM(TOTAL_AFILIADOS_TOTAL), RENGLON=999");
                 write(sheet, row, 3, data.aportantes(), "Query Teradata PROD_DWH_CONSULTA.FORMATO491", "FORMATO491", "SUM(TOTAL_AFILIADOS_COTIZANTES), RENGLON=999");
-                write(sheet, row, 4, data.traspasosSistema(), "Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx", "Traslados Entre AFP", "BQ11");
+                write(sheet, row, 4, data.traspasosSistema(), "Query Teradata PROD_DWH_CONSULTA.S9_FORMATO_493", "S9_FORMATO_493", "Traspasos sistema 12 meses por FECHA_CORTE/UNIDAD_CAPTURA/RENGLON");
                 write(sheet, row, 5, divide(data.vrFondo(), trm(data)), "SISTEMA TOTAL *.xls", "restot", "SISTEMA/MAX");
                 write(sheet, row, 6, divide(data.total1(), trm(data)), "LIMITES del nuevo.xlsm", "AIOS", "AB4");
                 write(sheet, row, 7, pct(data.dudaG()), "LIMITES del nuevo.xlsm", "AIOS", "C4");
