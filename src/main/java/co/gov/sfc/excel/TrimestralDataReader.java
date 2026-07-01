@@ -27,11 +27,13 @@ public class TrimestralDataReader {
     private final MensualDataReader mensualDataReader;
     private final InsumosLocator locator;
     private final Formato491QueryService formato491QueryService;
+    private final Formato493QueryService formato493QueryService;
 
-    public TrimestralDataReader(MensualDataReader mensualDataReader, InsumosLocator locator, Formato491QueryService formato491QueryService) {
+    public TrimestralDataReader(MensualDataReader mensualDataReader, InsumosLocator locator, Formato491QueryService formato491QueryService, Formato493QueryService formato493QueryService) {
         this.mensualDataReader = mensualDataReader;
         this.locator = locator;
         this.formato491QueryService = formato491QueryService;
+        this.formato493QueryService = formato493QueryService;
     }
 
     public TrimestralData read(LocalDate fechaCorte) {
@@ -43,7 +45,7 @@ public class TrimestralDataReader {
         log.info("Afiliados trimestrales del Formato 491 se consultarán en Teradata; no se requiere archivo Excel local 491 para fechaCorte={}", fechaCorte);
         Map<String, BigDecimal> afiliados = formato491QueryService.leerAfiliadosTrimestralPorFondo(fechaCorte);
         Map<String, BigDecimal> aportantes = formato491QueryService.leerAportantesPorEntidad(fechaCorte);
-        Map<String, BigDecimal> traspasos = readTraspasosFrom493(fechaCorte);
+        Map<String, BigDecimal> traspasos = formato493QueryService.leerTraspasosPorEntidad(fechaCorte);
         Map<String, BigDecimal> colombiaUsd = readColombiaUsd(fechaCorte, mensual.trm());
         Map<String, BigDecimal> gastosUsd = readGastosUsd(fechaCorte, mensual.trm());
         Map<String, BigDecimal> comisionesPct = readComisiones(fechaCorte);
@@ -56,23 +58,6 @@ public class TrimestralDataReader {
                 .toLowerCase() + "-" + String.format("%02d", fechaCorte.getYear() % 100);
 
         return new TrimestralData(etiquetaFecha, afiliados, aportantes, traspasos, colombiaUsd, gastosUsd, comisionesPct, rentNominalPct, rentRealPct);
-    }
-
-    private Map<String, BigDecimal> readTraspasosFrom493(LocalDate fechaCorte) {
-        Path file493 = locator.findRequired("493", fechaCorte);
-        Map<String, BigDecimal> out = new HashMap<>();
-        try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
-            Sheet sheet = getSheetIgnoreCase(wb, "Traslados Entre AFP");
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-            setDate(sheet, "B11", fechaCorte);
-            out.put("colf", readTraspasosByCode(sheet, evaluator, 10));
-            out.put("prot", readTraspasosByCode(sheet, evaluator, 2));
-            out.put("porv", readTraspasosByCode(sheet, evaluator, 3));
-            out.put("sk", readTraspasosByCode(sheet, evaluator, 9));
-            return out;
-        } catch (Exception e) {
-            throw new IllegalStateException("Error leyendo traspasos por AFP desde Formato 493", e);
-        }
     }
 
     private Map<String, BigDecimal> readColombiaUsd(LocalDate fechaCorte, BigDecimal trm) {
@@ -284,17 +269,6 @@ public class TrimestralDataReader {
         eval.clearAllCachedResultValues();
         real.put(key, num(s, "D10", eval).multiply(BigDecimal.valueOf(100)));
         nom.put(key, num(s, "D11", eval).multiply(BigDecimal.valueOf(100)));
-    }
-
-    private BigDecimal readTraspasosByCode(Sheet sheet, FormulaEvaluator evaluator, int afpCode) {
-        setNumeric(sheet, "D4", afpCode);
-        evaluator.clearAllCachedResultValues();
-        BigDecimal total = num(sheet, "M11", evaluator).add(num(sheet, "AA11", evaluator)).add(num(sheet, "AO11", evaluator)).add(num(sheet, "BC11", evaluator));
-        if (total.signum() != 0) return total;
-        setText(sheet, "D4", String.valueOf(afpCode));
-        evaluator.clearAllCachedResultValues();
-        total = num(sheet, "M11", evaluator).add(num(sheet, "AA11", evaluator)).add(num(sheet, "AO11", evaluator)).add(num(sheet, "BC11", evaluator));
-        return total.signum() == 0 ? num(sheet, "BQ11", evaluator) : total;
     }
 
     private Path findComisionesFile(LocalDate fechaCorte) {

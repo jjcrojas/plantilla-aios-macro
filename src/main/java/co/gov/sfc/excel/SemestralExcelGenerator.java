@@ -38,11 +38,13 @@ public class SemestralExcelGenerator {
     private final AiosProperties properties;
     private final InsumosLocator locator;
     private final RentabilidadService rentabilidadService;
+    private final Formato493QueryService formato493QueryService;
 
-    public SemestralExcelGenerator(AiosProperties properties, InsumosLocator locator, RentabilidadService rentabilidadService) {
+    public SemestralExcelGenerator(AiosProperties properties, InsumosLocator locator, RentabilidadService rentabilidadService, Formato493QueryService formato493QueryService) {
         this.properties = properties;
         this.locator = locator;
         this.rentabilidadService = rentabilidadService;
+        this.formato493QueryService = formato493QueryService;
     }
 
     public Path generar(LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral) {
@@ -83,7 +85,7 @@ public class SemestralExcelGenerator {
                 write(hoja, 19, col, fila19);
                 BigDecimal fila25 = readFila25Trimestral493(fechaCorte);
                 write(hoja, 25, col, fila25);
-                log.info("Semestral: fila25=M11/1000 desde Formato 493 hoja Fallecidos con B11={} y D4=99 => {}.", fechaCorte, fila25);
+                log.info("Semestral: fila25=fallecidos/1000 desde query Formato 493 para fechaCorte={} => {}.", fechaCorte, fila25);
                 log.info("Semestral: fila16(total_pen)={}, fila17(inv% BI62/total)={}, fila18(vej% BH62/total)={}, fila19(sob% BJ62/total)={} numeradores(inv={}, vej={}, sob={}) para fecha={} col={}.",
                         totalPensionadosSemestral,
                         fila17,
@@ -1257,20 +1259,7 @@ public class SemestralExcelGenerator {
     }
 
     private BigDecimal readFila25Trimestral493(LocalDate fechaCorte) {
-        Path file493 = locator.findRequired("493", fechaCorte);
-        try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
-            Sheet sheet = getSheetIgnoreCase(wb, "Fallecidos");
-            if (sheet == null) {
-                throw new IllegalStateException("No existe la hoja Fallecidos en " + file493);
-            }
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-            setDate(sheet, "B11", fechaCorte);
-            cell(sheet, "D4").setCellValue(99d);
-            evaluator.clearAllCachedResultValues();
-            return divide(num(sheet, "M11", evaluator), BigDecimal.valueOf(1000));
-        } catch (Exception e) {
-            throw new IllegalStateException("Error leyendo fila 25 desde Formato 493 hoja Fallecidos (B11=fecha, D4=99, M11/1000)", e);
-        }
+        return divide(formato493QueryService.leerFallecidosSistema(fechaCorte), BigDecimal.valueOf(1000));
     }
 
     private Sheet getSheetIgnoreCase(Workbook wb, String name) {
