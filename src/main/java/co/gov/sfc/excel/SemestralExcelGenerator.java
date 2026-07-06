@@ -39,12 +39,14 @@ public class SemestralExcelGenerator {
     private final InsumosLocator locator;
     private final RentabilidadService rentabilidadService;
     private final Formato493QueryService formato493QueryService;
+    private final Formato495QueryService formato495QueryService;
 
-    public SemestralExcelGenerator(AiosProperties properties, InsumosLocator locator, RentabilidadService rentabilidadService, Formato493QueryService formato493QueryService) {
+    public SemestralExcelGenerator(AiosProperties properties, InsumosLocator locator, RentabilidadService rentabilidadService, Formato493QueryService formato493QueryService, Formato495QueryService formato495QueryService) {
         this.properties = properties;
         this.locator = locator;
         this.rentabilidadService = rentabilidadService;
         this.formato493QueryService = formato493QueryService;
+        this.formato495QueryService = formato495QueryService;
     }
 
     public Path generar(LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral) {
@@ -73,9 +75,10 @@ public class SemestralExcelGenerator {
                 write(hoja, 13, col, pct(safeDivide(mensual.aportantesSemestral(), mensual.pea())));
                 write(hoja, 14, col, pct(safeDivide(mensual.aportantesSemestral(), mensual.afiliados())));
                 write(hoja, 15, col, mensual.smColombiaUsd());
-                BigDecimal totalPensionadosSemestral = readTotalPensionados495(fechaCorte, mensual.totalPen());
-                PensionadosPorEntidad pensionadosPorEntidad = readPensionadosPorEntidad495(fechaCorte,
-                        new PensionadosPorEntidad(mensual.totalInv(), mensual.totalVej(), mensual.totalSob()));
+                Formato495QueryService.PensionadosResumen pensionadosSemestral = formato495QueryService.leerResumen(fechaCorte);
+                BigDecimal totalPensionadosSemestral = pensionadosSemestral.total();
+                PensionadosPorEntidad pensionadosPorEntidad = new PensionadosPorEntidad(
+                        pensionadosSemestral.invalidez(), pensionadosSemestral.vejez(), pensionadosSemestral.sobrevivencia());
                 BigDecimal fila17 = safeDivide(pensionadosPorEntidad.invalidez(), totalPensionadosSemestral);
                 BigDecimal fila18 = safeDivide(pensionadosPorEntidad.vejez(), totalPensionadosSemestral);
                 BigDecimal fila19 = safeDivide(pensionadosPorEntidad.sobrevivencia(), totalPensionadosSemestral);
@@ -86,7 +89,7 @@ public class SemestralExcelGenerator {
                 BigDecimal fila25 = readFila25Trimestral493(fechaCorte);
                 write(hoja, 25, col, fila25);
                 log.info("Semestral: fila25=fallecidos/1000 desde query Formato 493 para fechaCorte={} => {}.", fechaCorte, fila25);
-                log.info("Semestral: fila16(total_pen)={}, fila17(inv% BI62/total)={}, fila18(vej% BH62/total)={}, fila19(sob% BJ62/total)={} numeradores(inv={}, vej={}, sob={}) para fecha={} col={}.",
+                log.info("Semestral: fila16(total_pen query 495)={}, fila17(inv query 495/total)={}, fila18(vej query 495/total)={}, fila19(sob query 495/total)={} numeradores(inv={}, vej={}, sob={}) para fecha={} col={}.",
                         totalPensionadosSemestral,
                         fila17,
                         fila18,
@@ -253,7 +256,6 @@ public class SemestralExcelGenerator {
 
 
     private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral, java.util.Map<Integer, String> detallesFilas) {
-        String formato495 = rutaInsumo("Series_Formato-495 PENSIONADOS", () -> findPensionados495File(fechaCorte));
         String sistemaTotal = rutaInsumo("SISTEMA TOTAL", () -> locator.findRequired("SISTEMA TOTAL", fechaCorte));
         String limites = rutaInsumo("LIMITES", () -> locator.findRequired("LIMITES", fechaCorte));
         String pibPeaTrmDg = rutaInsumo("PIB_PEA_TRM_DG", () -> locator.findRequired("PIB_PEA_TRM_DG", fechaCorte));
@@ -276,10 +278,10 @@ public class SemestralExcelGenerator {
         explicaciones.put(13, "valor = (mensual.aportantesSemestral() / mensual.pea()) * 100; aportantes por query Teradata sin filtro de CODIGO_ENTIDAD y PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(14, "valor = (mensual.aportantesSemestral() / mensual.afiliados()) * 100; aportantes por query Teradata sin filtro de CODIGO_ENTIDAD y afiliados por query Teradata.");
         explicaciones.put(15, "valor = salario mínimo ponderado COP calculado por query Teradata Formato491 con salario oficial desde SalarioMinimo.csv / TRM; salarioMinimoPonderadoCop=" + smCop(mensual) + "; TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(16, "valor = total pensionados de Series_Formato-495 PENSIONADOS hoja TOTAL PENSIONADOS: se escribe fecha parámetro en B4 y se toma columna I de la fila cuya fecha en columna B corresponde al corte; ruta=" + formato495 + ".");
-        explicaciones.put(17, "valor = por Entidad!BI62 / fila 16; BI62 es pensionados por invalidez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
-        explicaciones.put(18, "valor = por Entidad!BH62 / fila 16; BH62 es pensionados por vejez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
-        explicaciones.put(19, "valor = por Entidad!BJ62 / fila 16; BJ62 es pensionados por sobrevivencia del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
+        explicaciones.put(16, "valor = total pensionados por query Teradata PROD_DWH_CONSULTA.S9_FORMATO_495 con FECHA_CORTE, UNIDAD_CAPTURA=1 y RENGLON=200.");
+        explicaciones.put(17, "valor = pensionados por invalidez por query Teradata PROD_DWH_CONSULTA.S9_FORMATO_495 / fila 16.");
+        explicaciones.put(18, "valor = pensionados por vejez por query Teradata PROD_DWH_CONSULTA.S9_FORMATO_495 / fila 16.");
+        explicaciones.put(19, "valor = pensionados por sobrevivencia por query Teradata PROD_DWH_CONSULTA.S9_FORMATO_495 / fila 16.");
         explicaciones.put(25, "valor = query Teradata PROD_DWH_CONSULTA.S9_FORMATO_493 fallecidos sistema / 1000; ventana de 12 meses por FECHA_CORTE, UNIDAD_CAPTURA=1 y RENGLON IN (165,170,175).");
         explicaciones.put(26, "valor = mensual.traspasosSistema(); total de traspasos del sistema leído por query Teradata PROD_DWH_CONSULTA.S9_FORMATO_493 en MensualDataReader.");
         explicaciones.put(27, "valor = mensual.traspasosSistema() / mensual.afiliados(); traspasos por query Teradata Formato493 dividido entre afiliados por query Teradata Formato491.");
@@ -382,7 +384,7 @@ public class SemestralExcelGenerator {
             case 13 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + "; PEA=" + mensual.pea() + ".";
             case 14 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + "; afiliados=" + mensual.afiliados() + ".";
             case 15 -> "valores tomados: salarioMinimoPonderadoCop=" + smCop(mensual) + "; salarioMinimoUsd=" + mensual.smColombiaUsd() + "; TRM=" + trm(mensual) + ".";
-            case 16 -> "valores tomados: totalPensionados=" + num(hoja, 16, col) + "; fallback mensual.totalPen=" + mensual.totalPen() + ".";
+            case 16 -> "valores tomados: totalPensionados=query Formato495=" + num(hoja, 16, col) + ".";
             case 17 -> "valores tomados: invalidez=" + mensual.totalInv() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
             case 18 -> "valores tomados: vejez=" + mensual.totalVej() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
             case 19 -> "valores tomados: sobrevivencia=" + mensual.totalSob() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
