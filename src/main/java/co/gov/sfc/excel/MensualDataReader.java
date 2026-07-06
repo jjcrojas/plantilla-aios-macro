@@ -31,12 +31,14 @@ public class MensualDataReader {
     private final AiosProperties properties;
     private final Formato491QueryService formato491QueryService;
     private final Formato493QueryService formato493QueryService;
+    private final Formato495QueryService formato495QueryService;
 
-    public MensualDataReader(InsumosLocator locator, AiosProperties properties, Formato491QueryService formato491QueryService, Formato493QueryService formato493QueryService) {
+    public MensualDataReader(InsumosLocator locator, AiosProperties properties, Formato491QueryService formato491QueryService, Formato493QueryService formato493QueryService, Formato495QueryService formato495QueryService) {
         this.locator = locator;
         this.properties = properties;
         this.formato491QueryService = formato491QueryService;
         this.formato493QueryService = formato493QueryService;
+        this.formato495QueryService = formato495QueryService;
         // Evitar asignaciones gigantes en POI que pueden terminar en OOM con archivos grandes.
         // 100 MB es suficiente para los insumos actuales y más conservador en memoria.
         IOUtils.setByteArrayMaxOverride(100_000_000);
@@ -195,11 +197,12 @@ public class MensualDataReader {
         BigDecimal activosCuentas = readFromPlantillaSheet(fechaCorte, "CUENTAS", "C6");
         BigDecimal pasivosCuentas = readFromPlantillaSheet(fechaCorte, "CUENTAS", "C4");
         BigDecimal pibSemestral = readPibSemestral(fechaCorte);
-        PensionadosData pensionados = readPensionados495(fechaCorte);
-        totalPen = pensionados.totalPen();
-        totalInv = pensionados.totalInv();
-        totalVej = pensionados.totalVej();
-        totalSob = pensionados.totalSob();
+        Formato495QueryService.PensionadosResumen pensionados = formato495QueryService.leerResumen(fechaCorte);
+        totalPen = pensionados.total();
+        totalInv = pensionados.invalidez();
+        totalVej = pensionados.vejez();
+        totalSob = pensionados.sobrevivencia();
+        log.info("Consulta Teradata Formato 495 completada para fechaCorte={}", fechaCorte);
         log.info("TRM seleccionada para fechaCorte={}: {}", fechaCorte, trm);
 
         return new MensualData(
