@@ -20,7 +20,7 @@ class SemestralExcelGeneratorTest {
         AiosProperties properties = new AiosProperties(Path.of("insumos_ejemplo"), null, null, null, null);
         Formato493QueryService formato493QueryService = mock(Formato493QueryService.class);
         when(formato493QueryService.leerFallecidosSistema(LocalDate.of(2025, 6, 30))).thenReturn(new BigDecimal("38279"));
-        SemestralExcelGenerator generator = new SemestralExcelGenerator(properties, new InsumosLocator(properties), null, formato493QueryService, mock(Formato495QueryService.class));
+        SemestralExcelGenerator generator = new SemestralExcelGenerator(properties, new InsumosLocator(properties), null, formato493QueryService, mock(Formato495QueryService.class), mock(Formato136QueryService.class));
         Method method = SemestralExcelGenerator.class.getDeclaredMethod("readFila25Trimestral493", LocalDate.class);
         method.setAccessible(true);
 
