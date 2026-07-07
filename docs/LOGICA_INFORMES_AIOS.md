@@ -27,7 +27,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 | `LIMITES` | Límites de inversión locales y del exterior. | Hoja `AIOS`: `AB4`, `C4`, `E4`, `G4`, `I4`, `K4`, `O4`, `Q4`, `S4`, `U4`, `W4`, `Y4`, `AA4`. |
 | `PIB_PEA_TRM_DG` | PEA, PIB semestral, TRM y deuda gubernamental. | Hoja `Hoja1`: fecha en columna `L`, deuda gubernamental en columna `M`, además de series de TRM/PEA/PIB usadas por los lectores. |
 | `Series_Formato-495 PENSIONADOS.xlsm` | Total y composición de pensionados. | Hoja `TOTAL PENSIONADOS`, parámetro `B4`, serie en columna `I`; hoja `por Entidad`, parámetro `C6`, celdas `BI62`, `BH62`, `BJ62`. |
-| `Formato_136_Meses.xlsm` | Aportes recibidos para indicadores semestrales. | Hoja `FORMATO OBL`: parámetros `C7`, `D6`, `D7`; resultado `G6`. |
+| Query Teradata Formato 136 | Aportes recibidos para indicadores semestrales. | `SUM(e.valor)/1000000` desde `prod_dwh_consulta.negfid_insumo_entidad` filtrando `nivel1=136`, `nivel2=2`, `nivel3=4`, `nivel4=10`, patrimonio 1000 y tipo entidad 23. |
 | `Plantilla AIOS-probable.xlsm` | Datos contables de cuentas, activos/pasivos, patrimonio y resultados. | Hoja `CUENTAS`: `C4`, `C6`, `C15`, `C21`, `C22`, `C24`, `C28`, `C29`, `C31:C38`, `E13`, `G15`, `E41`, `E44`, `H24`. |
 | `Rent_Vr_Uni_Moderado.xlsm` | IPC y rentabilidad real/nominal cuando aplica fallback. | Hojas o series de IPC/rentabilidad moderada. |
 | `Valores_Fondo_Moder` / `MODERADO` | NAV histórico para rentabilidades semestrales. | Series de valor de unidad/NAV por fecha. |
@@ -144,7 +144,7 @@ Hojas escritas:
 |---|---|---|
 | `afiliados` | Afiliados por administradora y fondo. | Valor crudo de personas. |
 | `aportantes` | Aportantes por administradora. | Valor crudo de personas. |
-| `colombia` | Fondos o saldos de Colombia por administradora/fondo. | USD o millones de USD según plantilla de referencia. |
+| `colombia` | Fondos o saldos de Colombia por administradora/fondo. | Query Teradata Formato 136 por fecha de corte, patrimonio y entidad; se convierte con TRM a USD o millones de USD según plantilla de referencia. |
 | `traspasos` | Traspasos por administradora. | Valor crudo de personas/transacciones. |
 | `gastos` | Gastos netos por administradora. | USD, calculado desde COP y dividido por TRM. |
 | `promotores` | Datos de promotores. | Valor crudo; actualmente se escriben ceros cuando no hay fuente. |
@@ -160,19 +160,15 @@ El informe semestral escribe filas específicas de una plantilla semestral. La c
 3. **Movimiento de afiliados**: para la fila 25 consulta fallecidos del Formato 493 en `PROD_DWH_CONSULTA.S9_FORMATO_493` con `UNIDAD_CAPTURA=1`, `RENGLON IN (165,170,175)` y ventana de 12 meses por `FECHA_CORTE`; el resultado se divide entre `1000`. Los traspasos de filas 26 y 27 vienen del mismo formato vía query, con las unidades/renglones de traspasos documentados en la trazabilidad.
 4. **Fondos, PIB y deuda**: combina `SISTEMA TOTAL`, TRM, PIB y deuda gubernamental total de `PIB_PEA_TRM_DG`.
 5. **Límites de inversión**: usa `LIMITES`, hoja `AIOS`.
-6. **Contabilidad y gastos**: usa `Plantilla AIOS-probable.xlsm`, hoja `CUENTAS`, y `Formato_136_Meses.xlsm` para aportes recibidos.
+6. **Contabilidad y gastos**: usa `Plantilla AIOS-probable.xlsm`, hoja `CUENTAS`, y query Teradata Formato 136 para aportes recibidos.
 7. **Comisiones y aportes**: combina comisiones trimestrales con constantes regulatorias.
 8. **Rentabilidades**: usa `RentabilidadService` sobre NAV e IPC para horizontes de 1, 3, 5 y 10 años.
 
-### Parámetros especiales de Formato 136
+### Query de Formato 136 para aportes recibidos
 
-Para hallar `aportesRecibidos136`, antes de evaluar `G6` en la hoja `FORMATO OBL` se escriben los siguientes parámetros:
+Para hallar `aportesRecibidos136` ya no se abre `Formato_136_Meses.xlsm`; se consulta Teradata con ventana desde el día 1 del mismo mes un año antes del corte hasta la fecha de corte. Por ejemplo, para corte `30/06/2025`, la ventana es `01/06/2024` a `30/06/2025`.
 
-| Celda | Valor |
-|---|---|
-| `C7` | Primer día del mismo mes, un año antes de `fechaCorte`. Ejemplo: para `30/06/2025`, se escribe `01/06/2024`. |
-| `D6` | `fechaCorte`. |
-| `D7` | `fechaCorte`. |
+El valor se calcula como `SUM(e.valor)/1000000` filtrando patrimonio autónomo tipo `6`, código `1000`, niveles `136/2/4/10`, tipo de entidad `23` y valores diferentes de cero.
 
 
 ## 8. Lectura conceptual de los datos

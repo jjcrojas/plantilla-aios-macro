@@ -22,6 +22,7 @@ class TrimestralDataReaderTest {
         InsumosLocator locator = mock(InsumosLocator.class);
         Formato491QueryService formato491QueryService = mock(Formato491QueryService.class);
         Formato493QueryService formato493QueryService = mock(Formato493QueryService.class);
+        Formato136QueryService formato136QueryService = mock(Formato136QueryService.class);
 
         LocalDate fecha = LocalDate.of(2025, 6, 30);
         when(locator.findRequired("493", fecha)).thenReturn(Path.of("insumos_ejemplo", "Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx"));
@@ -50,8 +51,9 @@ class TrimestralDataReaderTest {
         when(formato491QueryService.leerAportantesPorEntidad(fecha)).thenReturn(Map.of());
         when(formato493QueryService.leerTraspasosPorEntidad(fecha)).thenReturn(Map.of(
                 "colf", BigDecimal.ZERO, "porv", BigDecimal.ZERO, "prot", BigDecimal.ZERO, "sk", BigDecimal.ZERO));
+        when(formato136QueryService.leerColombiaPorFondoEntidad(fecha)).thenReturn(Map.of());
 
-        TrimestralDataReader reader = new TrimestralDataReader(mensualDataReader, locator, formato491QueryService, formato493QueryService);
+        TrimestralDataReader reader = new TrimestralDataReader(mensualDataReader, locator, formato491QueryService, formato493QueryService, formato136QueryService);
         TrimestralData data = reader.read(fecha);
 
         assertTrue(data.traspasos().getOrDefault("colf", BigDecimal.ZERO).signum() >= 0);

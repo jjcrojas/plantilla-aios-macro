@@ -65,7 +65,7 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 |---|---|---|---|
 | `afiliados` | Valores por fondo y administradora (`mod_*`, `con_*`, `mr_*`, combinaciones) | Query Teradata sobre Formato 491 (`TOTAL_AFILIADOS_TOTAL`, `RENGLON=999`, filtros por `CODIGO_ENTIDAD`, fondo y unidad de captura) | Valor crudo (personas) |
 | `aportantes` | `colf`, `porv`, `prot`, `sk` y ceros para entidades no aplicables | Query Teradata Formato 491 filtrada por `CODIGO_ENTIDAD` para cada AFP: 10, 3, 2 y 9 | Valor crudo (personas) |
-| `colombia` | Saldos por fondo/administradora, con agregados como `mod_sk + mod_alt` | `SISTEMA TOTAL` y datos de fondos | USD o MM USD según plantilla |
+| `colombia` | Saldos por fondo/administradora, con agregados como `mod_sk + mod_alt` | Query Teradata Formato 136 por fecha de corte, patrimonio y entidad | USD o MM USD según plantilla |
 | `traspasos` | Traspasos por administradora | Query Teradata `PROD_DWH_CONSULTA.S9_FORMATO_493` con la misma regla de traspasos y filtro `CODIGO_ENTIDAD` por AFP. | Valor crudo |
 | `gastos` | `gastoNetoCOP / TRM` | Base anual / cuentas de gasto; TRM de `PIB_PEA_TRM_DG` | USD |
 | `promotores` | Ceros cuando no hay fuente disponible | Constante temporal | Valor crudo |
@@ -129,7 +129,7 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 | 58 | `(C21 + C22) / TRM` | `Plantilla AIOS-probable`, hoja `cuentas`, cuentas `511500` y `511527`; TRM | USD |
 | 59 | `(C24 + C28 + C29 + C31 + C32 + C33 + C34 + C35 + C36 + C37 + C38) / TRM` | `Plantilla AIOS-probable`, hoja `cuentas`, cuentas `512000`, `513000`, `513500`, `514000`, `514500`, `515000`, `515500`, `516000`, `516500`, `517000`, `517200`; TRM | USD |
 | 60 | `C15 / TRM` | `Plantilla AIOS-probable`, hoja `cuentas`, cuenta `510000`, celda `C15`; TRM | USD |
-| 61 | `(aportesRecibidos136 / TRM) / (aportantes / 1000) * 1000` | `Formato_136_Meses`, hoja `FORMATO OBL`, parámetros `C7`, `D6`, `D7`, resultado `G6`; aportantes por query Teradata Formato 491; TRM | USD por mil aportantes |
+| 61 | `(aportesRecibidos136 / TRM) / (aportantes / 1000) * 1000` | Query Teradata Formato 136 `SUM(e.valor)/1000000`; aportantes por query Teradata Formato 491; TRM | USD por mil aportantes |
 | 62 | `gastos / (aportesRecibidos136 / TRM) * 100` | Gastos de `CUENTAS`; aportes de Formato 136; TRM | Porcentaje |
 | 63 | `(patrimonioBaseMesMMCop / TRM) / fila28 * 100` | `Plantilla AIOS-probable`, base mes; TRM; fila 28 | Porcentaje |
 | 64 | `patrimonioUsd / afiliados * 1,000,000` | Fila 50 y afiliados totales por query Teradata Formato 491 | USD por afiliado |
@@ -1995,7 +1995,7 @@ $$
 **Fórmula implementada**
 
 $$
-\text{Fila 61} = \frac{\text{Formato 136!G6}/\text{TRM}}{\text{Aportantes}/1000} \times 1000
+\text{Fila 61} = \frac{\text{Query Teradata Formato 136}/\text{TRM}}{\text{Aportantes}/1000} \times 1000
 $$
 
 La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
@@ -2668,10 +2668,8 @@ $$
 
 Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
 
-## 7. Parámetros de Formato 136 para fila 61
+## 7. Query de Formato 136 para fila 61
 
-| Celda | Valor escrito antes de evaluar `G6` | Ejemplo con corte `30/06/2025` |
-|---|---|---|
-| `C7` | `fechaCorte.minusYears(1).withDayOfMonth(1)` | `01/06/2024` |
-| `D6` | `fechaCorte` | `30/06/2025` |
-| `D7` | `fechaCorte` | `30/06/2025` |
+La fila 61 ya no evalúa `G6` en `Formato_136_Meses.xlsm`. El valor `aportesRecibidos136` se consulta en Teradata con `SUM(e.valor)/1000000`, niveles `136/2/4/10`, patrimonio autónomo tipo `6`, código `1000`, tipo de entidad `23` y `e.valor <> 0`.
+
+La ventana de fechas es `fechaCorte.minusYears(1).withDayOfMonth(1)` hasta `fechaCorte`; para corte `30/06/2025`, se consulta desde `01/06/2024` hasta `30/06/2025`.
