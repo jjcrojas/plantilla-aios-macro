@@ -28,12 +28,14 @@ public class TrimestralDataReader {
     private final InsumosLocator locator;
     private final Formato491QueryService formato491QueryService;
     private final Formato493QueryService formato493QueryService;
+    private final Formato136QueryService formato136QueryService;
 
-    public TrimestralDataReader(MensualDataReader mensualDataReader, InsumosLocator locator, Formato491QueryService formato491QueryService, Formato493QueryService formato493QueryService) {
+    public TrimestralDataReader(MensualDataReader mensualDataReader, InsumosLocator locator, Formato491QueryService formato491QueryService, Formato493QueryService formato493QueryService, Formato136QueryService formato136QueryService) {
         this.mensualDataReader = mensualDataReader;
         this.locator = locator;
         this.formato491QueryService = formato491QueryService;
         this.formato493QueryService = formato493QueryService;
+        this.formato136QueryService = formato136QueryService;
     }
 
     public TrimestralData read(LocalDate fechaCorte) {
@@ -61,43 +63,12 @@ public class TrimestralDataReader {
     }
 
     private Map<String, BigDecimal> readColombiaUsd(LocalDate fechaCorte, BigDecimal trm) {
+        Map<String, BigDecimal> saldosMillonesCop = formato136QueryService.leerColombiaPorFondoEntidad(fechaCorte);
         Map<String, BigDecimal> out = new HashMap<>();
-        try {
-            Path formato136 = locator.findRequired("Formato_136_Meses", fechaCorte);
-            try (Workbook wb = WorkbookFactory.create(formato136.toFile(), null, true)) {
-                Sheet hojaObl = getSheetIgnoreCase(wb, "FORMATO OBL");
-                if (hojaObl == null) {
-                    throw new IllegalStateException("No existe la hoja FORMATO OBL en Formato_136_Meses");
-                }
-                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-                setDate(hojaObl, "D7", fechaCorte);
-                evaluator.clearAllCachedResultValues();
-
-                readColombiaFondoFromFormatoObl(out, hojaObl, evaluator, "mod", "D", trm, true);
-                readColombiaFondoFromFormatoObl(out, hojaObl, evaluator, "con", "E", trm, false);
-                readColombiaFondoFromFormatoObl(out, hojaObl, evaluator, "mr", "F", trm, false);
-                readColombiaFondoFromFormatoObl(out, hojaObl, evaluator, "rp", "G", trm, false);
-            }
-        } catch (Exception e) {
-            log.warn("No se pudo leer bloque colombia trimestral: {}", e.getMessage());
-        }
+        saldosMillonesCop.forEach((key, value) -> out.put(key, safeDivide(value, trm)));
+        log.info("Colombia trimestral: saldos Formato 136 consultados en Teradata para fechaCorte={} y convertidos con TRM={} valores={}",
+                fechaCorte, trm, out);
         return out;
-    }
-
-    private void readColombiaFondoFromFormatoObl(Map<String, BigDecimal> out, Sheet hojaObl, FormulaEvaluator evaluator, String prefijo, String columna, BigDecimal trm, boolean separarSkandiaAlt) {
-        BigDecimal proteccion = num(hojaObl, columna + "20", evaluator);
-        BigDecimal porvenir = num(hojaObl, columna + "21", evaluator);
-        BigDecimal skandia = num(hojaObl, columna + "22", evaluator);
-        BigDecimal skandiaAlt = num(hojaObl, columna + "23", evaluator);
-        BigDecimal colfondos = num(hojaObl, columna + "24", evaluator);
-
-        out.put(prefijo + "_colf", safeDivide(colfondos, trm));
-        out.put(prefijo + "_porv", safeDivide(porvenir, trm));
-        out.put(prefijo + "_prot", safeDivide(proteccion, trm));
-        out.put(prefijo + "_sk", safeDivide(skandia.add(separarSkandiaAlt ? BigDecimal.ZERO : skandiaAlt), trm));
-        if (separarSkandiaAlt) {
-            out.put(prefijo + "_alt", safeDivide(skandiaAlt, trm));
-        }
     }
 
     private void readBalanceTo(Map<String, BigDecimal> out, Path dir, String name, String pref, boolean allowAlt, BigDecimal trm) throws Exception {

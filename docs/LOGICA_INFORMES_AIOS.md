@@ -144,7 +144,7 @@ Hojas escritas:
 |---|---|---|
 | `afiliados` | Afiliados por administradora y fondo. | Valor crudo de personas. |
 | `aportantes` | Aportantes por administradora. | Valor crudo de personas. |
-| `colombia` | Fondos o saldos de Colombia por administradora/fondo. | USD o millones de USD según plantilla de referencia. |
+| `colombia` | Fondos o saldos de Colombia por administradora/fondo. | Query Teradata Formato 136 por fecha de corte, patrimonio y entidad; se convierte con TRM a USD o millones de USD según plantilla de referencia. |
 | `traspasos` | Traspasos por administradora. | Valor crudo de personas/transacciones. |
 | `gastos` | Gastos netos por administradora. | USD, calculado desde COP y dividido por TRM. |
 | `promotores` | Datos de promotores. | Valor crudo; actualmente se escriben ceros cuando no hay fuente. |

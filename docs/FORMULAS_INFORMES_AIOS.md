@@ -65,7 +65,7 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 |---|---|---|---|
 | `afiliados` | Valores por fondo y administradora (`mod_*`, `con_*`, `mr_*`, combinaciones) | Query Teradata sobre Formato 491 (`TOTAL_AFILIADOS_TOTAL`, `RENGLON=999`, filtros por `CODIGO_ENTIDAD`, fondo y unidad de captura) | Valor crudo (personas) |
 | `aportantes` | `colf`, `porv`, `prot`, `sk` y ceros para entidades no aplicables | Query Teradata Formato 491 filtrada por `CODIGO_ENTIDAD` para cada AFP: 10, 3, 2 y 9 | Valor crudo (personas) |
-| `colombia` | Saldos por fondo/administradora, con agregados como `mod_sk + mod_alt` | `SISTEMA TOTAL` y datos de fondos | USD o MM USD según plantilla |
+| `colombia` | Saldos por fondo/administradora, con agregados como `mod_sk + mod_alt` | Query Teradata Formato 136 por fecha de corte, patrimonio y entidad | USD o MM USD según plantilla |
 | `traspasos` | Traspasos por administradora | Query Teradata `PROD_DWH_CONSULTA.S9_FORMATO_493` con la misma regla de traspasos y filtro `CODIGO_ENTIDAD` por AFP. | Valor crudo |
 | `gastos` | `gastoNetoCOP / TRM` | Base anual / cuentas de gasto; TRM de `PIB_PEA_TRM_DG` | USD |
 | `promotores` | Ceros cuando no hay fuente disponible | Constante temporal | Valor crudo |
