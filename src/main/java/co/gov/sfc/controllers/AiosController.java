@@ -46,6 +46,22 @@ public class AiosController {
                 .contentType(MediaType.parseMediaType(mediaType))
                 .body(new FileSystemResource(archivo));
     }
+
+    @PostMapping("/generar-mensuales")
+    public ResponseEntity<FileSystemResource> generarMensuales(
+            @RequestParam LocalDate desde,
+            @RequestParam LocalDate hasta
+    ) {
+        log.info("Solicitud generar mensuales AIOS recibida: desde={}, hasta={}", desde, hasta);
+        var resultado = generacionService.generarMensuales(desde, hasta);
+        var archivo = resultado.archivosGenerados().getFirst();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"Boletin_AIOS MENSUAL.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(new FileSystemResource(archivo));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<String> handleException(Exception ex) {
         return ResponseEntity.internalServerError()

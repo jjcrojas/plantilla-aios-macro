@@ -30,13 +30,19 @@ public class MensualDataReader {
     private final InsumosLocator locator;
     private final AiosProperties properties;
     private final Formato491QueryService formato491QueryService;
+    private final FondoAdministradoQueryService fondoAdministradoQueryService;
     private final Formato493QueryService formato493QueryService;
     private final Formato495QueryService formato495QueryService;
 
-    public MensualDataReader(InsumosLocator locator, AiosProperties properties, Formato491QueryService formato491QueryService, Formato493QueryService formato493QueryService, Formato495QueryService formato495QueryService) {
+    public MensualDataReader(InsumosLocator locator, AiosProperties properties,
+                             Formato491QueryService formato491QueryService,
+                             FondoAdministradoQueryService fondoAdministradoQueryService,
+                             Formato493QueryService formato493QueryService,
+                             Formato495QueryService formato495QueryService) {
         this.locator = locator;
         this.properties = properties;
         this.formato491QueryService = formato491QueryService;
+        this.fondoAdministradoQueryService = fondoAdministradoQueryService;
         this.formato493QueryService = formato493QueryService;
         this.formato495QueryService = formato495QueryService;
         // Evitar asignaciones gigantes en POI que pueden terminar en OOM con archivos grandes.
@@ -107,34 +113,12 @@ public class MensualDataReader {
         }
         log.info("Lectura rentabilidad completada para fechaCorte={}", fechaCorte);
 
-        BigDecimal vrFondo = BigDecimal.ZERO;
-        BigDecimal fondoSistemaJ14 = BigDecimal.ZERO;
-        BigDecimal porcVrFondo = BigDecimal.ZERO;
-        var sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
-        try {
-            if (shouldSkipPoiOpen(sistemaTotal, "SISTEMA TOTAL")) {
-                throw new IllegalStateException("Insumo muy grande para POI en modo seguro");
-            }
-            try (Workbook wb = WorkbookFactory.create(sistemaTotal.toFile(), null, true)) {
-            Sheet ws = wb.getSheet("restot");
-            int cSistema = findHeaderCol(ws, "SISTEMA");
-            int cProt = findHeaderCol(ws, "PROTECCION");
-            int cPorv = findHeaderCol(ws, "PORVENIR");
-            int row = findMaxRow(ws, cSistema + 1, null);
-            vrFondo = num(ws, row, cSistema + 1, null).divide(BigDecimal.valueOf(1000), 8, RoundingMode.HALF_UP);
-            fondoSistemaJ14 = num(ws, "J14", null);
-            var prot = num(ws, row, cProt + 1, null);
-            var porv = num(ws, row, cPorv + 1, null);
-            if (vrFondo.signum() != 0) {
-                porcVrFondo = prot.add(porv).divide(vrFondo, 8, RoundingMode.HALF_UP).divide(BigDecimal.TEN, 8, RoundingMode.HALF_UP);
-            }
-            }
-        } catch (OutOfMemoryError oom) {
-            log.warn("OOM leyendo SISTEMA TOTAL; se usarán ceros para este bloque");
-        } catch (Exception e) {
-            log.warn("No fue posible leer SISTEMA TOTAL: {}", e.getMessage());
-        }
-        log.info("Lectura SISTEMA TOTAL completada para fechaCorte={}", fechaCorte);
+        var fondoAdministrado = fondoAdministradoQueryService.leer(fechaCorte);
+        BigDecimal vrFondo = fondoAdministrado.totalMmCop();
+        BigDecimal fondoSistemaJ14 = vrFondo;
+        BigDecimal porcVrFondo = fondoAdministrado.concentracionProteccionPorvenirPct();
+        log.info("Consulta Teradata de fondo administrado completada para fechaCorte={} totalMmCop={}",
+                fechaCorte, vrFondo);
 
         BigDecimal total1 = BigDecimal.ZERO;
         BigDecimal dudaG = BigDecimal.ZERO;
@@ -818,32 +802,6 @@ public class MensualDataReader {
             return false;
         }
     }
-
-    private int findHeaderCol(Sheet sheet, String header) {
-        for (Row row : sheet) {
-            for (Cell cell : row) {
-                if (cell.getCellType() == CellType.STRING && cell.getStringCellValue().toUpperCase().contains(header.toUpperCase())) {
-                    return cell.getColumnIndex();
-                }
-            }
-        }
-        throw new IllegalArgumentException("No header " + header);
-    }
-
-    private int findMaxRow(Sheet sheet, int col1Based, FormulaEvaluator evaluator) {
-        int bestRow = -1;
-        BigDecimal max = BigDecimal.valueOf(-1);
-        for (Row row : sheet) {
-            BigDecimal v = num(sheet, row.getRowNum() + 1, col1Based, evaluator);
-            if (v.compareTo(max) > 0) {
-                max = v;
-                bestRow = row.getRowNum() + 1;
-            }
-        }
-        if (bestRow < 1) throw new IllegalArgumentException("No data row");
-        return bestRow;
-    }
-
 
     private BigDecimal sumRange(Sheet sheet, FormulaEvaluator evaluator, int rowStart, int rowEnd, int col1Based) {
         BigDecimal total = BigDecimal.ZERO;

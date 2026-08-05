@@ -103,8 +103,7 @@ public class SemestralExcelGenerator {
                 write(hoja, 26, col, mensual.traspasosSistema());
                 write(hoja, 27, col, safeDivide(mensual.traspasosSistema(), mensual.afiliados()));
                 setNumberFormat(hoja, 27, col, "#,##0.00%");
-                BigDecimal fondoCop = mensual.fondoSistemaJ14().multiply(BigDecimal.valueOf(1000));
-                BigDecimal fondoUsdMM = safeDivide(safeDivide(fondoCop, trm(mensual)), BigDecimal.valueOf(1_000_000));
+                BigDecimal fondoUsdMM = safeDivide(mensual.vrFondo(), trm(mensual));
                 write(hoja, 28, col, fondoUsdMM);
                 BigDecimal pibUsd = safeDivide(mensual.pibSemestral(), trm(mensual));
                 BigDecimal ratioFondosPib = safeDivide(fondoUsdMM, pibUsd);
@@ -141,7 +140,9 @@ public class SemestralExcelGenerator {
                 setNumberFormat(hoja, 45, col, "#,##0.00%");
                 detallesFilas.put(45, "operando fila28 fondoUsdMM=" + fondoUsdMM + "; operando deudaGubernamentalTotalUSD=" + deudaGubernamentalTotal.valor() + "; " + deudaGubernamentalTotal.detalle());
                 write(hoja, 46, col, BigDecimal.valueOf(4));
-                DatoDetalle fila47 = readFila47DesdeSistemaTotal(fechaCorte, mensual.porcVrFondo());
+                DatoDetalle fila47 = new DatoDetalle(
+                        safeDivide(mensual.porcVrFondo(), BigDecimal.valueOf(100)),
+                        "fuente=Query Teradata ESTFIN_INDIV_PA; operación=(Protección+Porvenir)/total sistema.");
                 write(hoja, 47, col, fila47.valor());
                 detallesFilas.put(47, fila47.detalle());
                 setNumberFormat(hoja, 47, col, "#,##0.00%");
@@ -258,7 +259,6 @@ public class SemestralExcelGenerator {
 
 
     private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral, java.util.Map<Integer, String> detallesFilas) {
-        String sistemaTotal = rutaInsumo("SISTEMA TOTAL", () -> locator.findRequired("SISTEMA TOTAL", fechaCorte));
         String limites = rutaInsumo("LIMITES", () -> locator.findRequired("LIMITES", fechaCorte));
         String pibPeaTrmDg = rutaInsumo("PIB_PEA_TRM_DG", () -> locator.findRequired("PIB_PEA_TRM_DG", fechaCorte));
         String queryAportes136 = "Query Teradata prod_dwh_consulta.negfid_insumo_entidad (nivel1=136,nivel2=2,nivel3=4,nivel4=10)";
@@ -287,7 +287,7 @@ public class SemestralExcelGenerator {
         explicaciones.put(25, "valor = query Teradata PROD_DWH_CONSULTA.S9_FORMATO_493 fallecidos sistema / 1000; ventana de 12 meses por FECHA_CORTE, UNIDAD_CAPTURA=1 y RENGLON IN (165,170,175).");
         explicaciones.put(26, "valor = mensual.traspasosSistema(); total de traspasos del sistema leído por query Teradata PROD_DWH_CONSULTA.S9_FORMATO_493 en MensualDataReader.");
         explicaciones.put(27, "valor = mensual.traspasosSistema() / mensual.afiliados(); traspasos por query Teradata Formato493 dividido entre afiliados por query Teradata Formato491.");
-        explicaciones.put(28, "valor = mensual.fondoSistemaJ14() * 1000 / mensual.trm() / 1,000,000; fondoSistemaJ14 proviene de SISTEMA TOTAL hoja restot celda J14 ruta=" + sistemaTotal + "; TRM de PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(28, "valor = mensual.vrFondo() / mensual.trm(); vrFondo proviene de Query Teradata ESTFIN_INDIV_PA, SUM(Saldo_Sincierre_Total_Moneda_0)/1,000,000; TRM de PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(29, "valor = fila 28 / (mensual.pibSemestral() / mensual.trm()); PIB semestral y TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(30, "valor = mensual.total1() / mensual.trm(); total1 desde límites/composición leída por MensualDataReader; TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(31, "valor = mensual.dudaG(); dato de límites de inversión leído por MensualDataReader desde LIMITES/AIOS u origen equivalente, ruta=" + limites + ".");
@@ -306,7 +306,7 @@ public class SemestralExcelGenerator {
         explicaciones.put(44, "valor = (LIMITES hoja AIOS celdas O4 + Q4 + S4 + U4 + W4 + Y4) * 100; ruta=" + limites + ".");
         explicaciones.put(45, "valor = fila 28 / deuda gubernamental total en USD; deuda gubernamental total proviene de PIB_PEA_TRM_DG hoja Hoja1 columna M para la fecha de corte, ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(46, "valor fijo = 4; no usa insumo externo.");
-        explicaciones.put(47, "valor = (SISTEMA TOTAL hoja restot C14 Protección + restot D14 Porvenir) / restot J14 total sistema; ruta=" + sistemaTotal + ".");
+        explicaciones.put(47, "valor = concentración de Protección y Porvenir consultada en Teradata ESTFIN_INDIV_PA para PUC 100000 y la fecha de corte.");
         explicaciones.put(48, "valor = mensual.activosCuentas() / mensual.trm(); activosCuentas desde Plantilla AIOS/CUENTAS o fuente contable, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(49, "valor = mensual.pasivosCuentas() / mensual.trm(); pasivosCuentas desde Plantilla AIOS/CUENTAS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(50, "valor = (mensual.activosCuentas() - mensual.pasivosCuentas()) / mensual.trm(); activos y pasivos desde CUENTAS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
@@ -337,7 +337,7 @@ public class SemestralExcelGenerator {
         explicaciones.put(75, "valor = (3 - fila 71) * 0.75; usa comisión promedio porcentual calculada en fila 71.");
         explicaciones.put(76, "valor fijo = 0; no usa insumo externo.");
         explicaciones.put(77, "valor = cuentas.comisiones(); comisiones desde Plantilla AIOS hoja CUENTAS ruta=" + plantillaAios + ".");
-        explicaciones.put(78, "valor = fila 28; se reutiliza el valor de fondos administrados calculado con SISTEMA TOTAL J14 ruta=" + sistemaTotal + " y TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(78, "valor = fila 28; se reutiliza el valor de fondos administrados consultado en Teradata y convertido con TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(79, "valor = fila 77 / fila 78; fila 77 son comisiones desde CUENTAS ruta=" + plantillaAios + " y fila 78 fondos administrados.");
         explicaciones.put(80, "valor = año(fechaCorte) - 1994; no usa insumo externo.");
         explicaciones.put(82, "valor = rentabilidad nominal 10 años calculada por RentabilidadService usando NAV del archivo Valores_Fondo_Moder/MODERADO ruta=" + valoresFondo + " y fechas de corte.");
@@ -393,7 +393,7 @@ public class SemestralExcelGenerator {
             case 25 -> "valores tomados: fila25=" + num(hoja, 25, col) + "; fuente=query Teradata Formato493 fallecidos dividido entre 1000.";
             case 26 -> "valores tomados: traspasosSistema=" + mensual.traspasosSistema() + ".";
             case 27 -> "valores tomados: traspasosSistema=" + mensual.traspasosSistema() + "; afiliados=" + mensual.afiliados() + ".";
-            case 28 -> "valores tomados: fondoSistemaJ14=" + mensual.fondoSistemaJ14() + "; multiplicador=1000; TRM=" + trm(mensual) + "; divisor=1000000.";
+            case 28 -> "valores tomados: fondoAdministradoMmCop=" + mensual.vrFondo() + "; TRM=" + trm(mensual) + "; operación=fondoAdministradoMmCop/TRM.";
             case 29 -> "valores tomados: fila28=" + num(hoja, 28, col) + "; pibSemestralCOP=" + mensual.pibSemestral() + "; TRM=" + trm(mensual) + "; pibUsd=" + safeDivide(mensual.pibSemestral(), trm(mensual)) + ".";
             case 30 -> "valores tomados: total1=" + mensual.total1() + "; TRM=" + trm(mensual) + ".";
             case 31 -> "valores tomados: dudaG=" + mensual.dudaG() + ".";
@@ -655,7 +655,7 @@ public class SemestralExcelGenerator {
         return wb.getSheetAt(0);
     }
 
-    private int columnaSemestral(Sheet hoja, LocalDate fechaCorte) {
+    int columnaSemestral(Sheet hoja, LocalDate fechaCorte) {
         int month = fechaCorte.getMonthValue();
         if (month != 6 && month != 12) {
             throw new IllegalArgumentException("La generación semestral solo aplica para junio o diciembre");
@@ -680,7 +680,40 @@ public class SemestralExcelGenerator {
             }
         }
 
-        throw new IllegalArgumentException("No se encontró la columna para " + mesObjetivo + " " + anioObjetivo + " en la plantilla semestral");
+        int lastPeriodCol = 1;
+        for (int c = 2; c < Math.max(last, 3); c++) {
+            String mes = fmt.formatCellValue(rowMes.getCell(c));
+            String anio = fmt.formatCellValue(rowAnio.getCell(c));
+            if ((mes != null && !mes.isBlank()) || (anio != null && !anio.isBlank())) lastPeriodCol = c;
+        }
+        int targetColIndex = Math.max(lastPeriodCol + 1, 2);
+        copyPreviousColumnFormat(hoja, targetColIndex);
+        Row targetMes = hoja.getRow(0);
+        Row targetAnio = hoja.getRow(1);
+        Cell mesCell = targetMes.getCell(targetColIndex);
+        if (mesCell == null) mesCell = targetMes.createCell(targetColIndex);
+        Cell anioCell = targetAnio.getCell(targetColIndex);
+        if (anioCell == null) anioCell = targetAnio.createCell(targetColIndex);
+        mesCell.setCellValue(mesObjetivo);
+        anioCell.setCellValue(fechaCorte.getYear());
+        return targetColIndex + 1;
+    }
+
+    private void copyPreviousColumnFormat(Sheet sheet, int targetColIndex) {
+        int sourceColIndex = targetColIndex - 1;
+        if (sourceColIndex < 0) return;
+        sheet.setColumnWidth(targetColIndex, sheet.getColumnWidth(sourceColIndex));
+        sheet.setColumnHidden(targetColIndex, sheet.isColumnHidden(sourceColIndex));
+
+        for (int rowIndex = 0; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) continue;
+            Cell sourceCell = row.getCell(sourceColIndex);
+            if (sourceCell == null) continue;
+            Cell targetCell = row.getCell(targetColIndex);
+            if (targetCell == null) targetCell = row.createCell(targetColIndex);
+            targetCell.setCellStyle(sourceCell.getCellStyle());
+        }
     }
 
     private String normalize(String value) {
@@ -1127,33 +1160,6 @@ public class SemestralExcelGenerator {
     }
 
 
-
-    private DatoDetalle readFila47DesdeSistemaTotal(LocalDate fechaCorte, BigDecimal fallback) {
-        try {
-            Path sistemaTotal = locator.findRequired("SISTEMA TOTAL", fechaCorte);
-            try (Workbook wb = WorkbookFactory.create(sistemaTotal.toFile(), null, true)) {
-                Sheet restot = getSheetIgnoreCase(wb, "restot");
-                if (restot == null) {
-                    String detalle = "archivo=" + sistemaTotal.toAbsolutePath() + " hoja=restot no encontrada; se usa fallback=" + fallback + ".";
-                    log.warn("Semestral fila47: {}", detalle);
-                    return new DatoDetalle(fallback == null ? BigDecimal.ZERO : fallback, detalle);
-                }
-                BigDecimal proteccion = num(restot, "C14", null);
-                BigDecimal porvenir = num(restot, "D14", null);
-                BigDecimal totalSistema = num(restot, "J14", null);
-                BigDecimal fila47 = safeDivide(proteccion.add(porvenir), totalSistema);
-                String detalle = "detalle fuente: archivo=" + sistemaTotal.toAbsolutePath() + " hoja=restot celda=C14 Protección valor=" + proteccion
-                        + "; celda=D14 Porvenir valor=" + porvenir + "; celda=J14 totalSistema valor=" + totalSistema
-                        + "; operación=(C14 + D14) / J14.";
-                log.debug("Semestral fila47 desde SISTEMA TOTAL: {} resultado={}", detalle, fila47);
-                return new DatoDetalle(fila47, detalle);
-            }
-        } catch (Exception e) {
-            String detalle = "no fue posible leer SISTEMA TOTAL para fecha=" + fechaCorte + ": " + e.getMessage() + "; se usa fallback=" + fallback + ".";
-            log.warn("Semestral fila47: {}", detalle);
-            return new DatoDetalle(fallback == null ? BigDecimal.ZERO : fallback, detalle);
-        }
-    }
 
     private DatoDetalle readDeudaGubernamentalTotal(LocalDate fechaCorte) {
         try {

@@ -1,6 +1,9 @@
 package co.gov.sfc.excel;
 
 import co.gov.sfc.config.AiosProperties;
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -8,9 +11,37 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TrimestralExcelGeneratorTest {
+
+    @Test
+    void shouldCreateMissingQuarterAndCopyPreviousRowFormat() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            var sheet = workbook.createSheet("afiliados");
+            var junio = sheet.createRow(9);
+            junio.setHeightInPoints(17);
+            junio.createCell(0).setCellValue("jun-25");
+            var sourceCell = junio.createCell(1);
+            var sourceStyle = workbook.createCellStyle();
+            sourceStyle.setBorderBottom(BorderStyle.DOTTED);
+            sourceCell.setCellStyle(sourceStyle);
+            sheet.createRow(10); // fila vacía existente
+            sheet.createRow(11).createCell(0).setCellValue("(1) Incluye fondo alternativo");
+
+            TrimestralExcelGenerator generator = new TrimestralExcelGenerator(
+                    new AiosProperties(Path.of("."), Path.of("."), Path.of("."), 40, true));
+
+            int row = generator.findOrAppendRow(sheet, LocalDate.of(2025, 9, 30), "sep-25");
+
+            assertEquals(11, row);
+            assertEquals("sep-25", sheet.getRow(10).getCell(0).getStringCellValue());
+            assertEquals(junio.getHeight(), sheet.getRow(10).getHeight());
+            assertEquals(BorderStyle.DOTTED, sheet.getRow(10).getCell(1).getCellStyle().getBorderBottom());
+            assertEquals("(1) Incluye fondo alternativo", sheet.getRow(12).getCell(0).getStringCellValue());
+        }
+    }
 
     @Test
     void shouldGenerateQuarterlyWorkbookFromReferenceTemplate() {
