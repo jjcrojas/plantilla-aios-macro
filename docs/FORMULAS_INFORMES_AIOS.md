@@ -18,7 +18,7 @@
 |---:|---|---|---|
 | B | `afiliados` | Query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491` (`RENGLON=999`, suma `TOTAL_AFILIADOS_TOTAL`, fondos 1000/5000/6000/7000/8000) | Valor crudo (personas) |
 | C | `aportantes` | Query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491` (`RENGLON=999`, suma `TOTAL_AFILIADOS_COTIZANTES`, fondos 1000/5000/6000/7000/8000, sin filtro por `CODIGO_ENTIDAD`) | Valor crudo (personas) |
-| D | `traspasosSistema` | Formato 493, `Traslados Entre AFP`, `BQ11` | Valor crudo |
+| D | `traspasosSistema` | Query Teradata `PROD_DWH_CONSULTA.S9_FORMATO_493`: suma rangos sexo/edad, `FECHA_CORTE` entre el último día del mes 11 meses atrás y el último día del mes de corte; unidades/renglones de traspasos definidos en la sección de trazabilidad. | Valor crudo |
 | E | `vrFondo / TRM` | `SISTEMA TOTAL`, hoja `restot`, total sistema; TRM de `PIB_PEA_TRM_DG` | USD |
 | F | `total1 / TRM` | `LIMITES`, hoja `AIOS`, `AB4`; TRM de `PIB_PEA_TRM_DG` | USD |
 | G | `dudaG * 100` | `LIMITES`, hoja `AIOS`, `C4` | Porcentaje |
@@ -35,6 +35,28 @@
 | R | `porcVrFondo` | `SISTEMA TOTAL`, `restot`, `(Protección + Porvenir) / Sistema` | Ratio / porcentaje según plantilla |
 | S | `TRM` | `PIB_PEA_TRM_DG`, último valor aplicable a la fecha de corte | COP por USD |
 
+
+### 2.1 Trazabilidad de queries Teradata por formato
+
+Cuando una fuente indica "Query Teradata", la documentación debe leerse como reemplazo del archivo Excel histórico del formato. La siguiente tabla detalla formato, tabla, columnas agregadas, unidad de captura, renglones y filtros principales usados por los queries implementados.
+
+| Dato / uso | Formato / tabla Teradata | Columna(s) agregada(s) | Unidad de captura | Renglón(es) | Filtros adicionales |
+|---|---|---|---|---|---|
+| Afiliados totales mensual y denominador semestral | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `SUM(TOTAL_AFILIADOS_TOTAL)` | Sin filtro explícito | `RENGLON='999'` | `FECBAL = fechaCorte`; fondo en `SUBSTR(NUMERO_IDENTIFICACION,9,4) IN ('1000','5000','6000','7000','8000')`. |
+| Afiliados activos | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `SUM(TOTAL_AFILIADOS_ACTIVOS_TOTAL)` | Sin filtro explícito | `RENGLON='999'` | Mismos fondos 1000/5000/6000/7000/8000 y `FECBAL = fechaCorte`. |
+| Mujeres afiliadas | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `SUM(TOTAL_AFILIADOS_M)` | Sin filtro explícito | `RENGLON='999'` | Mismos fondos 1000/5000/6000/7000/8000 y `FECBAL = fechaCorte`. |
+| Aportantes totales mensual/semestral | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `SUM(TOTAL_AFILIADOS_COTIZANTES)` | Sin filtro explícito | `RENGLON='999'` | Mismos fondos 1000/5000/6000/7000/8000 y `FECBAL = fechaCorte`; sin filtro por `CODIGO_ENTIDAD` para el total sistema. |
+| Aportantes por entidad trimestral | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `SUM(TOTAL_AFILIADOS_COTIZANTES)` | Sin filtro explícito | `RENGLON='999'` | `CODIGO_ENTIDAD`: Colfondos=10, Porvenir=3, Protección=2, Skandia=9; mismos fondos 1000/5000/6000/7000/8000. |
+| Afiliados menores de 30 | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `SUM(TOTAL_AFILIADOS_TOTAL)` | `UNIDAD_CAPTURA=1` | `RENGLON < 80` | Mismos fondos 1000/5000/6000/7000/8000. |
+| Afiliados 30 a 44 | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `SUM(TOTAL_AFILIADOS_TOTAL)` | `UNIDAD_CAPTURA=1` o `4` | UC 1: `RENGLON BETWEEN 80 AND 150`; UC 4: `RENGLON BETWEEN 5 AND 15` | Mismos fondos 1000/5000/6000/7000/8000. |
+| Afiliados 45 a 59 | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `SUM(TOTAL_AFILIADOS_TOTAL)` | Reglas por renglón y UC | `RENGLON BETWEEN 155 AND 225`, o UC > 1 con `RENGLON BETWEEN 20 AND 50`, o UC 2/3 con `RENGLON < 20` | Mismos fondos 1000/5000/6000/7000/8000. |
+| Afiliados mayores de 60 | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `SUM(TOTAL_AFILIADOS_TOTAL)` | Reglas por renglón y UC | `RENGLON >= 230 AND RENGLON < 999`, o UC > 1 con `RENGLON BETWEEN 55 AND 80` | Mismos fondos 1000/5000/6000/7000/8000. |
+| Afiliados trimestrales por fondo/AFP | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `SUM(TOTAL_AFILIADOS_TOTAL)` agrupado por `CODIGO_ENTIDAD`, `UNIDAD_CAPTURA` y fondo | UC/fondo: `1/1000`, `1/5000`, `1/6000`, `1/8000`, `2/5000`, `3/5000`, `4/1000` | `RENGLON='999'` | `CODIGO_ENTIDAD IN (2,3,9,10)`; fondos derivados de `SUBSTR(NUMERO_IDENTIFICACION,9,4)`. |
+| Salario mínimo ponderado | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | Rangos IBC `TOTAL_AFILIADOS_H_*` + `TOTAL_AFILIADOS_M_*` ponderados por múltiplos de salario mínimo | UC/fondo: UC 1/4 con fondo 1000; UC 1/2/3 con fondo 5000; UC 1 con fondo 6000 | `RENGLON='999'` | Multiplica por salario oficial de `SalarioMinimo.csv` y divide por afiliados totales del sistema. |
+| Traspasos sistema mensual/semestral | Formato 493 / `PROD_DWH_CONSULTA.S9_FORMATO_493` | Suma de rangos `MUJERES_RANGO_EDAD_*` y `HOMBRES_RANGO_EDAD_*` | UC/renglones: UC 1 con 70,75,90,95; UC 2 con 40,45,60,65; UC 3 con 40,45,60,65; UC 6 con 35,40,45,50 | Ver UC/renglones | `FECHA_CORTE BETWEEN inicio AND fin`, donde `fin` es último día del mes de corte e `inicio` es último día del mes 11 meses atrás. |
+| Traspasos por entidad trimestral | Formato 493 / `PROD_DWH_CONSULTA.S9_FORMATO_493` | Misma suma de rangos sexo/edad de traspasos | Misma regla de traspasos sistema | Misma regla de traspasos sistema | Agrega `CODIGO_ENTIDAD`: Colfondos=10, Porvenir=3, Protección=2, Skandia=9. |
+| Fallecidos sistema semestral | Formato 493 / `PROD_DWH_CONSULTA.S9_FORMATO_493` | Misma suma de rangos `MUJERES_RANGO_EDAD_*` y `HOMBRES_RANGO_EDAD_*` | `UNIDAD_CAPTURA=1` | `RENGLON IN (165,170,175)` | Misma ventana de 12 meses por `FECHA_CORTE`; el resultado se divide entre 1000 en la fila 25 semestral. |
+
 ## 3. Informe trimestral
 
 El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de los mapas generados por `TrimestralDataReader`; la tabla resume la forma de escritura y unidad.
@@ -43,8 +65,8 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 |---|---|---|---|
 | `afiliados` | Valores por fondo y administradora (`mod_*`, `con_*`, `mr_*`, combinaciones) | Query Teradata sobre Formato 491 (`TOTAL_AFILIADOS_TOTAL`, `RENGLON=999`, filtros por `CODIGO_ENTIDAD`, fondo y unidad de captura) | Valor crudo (personas) |
 | `aportantes` | `colf`, `porv`, `prot`, `sk` y ceros para entidades no aplicables | Query Teradata Formato 491 filtrada por `CODIGO_ENTIDAD` para cada AFP: 10, 3, 2 y 9 | Valor crudo (personas) |
-| `colombia` | Saldos por fondo/administradora, con agregados como `mod_sk + mod_alt` | `SISTEMA TOTAL` y datos de fondos | USD o MM USD según plantilla |
-| `traspasos` | Traspasos por administradora | Formato 493 | Valor crudo |
+| `colombia` | Saldos por fondo/administradora, con agregados como `mod_sk + mod_alt` | Query Teradata Formato 136 por fecha de corte, patrimonio y entidad | USD o MM USD según plantilla |
+| `traspasos` | Traspasos por administradora | Query Teradata `PROD_DWH_CONSULTA.S9_FORMATO_493` con la misma regla de traspasos y filtro `CODIGO_ENTIDAD` por AFP. | Valor crudo |
 | `gastos` | `gastoNetoCOP / TRM` | Base anual / cuentas de gasto; TRM de `PIB_PEA_TRM_DG` | USD |
 | `promotores` | Ceros cuando no hay fuente disponible | Constante temporal | Valor crudo |
 | `rentabilidad` | Rentabilidad nominal y real por administradora/fondo | `Rent_Vr_Uni_Moderado` y/o series de rentabilidad | Porcentaje |
@@ -71,9 +93,9 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 | 17 | `por Entidad!BI62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BI62` | Ratio / porcentaje |
 | 18 | `por Entidad!BH62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BH62` | Ratio / porcentaje |
 | 19 | `por Entidad!BJ62 / fila16` | Formato 495, hoja `por Entidad`, parámetro `C6`, celda `BJ62` | Ratio / porcentaje |
-| 25 | `Formato 493!M11 / 1000` | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Fallecidos`; se escribe la fecha de corte en `B11`, `D4=99`, y se toma `M11` | Miles |
-| 26 | `traspasosSistema` | Formato 493 / lector mensual | Valor crudo |
-| 27 | `traspasosSistema / afiliados` | Traspasos de Formato 493 y afiliados totales por query Teradata Formato 491 | Porcentaje (formato Excel) |
+| 25 | `fallecidosSistema / 1000` | Query Teradata `PROD_DWH_CONSULTA.S9_FORMATO_493`: suma rangos sexo/edad con `UNIDAD_CAPTURA=1`, `RENGLON IN (165,170,175)` y ventana de 12 meses por `FECHA_CORTE`. | Miles |
+| 26 | `traspasosSistema` | Query Teradata `PROD_DWH_CONSULTA.S9_FORMATO_493` ejecutada por el lector mensual. | Valor crudo |
+| 27 | `traspasosSistema / afiliados` | Traspasos por query Teradata Formato 493 y afiliados totales por query Teradata Formato 491. | Porcentaje (formato Excel) |
 | 28 | `(fondoSistemaJ14 * 1000 / TRM) / 1,000,000` | `SISTEMA TOTAL`, `restot`, `J14`; TRM de `PIB_PEA_TRM_DG` | MM USD |
 | 29 | `fila28 / (pibSemestral / TRM)` | PIB semestral y TRM de `PIB_PEA_TRM_DG` | Ratio / porcentaje |
 | 30 | `total1 / TRM` | `LIMITES`, hoja `AIOS`, total equivalente; TRM | USD |
@@ -107,7 +129,7 @@ El informe trimestral escribe mapas por hoja. Las fórmulas exactas dependen de 
 | 58 | `(C21 + C22) / TRM` | `Plantilla AIOS-probable`, hoja `cuentas`, cuentas `511500` y `511527`; TRM | USD |
 | 59 | `(C24 + C28 + C29 + C31 + C32 + C33 + C34 + C35 + C36 + C37 + C38) / TRM` | `Plantilla AIOS-probable`, hoja `cuentas`, cuentas `512000`, `513000`, `513500`, `514000`, `514500`, `515000`, `515500`, `516000`, `516500`, `517000`, `517200`; TRM | USD |
 | 60 | `C15 / TRM` | `Plantilla AIOS-probable`, hoja `cuentas`, cuenta `510000`, celda `C15`; TRM | USD |
-| 61 | `(aportesRecibidos136 / TRM) / (aportantes / 1000) * 1000` | `Formato_136_Meses`, hoja `FORMATO OBL`, parámetros `C7`, `D6`, `D7`, resultado `G6`; aportantes por query Teradata Formato 491; TRM | USD por mil aportantes |
+| 61 | `(aportesRecibidos136 / TRM) / (aportantes / 1000) * 1000` | Query Teradata Formato 136 `SUM(e.valor)/1000000`; aportantes por query Teradata Formato 491; TRM | USD por mil aportantes |
 | 62 | `gastos / (aportesRecibidos136 / TRM) * 100` | Gastos de `CUENTAS`; aportes de Formato 136; TRM | Porcentaje |
 | 63 | `(patrimonioBaseMesMMCop / TRM) / fila28 * 100` | `Plantilla AIOS-probable`, base mes; TRM; fila 28 | Porcentaje |
 | 64 | `patrimonioUsd / afiliados * 1,000,000` | Fila 50 y afiliados totales por query Teradata Formato 491 | USD por afiliado |
@@ -161,7 +183,7 @@ Esta sección complementa la tabla técnica anterior. La tabla técnica indica *
 | 17 | Pensionados por invalidez (%) | Proporción de pensionados cuya modalidad es invalidez. | Mide composición de beneficios por riesgo de invalidez. |
 | 18 | Pensionados por vejez (%) | Proporción de pensionados cuya modalidad es vejez. | Mide peso de las pensiones asociadas a retiro por edad. |
 | 19 | Pensionados por sobrevivencia (%) | Proporción de pensionados por sobrevivencia. | Mide peso de beneficios derivados para beneficiarios. |
-| 25 | Afiliados fallecidos en miles | Total de afiliados fallecidos del sistema calculado por Formato 493, hoja `Fallecidos`, celda `M11`, con `B11` igual a la fecha de corte y `D4=99`. | Dimensiona en miles el flujo de afiliados fallecidos acumulado en el periodo definido por la fila 11 del insumo. |
+| 25 | Afiliados fallecidos en miles | Total de afiliados fallecidos del sistema por query Teradata Formato 493: `S9_FORMATO_493`, `UNIDAD_CAPTURA=1`, `RENGLON IN (165,170,175)`, rangos sexo/edad y ventana de 12 meses. | Dimensiona en miles el flujo de afiliados fallecidos acumulado en el periodo definido por la ventana de corte. |
 | 26 | Traspasos del sistema | Total de movimientos de traslado entre administradoras/fondos. | Indica movilidad de afiliados dentro del sistema. |
 | 27 | Traspasos / afiliados (%) | Traspasos respecto al total de afiliados. | Mide intensidad relativa de movilidad en el sistema. |
 | 28 | Fondos administrados | Valor total del portafolio administrado por los fondos de pensiones, convertido a millones de USD. | Indica tamaño financiero del sistema pensional. |
@@ -1094,25 +1116,25 @@ Se obtiene de Formato 495, hoja `por Entidad`, celda `BJ62`.
 
 **¿Qué representa la fila 25?**
 
-La fila 25 toma el total de afiliados fallecidos calculado en el archivo trimestral de referencia `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`. Para el corte solicitado se parametriza la hoja `Fallecidos` escribiendo la fecha en `B11` y el código de entidad `99` en `D4`; luego se lee la celda `M11`.
+La fila 25 toma el total de afiliados fallecidos calculado con query Teradata sobre `PROD_DWH_CONSULTA.S9_FORMATO_493`. Para el corte solicitado se usa una ventana de 12 meses: fecha final igual al último día del mes de corte y fecha inicial igual al último día del mes 11 meses atrás.
 
 **Interpretación económica u operativa**
 
-El valor corresponde al total de fallecidos del sistema que calcula el Formato 493 para el rango de fechas de la fila 11 y los rangos de edad/sexo de la hoja `Fallecidos`. Se reporta en miles para mantener la escala del boletín.
+El valor corresponde al total de fallecidos del sistema reportado en el Formato 493 para `UNIDAD_CAPTURA=1`, `RENGLON IN (165,170,175)` y la suma de los rangos de edad/sexo `MUJERES_RANGO_EDAD_*` y `HOMBRES_RANGO_EDAD_*`. Se reporta en miles para mantener la escala del boletín.
 
 **Fórmula conceptual**
 
 $$
-\text{Fila 25} = \frac{\text{Formato 493 hoja Fallecidos!M11, con B11 = fecha de corte y D4 = 99}}{1000}
+\text{Fila 25} = \frac{\text{Query Formato 493 fallecidos sistema}}{1000}
 $$
 
 **Fórmula implementada**
 
-`SemestralExcelGenerator` abre `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, ubica la hoja `Fallecidos`, escribe `fechaCorte` en `B11`, fija `D4=99` para leer el total del sistema, evalúa las fórmulas del libro y escribe `M11 / 1000` en la fila 25 de la salida.
+`SemestralExcelGenerator` llama `Formato493QueryService.leerFallecidosSistema(fechaCorte)`, divide el resultado entre `1000` y escribe ese valor en la fila 25 de la salida.
 
-**Interpretación de la fórmula Excel de `M11`**
+**Detalle del query**
 
-La fórmula de Excel suma cuatro bloques `SUMAR.SI.CONJUNTO` sobre `Data!U`, uno por cada categoría indicada en `L2`, `M2`, `N2` y `O2` de la hoja `Fallecidos`. En todos los bloques exige que `Data!H` sea igual a `Q2`, que `Data!J` sea igual a la categoría del bloque y que la fecha `Data!D` esté entre `A11` y `B11` inclusive. Si `D4` es diferente de `99`, también filtra `Data!B` por el código de administradora de `D4`; si `D4` es `99`, omite ese filtro y suma el total del sistema. En términos simples: `M11` es la suma de `Data!U` para el periodo `A11:B11`, el concepto de `Q2` y las cuatro categorías `L2:O2`, con filtro opcional de administradora según `D4`.
+El query suma `MUJERES_RANGO_EDAD_31`, `MUJERES_RANGO_EDAD_31_36`, `MUJERES_RANGO_EDAD_36_41`, `MUJERES_RANGO_EDAD_41_46`, `MUJERES_RANGO_EDAD_46`, `HOMBRES_RANGO_EDAD_36`, `HOMBRES_RANGO_EDAD_36_41`, `HOMBRES_RANGO_EDAD_41_46`, `HOMBRES_RANGO_EDAD_46_51` y `HOMBRES_RANGO_EDAD_51`, filtrando `UNIDAD_CAPTURA=1`, `RENGLON IN (165,170,175)` y `FECHA_CORTE BETWEEN inicio AND fin`.
 
 #### Fila 26: Traspasos del sistema
 
@@ -1136,7 +1158,7 @@ $$
 \text{Fila 26} = \text{mensual.traspasosSistema}
 $$
 
-Proviene de Formato 493 o del lector mensual equivalente.
+Proviene de `Formato493QueryService.leerTraspasosSistema(fechaCorte)`, que consulta `PROD_DWH_CONSULTA.S9_FORMATO_493` con la ventana de 12 meses y las unidades/renglones de traspasos documentados en la sección 2.1.
 
 #### Fila 27: Traspasos / afiliados (%)
 
@@ -1973,7 +1995,7 @@ $$
 **Fórmula implementada**
 
 $$
-\text{Fila 61} = \frac{\text{Formato 136!G6}/\text{TRM}}{\text{Aportantes}/1000} \times 1000
+\text{Fila 61} = \frac{\text{Query Teradata Formato 136}/\text{TRM}}{\text{Aportantes}/1000} \times 1000
 $$
 
 La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
@@ -2646,10 +2668,8 @@ $$
 
 Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
 
-## 7. Parámetros de Formato 136 para fila 61
+## 7. Query de Formato 136 para fila 61
 
-| Celda | Valor escrito antes de evaluar `G6` | Ejemplo con corte `30/06/2025` |
-|---|---|---|
-| `C7` | `fechaCorte.minusYears(1).withDayOfMonth(1)` | `01/06/2024` |
-| `D6` | `fechaCorte` | `30/06/2025` |
-| `D7` | `fechaCorte` | `30/06/2025` |
+La fila 61 ya no evalúa `G6` en `Formato_136_Meses.xlsm`. El valor `aportesRecibidos136` se consulta en Teradata con `SUM(e.valor)/1000000`, niveles `136/2/4/10`, patrimonio autónomo tipo `6`, código `1000`, tipo de entidad `23` y `e.valor <> 0`.
+
+La ventana de fechas es `fechaCorte.minusYears(1).withDayOfMonth(1)` hasta `fechaCorte`; para corte `30/06/2025`, se consulta desde `01/06/2024` hasta `30/06/2025`.

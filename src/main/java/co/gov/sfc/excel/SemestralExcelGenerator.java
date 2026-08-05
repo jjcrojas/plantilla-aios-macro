@@ -38,11 +38,17 @@ public class SemestralExcelGenerator {
     private final AiosProperties properties;
     private final InsumosLocator locator;
     private final RentabilidadService rentabilidadService;
+    private final Formato493QueryService formato493QueryService;
+    private final Formato495QueryService formato495QueryService;
+    private final Formato136QueryService formato136QueryService;
 
-    public SemestralExcelGenerator(AiosProperties properties, InsumosLocator locator, RentabilidadService rentabilidadService) {
+    public SemestralExcelGenerator(AiosProperties properties, InsumosLocator locator, RentabilidadService rentabilidadService, Formato493QueryService formato493QueryService, Formato495QueryService formato495QueryService, Formato136QueryService formato136QueryService) {
         this.properties = properties;
         this.locator = locator;
         this.rentabilidadService = rentabilidadService;
+        this.formato493QueryService = formato493QueryService;
+        this.formato495QueryService = formato495QueryService;
+        this.formato136QueryService = formato136QueryService;
     }
 
     public Path generar(LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral) {
@@ -71,9 +77,10 @@ public class SemestralExcelGenerator {
                 write(hoja, 13, col, pct(safeDivide(mensual.aportantesSemestral(), mensual.pea())));
                 write(hoja, 14, col, pct(safeDivide(mensual.aportantesSemestral(), mensual.afiliados())));
                 write(hoja, 15, col, mensual.smColombiaUsd());
-                BigDecimal totalPensionadosSemestral = readTotalPensionados495(fechaCorte, mensual.totalPen());
-                PensionadosPorEntidad pensionadosPorEntidad = readPensionadosPorEntidad495(fechaCorte,
-                        new PensionadosPorEntidad(mensual.totalInv(), mensual.totalVej(), mensual.totalSob()));
+                Formato495QueryService.PensionadosResumen pensionadosSemestral = formato495QueryService.leerResumen(fechaCorte);
+                BigDecimal totalPensionadosSemestral = pensionadosSemestral.total();
+                PensionadosPorEntidad pensionadosPorEntidad = new PensionadosPorEntidad(
+                        pensionadosSemestral.invalidez(), pensionadosSemestral.vejez(), pensionadosSemestral.sobrevivencia());
                 BigDecimal fila17 = safeDivide(pensionadosPorEntidad.invalidez(), totalPensionadosSemestral);
                 BigDecimal fila18 = safeDivide(pensionadosPorEntidad.vejez(), totalPensionadosSemestral);
                 BigDecimal fila19 = safeDivide(pensionadosPorEntidad.sobrevivencia(), totalPensionadosSemestral);
@@ -83,8 +90,8 @@ public class SemestralExcelGenerator {
                 write(hoja, 19, col, fila19);
                 BigDecimal fila25 = readFila25Trimestral493(fechaCorte);
                 write(hoja, 25, col, fila25);
-                log.info("Semestral: fila25=M11/1000 desde Formato 493 hoja Fallecidos con B11={} y D4=99 => {}.", fechaCorte, fila25);
-                log.info("Semestral: fila16(total_pen)={}, fila17(inv% BI62/total)={}, fila18(vej% BH62/total)={}, fila19(sob% BJ62/total)={} numeradores(inv={}, vej={}, sob={}) para fecha={} col={}.",
+                log.info("Semestral: fila25=fallecidos/1000 desde query Formato 493 para fechaCorte={} => {}.", fechaCorte, fila25);
+                log.info("Semestral: fila16(total_pen query 495)={}, fila17(inv query 495/total)={}, fila18(vej query 495/total)={}, fila19(sob query 495/total)={} numeradores(inv={}, vej={}, sob={}) para fecha={} col={}.",
                         totalPensionadosSemestral,
                         fila17,
                         fila18,
@@ -252,11 +259,9 @@ public class SemestralExcelGenerator {
 
 
     private void logFilasSemestral(Sheet hoja, int col, LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral, java.util.Map<Integer, String> detallesFilas) {
-        String formato495 = rutaInsumo("Series_Formato-495 PENSIONADOS", () -> findPensionados495File(fechaCorte));
-        String formato493 = rutaInsumo("Serie_Formato_493 MOVIMIENTO AFILIADOS", () -> locator.findRequired("493", fechaCorte));
         String limites = rutaInsumo("LIMITES", () -> locator.findRequired("LIMITES", fechaCorte));
         String pibPeaTrmDg = rutaInsumo("PIB_PEA_TRM_DG", () -> locator.findRequired("PIB_PEA_TRM_DG", fechaCorte));
-        String formato136 = rutaInsumo("Formato 136", () -> findFormato136File(fechaCorte));
+        String queryAportes136 = "Query Teradata prod_dwh_consulta.negfid_insumo_entidad (nivel1=136,nivel2=2,nivel3=4,nivel4=10)";
         String plantillaAios = rutaInsumo("Plantilla AIOS-probable", () -> findPlantillaAiosFile(fechaCorte));
         String rentVrUni = rutaInsumo("Rent_Vr_Uni_Moderado", () -> findRentModeradoFile(fechaCorte));
         String valoresFondo = rutaInsumo("Valores_Fondo_Moder/MODERADO", () -> findValoresFondoModerFile(fechaCorte));
@@ -275,13 +280,13 @@ public class SemestralExcelGenerator {
         explicaciones.put(13, "valor = (mensual.aportantesSemestral() / mensual.pea()) * 100; aportantes por query Teradata sin filtro de CODIGO_ENTIDAD y PEA del archivo PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(14, "valor = (mensual.aportantesSemestral() / mensual.afiliados()) * 100; aportantes por query Teradata sin filtro de CODIGO_ENTIDAD y afiliados por query Teradata.");
         explicaciones.put(15, "valor = salario mínimo ponderado COP calculado por query Teradata Formato491 con salario oficial desde SalarioMinimo.csv / TRM; salarioMinimoPonderadoCop=" + smCop(mensual) + "; TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(16, "valor = total pensionados de Series_Formato-495 PENSIONADOS hoja TOTAL PENSIONADOS: se escribe fecha parámetro en B4 y se toma columna I de la fila cuya fecha en columna B corresponde al corte; ruta=" + formato495 + ".");
-        explicaciones.put(17, "valor = por Entidad!BI62 / fila 16; BI62 es pensionados por invalidez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
-        explicaciones.put(18, "valor = por Entidad!BH62 / fila 16; BH62 es pensionados por vejez del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
-        explicaciones.put(19, "valor = por Entidad!BJ62 / fila 16; BJ62 es pensionados por sobrevivencia del archivo Series_Formato-495 PENSIONADOS, hoja por Entidad, con fecha parámetro C6; ruta=" + formato495 + ".");
-        explicaciones.put(25, "valor = Formato 493 hoja Fallecidos celda M11 / 1000; antes de evaluar la fórmula se escribe fechaCorte en B11 y D4=99 para tomar el total del sistema; ruta=" + formato493 + ".");
-        explicaciones.put(26, "valor = mensual.traspasosSistema(); total de traspasos del sistema leído por MensualDataReader desde los insumos de movimiento/formato 493 y trimestral cuando aplica.");
-        explicaciones.put(27, "valor = mensual.traspasosSistema() / mensual.afiliados(); traspasos del sistema dividido entre afiliados por query Teradata Formato491.");
+        explicaciones.put(16, "valor = total pensionados por query Teradata PROD_DWH_CONSULTA.S9_FORMATO_495 con FECHA_CORTE, UNIDAD_CAPTURA=1 y RENGLON=200.");
+        explicaciones.put(17, "valor = pensionados por invalidez por query Teradata PROD_DWH_CONSULTA.S9_FORMATO_495 / fila 16.");
+        explicaciones.put(18, "valor = pensionados por vejez por query Teradata PROD_DWH_CONSULTA.S9_FORMATO_495 / fila 16.");
+        explicaciones.put(19, "valor = pensionados por sobrevivencia por query Teradata PROD_DWH_CONSULTA.S9_FORMATO_495 / fila 16.");
+        explicaciones.put(25, "valor = query Teradata PROD_DWH_CONSULTA.S9_FORMATO_493 fallecidos sistema / 1000; ventana de 12 meses por FECHA_CORTE, UNIDAD_CAPTURA=1 y RENGLON IN (165,170,175).");
+        explicaciones.put(26, "valor = mensual.traspasosSistema(); total de traspasos del sistema leído por query Teradata PROD_DWH_CONSULTA.S9_FORMATO_493 en MensualDataReader.");
+        explicaciones.put(27, "valor = mensual.traspasosSistema() / mensual.afiliados(); traspasos por query Teradata Formato493 dividido entre afiliados por query Teradata Formato491.");
         explicaciones.put(28, "valor = mensual.vrFondo() / mensual.trm(); vrFondo proviene de Query Teradata ESTFIN_INDIV_PA, SUM(Saldo_Sincierre_Total_Moneda_0)/1,000,000; TRM de PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(29, "valor = fila 28 / (mensual.pibSemestral() / mensual.trm()); PIB semestral y TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(30, "valor = mensual.total1() / mensual.trm(); total1 desde límites/composición leída por MensualDataReader; TRM desde PIB_PEA_TRM_DG ruta=" + pibPeaTrmDg + ".");
@@ -315,15 +320,15 @@ public class SemestralExcelGenerator {
         explicaciones.put(58, "valor = (cuenta 511500 + cuenta 511527) / TRM; cuentas desde Plantilla AIOS-probable hoja cuentas celdas C21 y C22, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(59, "valor = suma de cuentas 512000, 513000, 513500, 514000, 514500, 515000, 515500, 516000, 516500, 517000 y 517200 / TRM; celdas C24,C28,C29,C31,C32,C33,C34,C35,C36,C37,C38 de Plantilla AIOS-probable hoja cuentas, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(60, "valor = cuenta 510000 / TRM; cuenta 510000 proviene de Plantilla AIOS-probable hoja cuentas celda C15, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(61, "valor = (aportesRecibidos136 / TRM) / (mensual.aportantesSemestral() / 1000) * 1000; aportesRecibidos136 desde Formato 136 hoja FORMATO OBL configurando C7 con el día 1 del mismo mes un año antes del corte, D6 y D7 con la fecha de corte, ruta=" + formato136 + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(62, "valor = cuentas.gastos() / (aportesRecibidos136 / TRM) * 100; gastos desde CUENTAS ruta=" + plantillaAios + "; aportes desde Formato 136 ruta=" + formato136 + ".");
+        explicaciones.put(61, "valor = (aportesRecibidos136 / TRM) / (mensual.aportantesSemestral() / 1000) * 1000; aportesRecibidos136 desde " + queryAportes136 + ", con b.fecha entre el día 1 del mismo mes un año antes del corte y la fecha de corte; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(62, "valor = cuentas.gastos() / (aportesRecibidos136 / TRM) * 100; gastos desde CUENTAS ruta=" + plantillaAios + "; aportes desde " + queryAportes136 + ".");
         explicaciones.put(63, "valor = (patrimonioBaseMesMMCop / TRM) / fila 28 * 100; patrimonio base_mes desde Plantilla AIOS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(64, "valor = patrimonioUsd / mensual.afiliados() * 1,000,000; patrimonioUsd=(activos-pasivos)/TRM desde CUENTAS ruta=" + plantillaAios + " y afiliados por query Teradata Formato491.");
         explicaciones.put(65, "valor = cuentas.resultadoNeto() / cuentas.comisiones() * 100; ambos operandos desde Plantilla AIOS hoja CUENTAS ruta=" + plantillaAios + ".");
         explicaciones.put(66, "valor = cuentas.resultadoNeto() / patrimonioUsd * 100; resultado neto desde CUENTAS ruta=" + plantillaAios + " y patrimonioUsd=(activos-pasivos)/TRM.");
         explicaciones.put(67, "valor = cuentas.gastos() / mensual.afiliados() * 1,000,000; gastos desde CUENTAS ruta=" + plantillaAios + "; afiliados por query Teradata Formato491.");
         explicaciones.put(68, "valor = cuentas.comisiones() / mensual.aportantesSemestral() * 1,000,000; comisiones desde CUENTAS ruta=" + plantillaAios + "; aportantes semestrales desde query Teradata.");
-        explicaciones.put(69, "valor = cuentas.admon() / fila 61; administración desde CUENTAS ruta=" + plantillaAios + " y fila 61 calculada con Formato 136 ruta=" + formato136 + ".");
+        explicaciones.put(69, "valor = cuentas.admon() / fila 61; administración desde CUENTAS ruta=" + plantillaAios + " y fila 61 calculada con " + queryAportes136 + ".");
         explicaciones.put(70, "valor fijo = 16; no usa insumo externo.");
         explicaciones.put(71, "valor = promedio(trimestral.comisionesPct col_obl, por_obl, pro_obl, ska_obl) * 100; comisiones trimestrales leídas por TrimestralDataReader.");
         explicaciones.put(72, "valor fijo = 0; no usa insumo externo.");
@@ -381,11 +386,11 @@ public class SemestralExcelGenerator {
             case 13 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + "; PEA=" + mensual.pea() + ".";
             case 14 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + "; afiliados=" + mensual.afiliados() + ".";
             case 15 -> "valores tomados: salarioMinimoPonderadoCop=" + smCop(mensual) + "; salarioMinimoUsd=" + mensual.smColombiaUsd() + "; TRM=" + trm(mensual) + ".";
-            case 16 -> "valores tomados: totalPensionados=" + num(hoja, 16, col) + "; fallback mensual.totalPen=" + mensual.totalPen() + ".";
+            case 16 -> "valores tomados: totalPensionados=query Formato495=" + num(hoja, 16, col) + ".";
             case 17 -> "valores tomados: invalidez=" + mensual.totalInv() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
             case 18 -> "valores tomados: vejez=" + mensual.totalVej() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
             case 19 -> "valores tomados: sobrevivencia=" + mensual.totalSob() + "; totalPensionados=fila16=" + num(hoja, 16, col) + ".";
-            case 25 -> "valores tomados: fila25=" + num(hoja, 25, col) + "; fuente=Formato 493 M11 dividido entre 1000.";
+            case 25 -> "valores tomados: fila25=" + num(hoja, 25, col) + "; fuente=query Teradata Formato493 fallecidos dividido entre 1000.";
             case 26 -> "valores tomados: traspasosSistema=" + mensual.traspasosSistema() + ".";
             case 27 -> "valores tomados: traspasosSistema=" + mensual.traspasosSistema() + "; afiliados=" + mensual.afiliados() + ".";
             case 28 -> "valores tomados: fondoAdministradoMmCop=" + mensual.vrFondo() + "; TRM=" + trm(mensual) + "; operación=fondoAdministradoMmCop/TRM.";
@@ -978,43 +983,14 @@ public class SemestralExcelGenerator {
     }
 
     private BigDecimal readAportesRecibidos136(LocalDate fechaCorte) {
-        Path formato136 = findFormato136File(fechaCorte);
-        try (Workbook wb = WorkbookFactory.create(formato136.toFile(), null, true)) {
-            Sheet sheet = getSheetIgnoreCase(wb, "FORMATO OBL");
-            if (sheet == null) sheet = wb.getSheetAt(0);
-            LocalDate fechaInicial = fechaCorte.minusYears(1).withDayOfMonth(1);
-            Cell c7 = cell(sheet, "C7");
-            Cell d6 = cell(sheet, "D6");
-            Cell d7 = cell(sheet, "D7");
-            c7.setCellValue(java.sql.Date.valueOf(fechaInicial));
-            d6.setCellValue(java.sql.Date.valueOf(fechaCorte));
-            d7.setCellValue(java.sql.Date.valueOf(fechaCorte));
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-            evaluator.notifyUpdateCell(c7);
-            evaluator.notifyUpdateCell(d6);
-            evaluator.notifyUpdateCell(d7);
-            evaluator.clearAllCachedResultValues();
-            BigDecimal value = num(sheet, "G6", evaluator);
-            log.info("Semestral: Formato136 G6 (aportes recibidos COP)={} para fecha={} parámetros C7={} D6={} D7={}",
-                    value, fechaCorte, fechaInicial, fechaCorte, fechaCorte);
-            return value;
-        } catch (Exception e) {
-            log.warn("No fue posible leer aportes recibidos desde Formato_136_Meses: {}", e.getMessage());
-            return BigDecimal.ZERO;
-        }
+        BigDecimal value = formato136QueryService.leerAportesRecibidos(fechaCorte);
+        LocalDate fechaInicial = fechaCorte.minusYears(1).withDayOfMonth(1);
+        log.info("Semestral: aportes recibidos Formato 136 desde query Teradata={} para fecha={} ventana={}..{}",
+                value, fechaCorte, fechaInicial, fechaCorte);
+        return value;
     }
 
-    private Path findFormato136File(LocalDate fechaCorte) {
-        try (Stream<Path> paths = Files.walk(properties.insumosDir(), 3)) {
-            return paths
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).contains("136"))
-                    .findFirst()
-                    .orElse(Path.of("insumos_ejemplo", "Formato_136_Meses.xlsm"));
-        } catch (Exception ignore) {
-            return Path.of("insumos_ejemplo", "Formato_136_Meses.xlsm");
-        }
-    }
+
 
     private Path findPlantillaAiosFile(LocalDate fechaCorte) {
         Path repoPath = Path.of("plantillas", "Plantilla AIOS-probable.xlsm");
@@ -1263,20 +1239,7 @@ public class SemestralExcelGenerator {
     }
 
     private BigDecimal readFila25Trimestral493(LocalDate fechaCorte) {
-        Path file493 = locator.findRequired("493", fechaCorte);
-        try (Workbook wb = WorkbookFactory.create(file493.toFile(), null, true)) {
-            Sheet sheet = getSheetIgnoreCase(wb, "Fallecidos");
-            if (sheet == null) {
-                throw new IllegalStateException("No existe la hoja Fallecidos en " + file493);
-            }
-            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-            setDate(sheet, "B11", fechaCorte);
-            cell(sheet, "D4").setCellValue(99d);
-            evaluator.clearAllCachedResultValues();
-            return divide(num(sheet, "M11", evaluator), BigDecimal.valueOf(1000));
-        } catch (Exception e) {
-            throw new IllegalStateException("Error leyendo fila 25 desde Formato 493 hoja Fallecidos (B11=fecha, D4=99, M11/1000)", e);
-        }
+        return divide(formato493QueryService.leerFallecidosSistema(fechaCorte), BigDecimal.valueOf(1000));
     }
 
     private Sheet getSheetIgnoreCase(Workbook wb, String name) {

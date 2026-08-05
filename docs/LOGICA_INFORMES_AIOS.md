@@ -22,20 +22,37 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 | Insumo | Uso principal | Hojas/celdas destacadas |
 |---|---|---|
 | `Serie_Formato_ 491 AFILIADOS AFP.xlsm` | Ya no se requiere para los agregados migrados del Formato 491. Afiliados mensuales, mujeres afiliadas, afiliados activos, edades, aportantes, concentración, salario mínimo ponderado y afiliados trimestrales por fondo se consultan o calculan con Teradata. | No aplica para los campos migrados; se conserva solo como referencia histórica/integración si se requiere validar manualmente. |
-| `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx` | Traspasos y movimiento de afiliados. | `Traslados Entre AFP`: `BQ11` para traspasos del sistema y rangos equivalentes para mapas trimestrales; `Fallecidos`: `M11 / 1000` para la fila 25 después de escribir la fecha de corte en `B11` y `D4=99`. |
+| `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx` | Ya no se usa para traspasos ni fallecidos migrados del Formato 493. | Los valores migrados se consultan con Teradata sobre `PROD_DWH_CONSULTA.S9_FORMATO_493`; se conserva solo como referencia histórica/manual. |
 | `SISTEMA TOTAL` | Fondos administrados, composición y participación de entidades. | Hoja `restot`: `J14`, `C14`, `D14` y otros valores por administradora/fondo. |
 | `LIMITES` | Límites de inversión locales y del exterior. | Hoja `AIOS`: `AB4`, `C4`, `E4`, `G4`, `I4`, `K4`, `O4`, `Q4`, `S4`, `U4`, `W4`, `Y4`, `AA4`. |
 | `PIB_PEA_TRM_DG` | PEA, PIB semestral, TRM y deuda gubernamental. | Hoja `Hoja1`: fecha en columna `L`, deuda gubernamental en columna `M`, además de series de TRM/PEA/PIB usadas por los lectores. |
 | `Series_Formato-495 PENSIONADOS.xlsm` | Total y composición de pensionados. | Hoja `TOTAL PENSIONADOS`, parámetro `B4`, serie en columna `I`; hoja `por Entidad`, parámetro `C6`, celdas `BI62`, `BH62`, `BJ62`. |
-| `Formato_136_Meses.xlsm` | Aportes recibidos para indicadores semestrales. | Hoja `FORMATO OBL`: parámetros `C7`, `D6`, `D7`; resultado `G6`. |
+| Query Teradata Formato 136 | Aportes recibidos para indicadores semestrales. | `SUM(e.valor)/1000000` desde `prod_dwh_consulta.negfid_insumo_entidad` filtrando `nivel1=136`, `nivel2=2`, `nivel3=4`, `nivel4=10`, patrimonio 1000 y tipo entidad 23. |
 | `Plantilla AIOS-probable.xlsm` | Datos contables de cuentas, activos/pasivos, patrimonio y resultados. | Hoja `CUENTAS`: `C4`, `C6`, `C15`, `C21`, `C22`, `C24`, `C28`, `C29`, `C31:C38`, `E13`, `G15`, `E41`, `E44`, `H24`. |
 | `Rent_Vr_Uni_Moderado.xlsm` | IPC y rentabilidad real/nominal cuando aplica fallback. | Hojas o series de IPC/rentabilidad moderada. |
 | `Valores_Fondo_Moder` / `MODERADO` | NAV histórico para rentabilidades semestrales. | Series de valor de unidad/NAV por fecha. |
 
 
-## 3.1 Conexión a Teradata (para queries de Formato 491)
+### 3.1 Trazabilidad de formatos consultados por query
 
-Desde esta versión, el proceso también consulta Teradata para obtener agregados del Formato 491 (afiliados totales, mujeres afiliadas, afiliados activos, aportantes, concentración de afiliados/personas, grupos de edad y salario mínimo ponderado para la fila 15 semestral).
+Para los datos migrados a Teradata, la fuente documental es el formato regulatorio representado por la tabla consultada. Cada métrica debe indicar formato, columna(s), unidad de captura, renglón y filtros principales:
+
+| Métrica | Formato / tabla | Columnas usadas | Unidad de captura y renglón | Filtros clave |
+|---|---|---|---|---|
+| Afiliados totales | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `TOTAL_AFILIADOS_TOTAL` | `RENGLON='999'`, sin filtro explícito de UC | `FECBAL=fechaCorte`; fondos 1000, 5000, 6000, 7000 y 8000 en `SUBSTR(NUMERO_IDENTIFICACION,9,4)`. |
+| Aportantes | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `TOTAL_AFILIADOS_COTIZANTES` | `RENGLON='999'`, sin filtro explícito de UC | Total sistema sin `CODIGO_ENTIDAD`; por entidad usa Colfondos=10, Porvenir=3, Protección=2, Skandia=9. |
+| Afiliados activos y mujeres | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `TOTAL_AFILIADOS_ACTIVOS_TOTAL`, `TOTAL_AFILIADOS_M` | `RENGLON='999'`, sin filtro explícito de UC | Mismos fondos y fecha de corte del total de afiliados. |
+| Rangos de edad afiliados | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `TOTAL_AFILIADOS_TOTAL` | Menor 30: UC 1, renglón < 80; 30-44: UC 1 renglones 80-150 o UC 4 renglones 5-15; 45-59 y 60+ siguen las reglas de renglón/UC codificadas en `Formato491QueryService`. | Mismos fondos 1000/5000/6000/7000/8000. |
+| Afiliados trimestrales por fondo | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | `TOTAL_AFILIADOS_TOTAL` | `RENGLON='999'`; combinaciones UC/fondo: 1/1000, 1/5000, 1/6000, 1/8000, 2/5000, 3/5000, 4/1000 | `CODIGO_ENTIDAD IN (2,3,9,10)`. |
+| Salario mínimo ponderado | Formato 491 / `PROD_DWH_CONSULTA.FORMATO491` | Rangos IBC `TOTAL_AFILIADOS_H_*` y `TOTAL_AFILIADOS_M_*` | `RENGLON='999'`; UC/fondo 1/4-1000, 1/2/3-5000 y 1-6000 | Pondera por múltiplos de salario mínimo oficial de `SalarioMinimo.csv`. |
+| Traspasos sistema | Formato 493 / `PROD_DWH_CONSULTA.S9_FORMATO_493` | Rangos `MUJERES_RANGO_EDAD_*` y `HOMBRES_RANGO_EDAD_*` | UC 1 renglones 70,75,90,95; UC 2 renglones 40,45,60,65; UC 3 renglones 40,45,60,65; UC 6 renglones 35,40,45,50 | `FECHA_CORTE` entre el último día del mes 11 meses atrás y el último día del mes de corte. |
+| Traspasos por entidad | Formato 493 / `PROD_DWH_CONSULTA.S9_FORMATO_493` | Misma suma de rangos sexo/edad de traspasos | Misma regla UC/renglón de traspasos sistema | Agrega `CODIGO_ENTIDAD` por AFP: 10, 3, 2 y 9. |
+| Fallecidos sistema | Formato 493 / `PROD_DWH_CONSULTA.S9_FORMATO_493` | Misma suma de rangos sexo/edad | UC 1, renglones 165, 170 y 175 | Misma ventana de 12 meses; para semestral se divide entre 1000. |
+
+
+## 3.2 Conexión a Teradata (para queries de formatos 491 y 493)
+
+Desde esta versión, el proceso también consulta Teradata para obtener agregados de los Formatos 491 y 493. Del Formato 491 obtiene afiliados totales, mujeres afiliadas, afiliados activos, aportantes, concentración de afiliados/personas, grupos de edad y salario mínimo ponderado para la fila 15 semestral; del Formato 493 obtiene traspasos y fallecidos.
 
 La conexión se configura con un namespace exclusivo de esta aplicación. No se
 usan propiedades `spring.datasource.*`, porque Spring puede sobrescribirlas con
@@ -112,7 +129,7 @@ El informe mensual usa `MensualDataReader` para leer los insumos base y `Mensual
 
 El boletín mensual combina:
 
-- **Valores crudos**: afiliados y aportantes desde Teradata/Formato 491, traspasos y TRM desde sus insumos correspondientes.
+- **Valores crudos**: afiliados y aportantes desde Teradata/Formato 491, traspasos desde Teradata/Formato 493 y TRM desde sus insumos correspondientes.
 - **Valores monetarios en USD**: fondos administrados y total de límites se dividen por TRM.
 - **Porcentajes**: límites y rentabilidades se multiplican por 100 antes de escribirse.
 - **Constantes**: la columna mensual asociada al número fijo `4` no depende de insumos externos.
@@ -127,7 +144,7 @@ Hojas escritas:
 |---|---|---|
 | `afiliados` | Afiliados por administradora y fondo. | Valor crudo de personas. |
 | `aportantes` | Aportantes por administradora. | Valor crudo de personas. |
-| `colombia` | Fondos o saldos de Colombia por administradora/fondo. | USD o millones de USD según plantilla de referencia. |
+| `colombia` | Fondos o saldos de Colombia por administradora/fondo. | Query Teradata Formato 136 por fecha de corte, patrimonio y entidad; se convierte con TRM a USD o millones de USD según plantilla de referencia. |
 | `traspasos` | Traspasos por administradora. | Valor crudo de personas/transacciones. |
 | `gastos` | Gastos netos por administradora. | USD, calculado desde COP y dividido por TRM. |
 | `promotores` | Datos de promotores. | Valor crudo; actualmente se escriben ceros cuando no hay fuente. |
@@ -140,22 +157,18 @@ El informe semestral escribe filas específicas de una plantilla semestral. La c
 
 1. **Afiliados, edades, aportantes, PEA y salario mínimo**: afiliados/edades/aportantes provienen de queries Teradata del Formato 491; el salario mínimo oficial se lee de `SalarioMinimo.csv` y el salario mínimo ponderado de la fila 15 se calcula con query Teradata; PEA/TRM se toman de sus fuentes correspondientes.
 2. **Pensionados**: usa Formato 495 para totales y composición por invalidez, vejez y sobrevivencia.
-3. **Movimiento de afiliados**: para la fila 25 parametriza `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Fallecidos`, con `B11 = fechaCorte` y `D4=99`, toma `M11` y divide el valor entre `1000`.
+3. **Movimiento de afiliados**: para la fila 25 consulta fallecidos del Formato 493 en `PROD_DWH_CONSULTA.S9_FORMATO_493` con `UNIDAD_CAPTURA=1`, `RENGLON IN (165,170,175)` y ventana de 12 meses por `FECHA_CORTE`; el resultado se divide entre `1000`. Los traspasos de filas 26 y 27 vienen del mismo formato vía query, con las unidades/renglones de traspasos documentados en la trazabilidad.
 4. **Fondos, PIB y deuda**: combina `SISTEMA TOTAL`, TRM, PIB y deuda gubernamental total de `PIB_PEA_TRM_DG`.
 5. **Límites de inversión**: usa `LIMITES`, hoja `AIOS`.
-6. **Contabilidad y gastos**: usa `Plantilla AIOS-probable.xlsm`, hoja `CUENTAS`, y `Formato_136_Meses.xlsm` para aportes recibidos.
+6. **Contabilidad y gastos**: usa `Plantilla AIOS-probable.xlsm`, hoja `CUENTAS`, y query Teradata Formato 136 para aportes recibidos.
 7. **Comisiones y aportes**: combina comisiones trimestrales con constantes regulatorias.
 8. **Rentabilidades**: usa `RentabilidadService` sobre NAV e IPC para horizontes de 1, 3, 5 y 10 años.
 
-### Parámetros especiales de Formato 136
+### Query de Formato 136 para aportes recibidos
 
-Para hallar `aportesRecibidos136`, antes de evaluar `G6` en la hoja `FORMATO OBL` se escriben los siguientes parámetros:
+Para hallar `aportesRecibidos136` ya no se abre `Formato_136_Meses.xlsm`; se consulta Teradata con ventana desde el día 1 del mismo mes un año antes del corte hasta la fecha de corte. Por ejemplo, para corte `30/06/2025`, la ventana es `01/06/2024` a `30/06/2025`.
 
-| Celda | Valor |
-|---|---|
-| `C7` | Primer día del mismo mes, un año antes de `fechaCorte`. Ejemplo: para `30/06/2025`, se escribe `01/06/2024`. |
-| `D6` | `fechaCorte`. |
-| `D7` | `fechaCorte`. |
+El valor se calcula como `SUM(e.valor)/1000000` filtrando patrimonio autónomo tipo `6`, código `1000`, niveles `136/2/4/10`, tipo de entidad `23` y valores diferentes de cero.
 
 
 ## 8. Lectura conceptual de los datos
