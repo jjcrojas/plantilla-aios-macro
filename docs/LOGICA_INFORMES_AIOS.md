@@ -198,3 +198,74 @@ Semestral fila número XX: Explicación="..." valor=... fechaCorte=... columnaDe
 ```
 
 Cada explicación describe las variables que intervienen, el archivo y hoja de origen, las celdas usadas, los operandos y la unidad esperada. Algunas filas con lecturas especiales agregan detalles de fuente, fallback o celdas exactas.
+
+## 11. Ejecución de boletines mensuales por período o rango
+
+El proceso mensual puede ejecutarse invocando la Skill de Codex o llamando directamente el script de PowerShell. En ambos casos se genera un único archivo consolidado llamado `Boletin_AIOS MENSUAL.xlsx`, con una fila por cada período solicitado. Los extremos del rango son inclusivos.
+
+### 11.1 Invocación de la Skill en Codex
+
+Solicitar la ejecución en lenguaje natural mencionando la Skill `Generar mensuales AIOS`. Ejemplos:
+
+```text
+Usa Generar mensuales AIOS para generar julio de 2025.
+```
+
+```text
+Usa Generar mensuales AIOS para generar junio a diciembre de 2025.
+```
+
+```text
+Usa Generar mensuales AIOS para generar noviembre de 2025 a febrero de 2026.
+```
+
+También puede invocarse por su identificador:
+
+```text
+Usa $generar-mensuales-aios para generar el período 2025-07.
+```
+
+```text
+Usa $generar-mensuales-aios para generar el rango 2025-06 a 2025-12.
+```
+
+### 11.2 Ejecución directa del script PowerShell
+
+Ejecutar desde `D:\app\plantilla-aios-macro`:
+
+```powershell
+# Un solo período
+& '.\skills\generar-mensuales-aios\scripts\generar-mensuales.ps1' `
+  -Desde '2025-07'
+```
+
+```powershell
+# Varios períodos del mismo año
+& '.\skills\generar-mensuales-aios\scripts\generar-mensuales.ps1' `
+  -Desde '2025-06' `
+  -Hasta '2025-12'
+```
+
+```powershell
+# Rango entre años
+& '.\skills\generar-mensuales-aios\scripts\generar-mensuales.ps1' `
+  -Desde '2025-11' `
+  -Hasta '2026-02'
+```
+
+También puede usarse la copia personal instalada de la Skill:
+
+```powershell
+& 'C:\Users\jcrojas\.codex\skills\generar-mensuales-aios\scripts\generar-mensuales.ps1' `
+  -Desde '2025-06' `
+  -Hasta '2025-12'
+```
+
+Los parámetros `Desde` y `Hasta` usan el formato `AAAA-MM`. Si se proporciona solamente `Desde`, se genera ese único período. Si no se proporciona ninguno, el script conserva como ejecución predeterminada el rango junio-diciembre de 2025.
+
+Por defecto, la salida se guarda bajo `target\aios-output`:
+
+- Un período: `target\aios-output\mensual-AAAA-MM\Boletin_AIOS MENSUAL.xlsx`.
+- Un rango: `target\aios-output\mensuales-AAAA-MM-a-AAAA-MM\Boletin_AIOS MENSUAL.xlsx`.
+
+Antes de ejecutar, se requiere conexión a Teradata, credenciales `AIOS_DB_USER` y `AIOS_PASS`, los insumos locales usados por `MensualDataReader` y la plantilla base en `salidas_referencia`. El proceso no abre Excel ni ejecuta macros VBA.

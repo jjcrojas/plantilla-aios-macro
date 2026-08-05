@@ -126,7 +126,7 @@ public class TrimestralExcelGenerator {
 
     private BigDecimal v(Map<String, BigDecimal> m, String k) { return m == null ? BigDecimal.ZERO : m.getOrDefault(k, BigDecimal.ZERO); }
 
-    private int findOrAppendRow(Sheet sheet, LocalDate fechaCorte, String etiqueta) {
+    int findOrAppendRow(Sheet sheet, LocalDate fechaCorte, String etiqueta) {
         if (sheet == null) throw new IllegalStateException("No existe una hoja requerida en Boletin_AIOS TRIMESTRAL.xlsx");
         DataFormatter formatter = new DataFormatter();
         String etiquetaNorm = etiqueta == null ? "" : etiqueta.trim().toLowerCase();
@@ -140,11 +140,45 @@ public class TrimestralExcelGenerator {
                 if (d.getYear() == fechaCorte.getYear() && d.getMonth() == fechaCorte.getMonth()) return r + 1;
             }
         }
-        int r = Math.max(sheet.getLastRowNum() + 1, 6);
+        int lastPeriodRow = 5;
+        for (int rowIndex = 5; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row candidate = sheet.getRow(rowIndex);
+            if (candidate == null) continue;
+            if (isPeriodCell(candidate.getCell(0), formatter)) lastPeriodRow = rowIndex;
+        }
+        int r = Math.max(lastPeriodRow + 1, 6);
+        if (r <= sheet.getLastRowNum()) {
+            sheet.shiftRows(r, sheet.getLastRowNum(), 1, true, false);
+        }
         Row row = sheet.getRow(r); if (row == null) row = sheet.createRow(r);
+        copyPreviousRowFormat(sheet, r);
         Cell c = row.getCell(0); if (c == null) c = row.createCell(0);
         c.setCellValue(etiqueta);
         return r + 1;
+    }
+
+    private boolean isPeriodCell(Cell cell, DataFormatter formatter) {
+        if (cell == null) return false;
+        if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) return true;
+        String value = formatter.formatCellValue(cell);
+        return value != null && value.trim().matches("(?iu)^[\\p{L}]{3}\\.?-\\d{2,4}$");
+    }
+
+    private void copyPreviousRowFormat(Sheet sheet, int targetRowIndex) {
+        if (targetRowIndex <= 0) return;
+        Row source = sheet.getRow(targetRowIndex - 1);
+        Row target = sheet.getRow(targetRowIndex);
+        if (source == null || target == null) return;
+
+        target.setHeight(source.getHeight());
+        int lastCell = Math.max(source.getLastCellNum(), 1);
+        for (int col = 0; col < lastCell; col++) {
+            Cell sourceCell = source.getCell(col);
+            if (sourceCell == null) continue;
+            Cell targetCell = target.getCell(col);
+            if (targetCell == null) targetCell = target.createCell(col);
+            targetCell.setCellStyle(sourceCell.getCellStyle());
+        }
     }
 
     private void write(Sheet sheet, int row1, int col1, BigDecimal value) {

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -19,6 +20,51 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 class AiosGeneracionServiceTest {
+
+    @Test
+    void shouldGenerateAllMonthlyPeriodsInOneWorkbook() {
+        MensualDataReader reader = mock(MensualDataReader.class);
+        MensualExcelGenerator generator = mock(MensualExcelGenerator.class);
+        AiosGeneracionService service = new AiosGeneracionService(
+                reader,
+                generator,
+                mock(SemestralExcelGenerator.class),
+                mock(TrimestralDataReader.class),
+                mock(TrimestralExcelGenerator.class)
+        );
+        MensualData junio = mock(MensualData.class);
+        MensualData julio = mock(MensualData.class);
+        Path salida = Path.of("target/aios-output/Boletin_AIOS MENSUAL.xlsx");
+        when(reader.read(LocalDate.of(2025, 6, 30))).thenReturn(junio);
+        when(reader.read(LocalDate.of(2025, 7, 31))).thenReturn(julio);
+        when(generator.generar(List.of(junio, julio))).thenReturn(salida);
+
+        var resultado = service.generarMensuales(
+                LocalDate.of(2025, 6, 1),
+                LocalDate.of(2025, 7, 31)
+        );
+
+        assertEquals(List.of(salida), resultado.archivosGenerados());
+        verify(reader).read(LocalDate.of(2025, 6, 30));
+        verify(reader).read(LocalDate.of(2025, 7, 31));
+        verify(generator).generar(List.of(junio, julio));
+    }
+
+    @Test
+    void shouldRejectInvertedMonthlyRange() {
+        AiosGeneracionService service = new AiosGeneracionService(
+                mock(MensualDataReader.class),
+                mock(MensualExcelGenerator.class),
+                mock(SemestralExcelGenerator.class),
+                mock(TrimestralDataReader.class),
+                mock(TrimestralExcelGenerator.class)
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.generarMensuales(LocalDate.of(2025, 7, 1), LocalDate.of(2025, 6, 30)));
+
+        assertEquals("La fecha inicial no puede ser posterior a la fecha final", ex.getMessage());
+    }
 
     @Test
     void shouldGenerateTrimestralWhenModeIsTrimestral() {

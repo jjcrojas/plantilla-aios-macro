@@ -1,0 +1,4 @@
+interface:
+  display_name: "Generar mensuales AIOS"
+  short_description: "Genera boletines mensuales AIOS en lote"
+  default_prompt: "Usa $generar-mensuales-aios para generar el boletín mensual del período o rango que te indique."

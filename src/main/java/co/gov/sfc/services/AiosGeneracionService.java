@@ -16,6 +16,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
@@ -85,6 +86,24 @@ public class AiosGeneracionService {
         }
         log.info("Generación AIOS finalizada en {} ms. Archivos generados={}", (System.currentTimeMillis() - start), archivos);
         return new ResultadoGeneracion(archivos, false);
+    }
+
+    public ResultadoGeneracion generarMensuales(LocalDate desde, LocalDate hasta) {
+        if (desde.isAfter(hasta)) {
+            throw new IllegalArgumentException("La fecha inicial no puede ser posterior a la fecha final");
+        }
+
+        List<co.gov.sfc.excel.MensualData> periodos = new ArrayList<>();
+        YearMonth actual = YearMonth.from(desde);
+        YearMonth ultimo = YearMonth.from(hasta);
+        while (!actual.isAfter(ultimo)) {
+            periodos.add(mensualDataReader.read(actual.atEndOfMonth()));
+            actual = actual.plusMonths(1);
+        }
+
+        Path archivo = mensualExcelGenerator.generar(periodos);
+        log.info("Generación mensual acumulada finalizada: desde={}, hasta={}, salida={}", desde, hasta, archivo.toAbsolutePath());
+        return new ResultadoGeneracion(List.of(archivo), false);
     }
 
     private boolean isQuarterMonth(LocalDate fechaCorte) {
