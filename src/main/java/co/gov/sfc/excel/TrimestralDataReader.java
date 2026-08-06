@@ -71,21 +71,6 @@ public class TrimestralDataReader {
         return out;
     }
 
-    private void readBalanceTo(Map<String, BigDecimal> out, Path dir, String name, String pref, boolean allowAlt, BigDecimal trm) throws Exception {
-        Path f = findInDirContains(dir, name);
-        if (f == null) return;
-        try (Workbook wb = WorkbookFactory.create(f.toFile(), null, true)) {
-            Sheet ws = getSheetIgnoreCase(wb, "restot");
-            if (ws == null) ws = wb.getSheetAt(0);
-            RowData r = readBalanceRow(ws, allowAlt);
-            out.put(pref + "_colf", safeDivide(r.colf, trm));
-            out.put(pref + "_porv", safeDivide(r.porv, trm));
-            out.put(pref + "_prot", safeDivide(r.prot, trm));
-            out.put(pref + "_sk", safeDivide(r.skan, trm));
-            if (allowAlt) out.put(pref + "_alt", safeDivide(r.alt, trm));
-        }
-    }
-
     private Map<String, BigDecimal> readGastosUsd(LocalDate fechaCorte, BigDecimal trm) {
         Map<String, BigDecimal> out = new HashMap<>();
         try {
@@ -251,71 +236,6 @@ public class TrimestralDataReader {
         throw new IllegalArgumentException("No se encontró archivo de Comisión FPO desde 2003");
     }
 
-    private Path findInDirContains(Path dir, String contains) throws Exception {
-        try (var s = Files.list(dir)) {
-            return s.filter(Files::isRegularFile)
-                    .filter(p -> normalize(p.getFileName().toString()).contains(normalize(contains)))
-                    .findFirst().orElse(null);
-        }
-    }
-
-    private RowData readBalanceRow(Sheet ws, boolean allowAlt) {
-        int cProt = findHeaderCol(ws, "PROTECCION");
-        if (cProt < 0) cProt = findHeaderCol(ws, "PROTECCIÓN");
-        int cPorv = findHeaderCol(ws, "PORVENIR");
-        int cSkan = findHeaderCol(ws, "SKANDIA");
-        int cAlt = findHeaderCol(ws, "SKANDIA_ALT");
-        int cColf = findHeaderCol(ws, "CITI COLFONDOS");
-        if (cColf < 0) cColf = findHeaderCol(ws, "COLFONDOS");
-        int cSis = findHeaderCol(ws, "SISTEMA");
-        if (cProt < 0 || cPorv < 0 || cSkan < 0 || cColf < 0 || cSis < 0) return new RowData();
-
-        int headerRow = findHeaderRow(ws, cSis);
-        int last = ws.getLastRowNum();
-        int start = headerRow + 1;
-        int end = Math.min(headerRow + 60, last);
-        int bestRow = -1;
-        BigDecimal max = BigDecimal.valueOf(-1);
-        for (int r = start; r <= end; r++) {
-            BigDecimal v = num(ws, r + 1, cSis + 1, null);
-            if (v.compareTo(max) > 0) { max = v; bestRow = r; }
-        }
-        if (bestRow < 0) return new RowData();
-        RowData d = new RowData();
-        d.colf = num(ws, bestRow + 1, cColf + 1, null);
-        d.porv = num(ws, bestRow + 1, cPorv + 1, null);
-        d.prot = num(ws, bestRow + 1, cProt + 1, null);
-        d.skan = num(ws, bestRow + 1, cSkan + 1, null);
-        d.alt = (allowAlt && cAlt >= 0) ? num(ws, bestRow + 1, cAlt + 1, null) : BigDecimal.ZERO;
-        return d;
-    }
-
-    private int findHeaderRow(Sheet ws, int colIdx) {
-        for (int r = 0; r <= Math.min(ws.getLastRowNum(), 100); r++) {
-            Row row = ws.getRow(r);
-            if (row == null) continue;
-            Cell c = row.getCell(colIdx);
-            if (c == null) continue;
-            String t = normalize(new DataFormatter().formatCellValue(c));
-            if (t.contains("sistema")) return r;
-        }
-        return 0;
-    }
-
-    private int findHeaderCol(Sheet ws, String text) {
-        DataFormatter fmt = new DataFormatter();
-        String target = normalize(text);
-        for (int r = 0; r <= Math.min(ws.getLastRowNum(), 100); r++) {
-            Row row = ws.getRow(r);
-            if (row == null) continue;
-            for (Cell c : row) {
-                String v = normalize(fmt.formatCellValue(c));
-                if (v.contains(target)) return c.getColumnIndex();
-            }
-        }
-        return -1;
-    }
-
     private Sheet getSheetIgnoreCase(Workbook wb, String name) {
         for (int i = 0; i < wb.getNumberOfSheets(); i++) {
             Sheet sheet = wb.getSheetAt(i);
@@ -415,11 +335,4 @@ public class TrimestralDataReader {
         return n.toLowerCase(Locale.ROOT).trim();
     }
 
-    private static class RowData {
-        BigDecimal colf = BigDecimal.ZERO;
-        BigDecimal porv = BigDecimal.ZERO;
-        BigDecimal prot = BigDecimal.ZERO;
-        BigDecimal skan = BigDecimal.ZERO;
-        BigDecimal alt = BigDecimal.ZERO;
-    }
 }

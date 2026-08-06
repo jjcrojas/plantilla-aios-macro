@@ -248,31 +248,25 @@ Ejecutar desde `D:\app\plantilla-aios-macro`:
 
 ```powershell
 # Un solo período
-& '.\skills\generar-mensuales-aios\scripts\generar-mensuales.ps1' `
+& '.\.agents\skills\generar-mensuales-aios\scripts\generar-mensuales.ps1' `
   -Desde '2025-07'
 ```
 
 ```powershell
 # Varios períodos del mismo año
-& '.\skills\generar-mensuales-aios\scripts\generar-mensuales.ps1' `
+& '.\.agents\skills\generar-mensuales-aios\scripts\generar-mensuales.ps1' `
   -Desde '2025-06' `
   -Hasta '2025-12'
 ```
 
 ```powershell
 # Rango entre años
-& '.\skills\generar-mensuales-aios\scripts\generar-mensuales.ps1' `
+& '.\.agents\skills\generar-mensuales-aios\scripts\generar-mensuales.ps1' `
   -Desde '2025-11' `
   -Hasta '2026-02'
 ```
 
-También puede usarse la copia personal instalada de la Skill:
-
-```powershell
-& 'C:\Users\jcrojas\.codex\skills\generar-mensuales-aios\scripts\generar-mensuales.ps1' `
-  -Desde '2025-06' `
-  -Hasta '2025-12'
-```
+La Skill compartida del proyecto está versionada bajo `.agents\skills` y se sincroniza mediante Git. Todos los ejemplos anteriores ejecutan esa única copia del repositorio.
 
 Los parámetros `Desde` y `Hasta` usan el formato `AAAA-MM`. Si se proporciona solamente `Desde`, se genera ese único período. Si no se proporciona ninguno, el script conserva como ejecución predeterminada el rango junio-diciembre de 2025.
 

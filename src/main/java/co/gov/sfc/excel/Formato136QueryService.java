@@ -9,12 +9,14 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 @Component
 public class Formato136QueryService {
 
     private static final Logger log = LoggerFactory.getLogger(Formato136QueryService.class);
+    private static final BigDecimal MIL = BigDecimal.valueOf(1_000);
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -29,17 +31,68 @@ public class Formato136QueryService {
 
     public Map<String, BigDecimal> leerColombiaPorFondoEntidad(LocalDate fechaCorte) {
         Map<String, BigDecimal> out = new HashMap<>();
-        log.info("Formato136QueryService ejecutando metric=colombia_por_fondo_entidad fechaCorte={} sql=\"{}\"",
-                fechaCorte,
-                sqlColombiaPorFondoEntidad().replace("\n", " ").replaceAll("\\s+", " ").trim());
-        jdbcTemplate.query(sqlColombiaPorFondoEntidad(), rs -> {
-            int codigoEntidad = rs.getInt("codigo_entidad");
-            int codigoPatrimonio = rs.getInt("codigo_patrimonio");
-            BigDecimal valor = rs.getBigDecimal("valor_total");
-            putColombiaValue(out, codigoPatrimonio, codigoEntidad, valor == null ? BigDecimal.ZERO : valor);
-        }, Date.valueOf(fechaCorte));
+        leerFondoEstandar(out, "con", 5000, fechaCorte);
+        leerFondoModerado(out, fechaCorte);
+        leerFondoEstandar(out, "rp", 7000, fechaCorte);
+        leerFondoEstandar(out, "mr", 6000, fechaCorte);
         log.info("Formato136QueryService resultado metric=colombia_por_fondo_entidad fechaCorte={} valores={}", fechaCorte, out);
         return out;
+    }
+
+    private void leerFondoEstandar(Map<String, BigDecimal> out, String fondo, int codigoPatrimonio, LocalDate fechaCorte) {
+        String sql = sqlFondoEstandar();
+        logQueryColombia(fondo, fechaCorte, sql, codigoPatrimonio);
+        jdbcTemplate.query(sql, rs -> {
+            String entidad = claveEntidad(rs.getInt("codigo_entidad"));
+            if (entidad != null) {
+                out.merge(fondo + "_" + entidad, valorMillonesCop(rs.getBigDecimal("valor_miles")), BigDecimal::add);
+            }
+        }, codigoPatrimonio, Date.valueOf(fechaCorte));
+    }
+
+    private void leerFondoModerado(Map<String, BigDecimal> out, LocalDate fechaCorte) {
+        String sql = sqlFondoModerado();
+        logQueryColombia("mod", fechaCorte, sql, 1000, 4, 8000);
+        jdbcTemplate.query(sql, rs -> {
+            String claveReporte = rs.getString("clave_reporte");
+            BigDecimal valor = valorMillonesCop(rs.getBigDecimal("valor_miles"));
+            if ("SKANDIA_ALT".equals(normalize(claveReporte))) {
+                out.merge("mod_alt", valor, BigDecimal::add);
+                return;
+            }
+            String entidad = claveEntidad(rs.getInt("codigo_entidad"));
+            if (entidad != null) {
+                out.merge("mod_" + entidad, valor, BigDecimal::add);
+            }
+        }, Date.valueOf(fechaCorte));
+    }
+
+    private void logQueryColombia(String fondo, LocalDate fechaCorte, String sql, Object... reglasPatrimonio) {
+        log.info("Formato136QueryService ejecutando metric=colombia_por_fondo fondo={} fechaCorte={} patrimonios={} sql=\"{}\"",
+                fondo,
+                fechaCorte,
+                java.util.Arrays.toString(reglasPatrimonio),
+                sql.replace("\n", " ").replaceAll("\\s+", " ").trim());
+    }
+
+    private BigDecimal valorMillonesCop(BigDecimal valorMiles) {
+        // ESTFIN_INDIV_PA devuelve miles de COP; TrimestralDataReader divide después por la TRM.
+        // Esta segunda división por 1.000 deja el saldo en millones de COP, igual que la macro VBA.
+        return valorMiles == null ? BigDecimal.ZERO : valorMiles.divide(MIL);
+    }
+
+    private String claveEntidad(int codigoEntidad) {
+        return switch (codigoEntidad) {
+            case 10 -> "colf";
+            case 3 -> "porv";
+            case 2 -> "prot";
+            case 9 -> "sk";
+            default -> null;
+        };
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private BigDecimal scalar(String metric, String sql, Object... params) {
@@ -52,60 +105,53 @@ public class Formato136QueryService {
         return value == null ? BigDecimal.ZERO : value;
     }
 
-    private void putColombiaValue(Map<String, BigDecimal> out, int codigoPatrimonio, int codigoEntidad, BigDecimal valor) {
-        String entidad = switch (codigoEntidad) {
-            case 10 -> "colf";
-            case 3 -> "porv";
-            case 2 -> "prot";
-            case 9 -> "sk";
-            default -> null;
-        };
-        if (entidad == null) {
-            return;
-        }
-        String fondo = switch (codigoPatrimonio) {
-            case 1000 -> "mod";
-            case 5000 -> "con";
-            case 6000 -> "mr";
-            case 7000 -> "rp";
-            case 8000 -> "alt";
-            default -> null;
-        };
-        if (fondo == null) {
-            return;
-        }
-        if ("alt".equals(fondo)) {
-            out.merge("mod_alt", valor, BigDecimal::add);
-        } else {
-            out.merge(fondo + "_" + entidad, valor, BigDecimal::add);
-        }
+    private String sqlFondoEstandar() {
+        return """
+                SELECT e.Codigo_Entidad AS codigo_entidad,
+                       'ENT_' || TRIM(CAST(e.Codigo_Entidad AS VARCHAR(20))) AS clave_reporte,
+                       SUM(eip.Saldo_Sincierre_Total_Moneda_0) / 1000 AS valor_miles
+                FROM PROD_DWH_CONSULTA.ESTFIN_INDIV_PA eip
+                INNER JOIN PROD_DWH_CONSULTA.ENTIDADES e ON eip.Ent_ID = e.Ent_ID
+                INNER JOIN PROD_DWH_CONSULTA.PATRIMONIOS_AUTONOMOS pa ON eip.Paau_ID = pa.Paau_ID
+                INNER JOIN PROD_DWH_CONSULTA.TIEMPO t ON eip.Tie_ID = t.Tie_ID
+                INNER JOIN PROD_DWH_CONSULTA.PUC p ON eip.Puc_ID = p.Puc_ID
+                WHERE eip.Tipo_Informe = 17
+                  AND e.Tipo_Entidad = 23
+                  AND e.Estado = 1
+                  AND pa.Tipo_Patrimonio = 6
+                  AND pa.Codigo_Patrimonio = ?
+                  AND p.Codigo = 100000
+                  AND t.Fecha = ?
+                GROUP BY 1, 2
+                ORDER BY 1
+                """;
     }
 
-    private String sqlColombiaPorFondoEntidad() {
+    private String sqlFondoModerado() {
         return """
-                SELECT a.codigo_entidad,
-                       c.codigo_patrimonio,
-                       COALESCE(SUM(e.valor) / 1000000, 0) AS valor_total
-                FROM prod_dwh_consulta.entidades a,
-                     prod_dwh_consulta.tiempo b,
-                     prod_dwh_consulta.patrimonios_autonomos c,
-                     prod_dwh_consulta.negfid_insumos d,
-                     prod_dwh_consulta.negfid_insumo_entidad e
-                WHERE d.inf_id = e.inf_id
-                  AND e.ent_id = a.ent_id
-                  AND e.tie_id = b.tie_id
-                  AND e.paau_id = c.paau_id
-                  AND c.tipo_patrimonio = 6
-                  AND c.codigo_patrimonio IN (1000, 5000, 6000, 7000, 8000)
-                  AND d.nivel1 = 136
-                  AND d.nivel2 = 2
-                  AND d.nivel3 = 4
-                  AND d.nivel4 = 10
-                  AND a.tipo_entidad = 23
-                  AND a.codigo_entidad IN (2, 3, 9, 10)
-                  AND e.valor <> 0
-                  AND b.fecha = ?
-                GROUP BY a.codigo_entidad, c.codigo_patrimonio
+                SELECT e.Codigo_Entidad AS codigo_entidad,
+                       CASE
+                           WHEN e.Codigo_Entidad = 9
+                            AND pa.Tipo_Patrimonio = 6
+                            AND pa.Codigo_Patrimonio IN (4, 8000) THEN 'SKANDIA_ALT'
+                           ELSE 'ENT_' || TRIM(CAST(e.Codigo_Entidad AS VARCHAR(20)))
+                       END AS clave_reporte,
+                       SUM(eip.Saldo_Sincierre_Total_Moneda_0) / 1000 AS valor_miles
+                FROM PROD_DWH_CONSULTA.ESTFIN_INDIV_PA eip
+                INNER JOIN PROD_DWH_CONSULTA.ENTIDADES e ON eip.Ent_ID = e.Ent_ID
+                INNER JOIN PROD_DWH_CONSULTA.PATRIMONIOS_AUTONOMOS pa ON eip.Paau_ID = pa.Paau_ID
+                INNER JOIN PROD_DWH_CONSULTA.TIEMPO t ON eip.Tie_ID = t.Tie_ID
+                INNER JOIN PROD_DWH_CONSULTA.PUC p ON eip.Puc_ID = p.Puc_ID
+                WHERE eip.Tipo_Informe = 17
+                  AND e.Tipo_Entidad = 23
+                  AND e.Estado = 1
+                  AND pa.Tipo_Patrimonio = 6
+                  AND (pa.Codigo_Patrimonio = 1000
+                       OR (e.Codigo_Entidad = 9 AND pa.Codigo_Patrimonio IN (4, 8000)))
+                  AND p.Codigo = 100000
+                  AND t.Fecha = ?
+                GROUP BY 1, 2
+                ORDER BY 1
                 """;
     }
 
