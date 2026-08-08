@@ -28,12 +28,28 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 | `PIB_PEA_TRM_DG` | PEA, PIB semestral, TRM y deuda gubernamental. | Hoja `Hoja1`: fecha en columna `L`, deuda gubernamental en columna `M`, además de series de TRM/PEA/PIB usadas por los lectores. |
 | `Series_Formato-495 PENSIONADOS.xlsm` | Total y composición de pensionados. | Hoja `TOTAL PENSIONADOS`, parámetro `B4`, serie en columna `I`; hoja `por Entidad`, parámetro `C6`, celdas `BI62`, `BH62`, `BJ62`. |
 | Query Teradata Formato 136 | Aportes recibidos para indicadores semestrales. | `SUM(e.valor)/1000000` desde `prod_dwh_consulta.negfid_insumo_entidad` filtrando `nivel1=136`, `nivel2=2`, `nivel3=4`, `nivel4=10`, patrimonio 1000 y tipo entidad 23. |
-| `Plantilla AIOS-probable.xlsm` | Datos contables de cuentas, activos/pasivos, patrimonio y resultados. | Hoja `CUENTAS`: `C4`, `C6`, `C15`, `C21`, `C22`, `C24`, `C28`, `C29`, `C31:C38`, `E13`, `G15`, `E41`, `E44`, `H24`. |
+| `Plantilla AIOS-probable.xlsm` | Datos contables de cuentas, activos/pasivos, patrimonio, resultados y gastos trimestrales. Debe actualizarse previamente con las salidas del programa Fox de sociedades. | Hojas `base anual`, `base mes` y `CUENTAS`; en `CUENTAS`: `C4`, `C6`, `C15`, `C21`, `C22`, `C24`, `C28`, `C29`, `C31:C38`, `E13`, `G15`, `E41`, `E44`, `H24`. |
 | `Rent_Vr_Uni_Moderado.xlsm` | IPC y rentabilidad real/nominal cuando aplica fallback. | Hojas o series de IPC/rentabilidad moderada. |
 | `Valores_Fondo_Moder` / `MODERADO` | NAV histórico para rentabilidades semestrales. | Series de valor de unidad/NAV por fecha. |
 
 
-### 3.1 Trazabilidad de formatos consultados por query
+### 3.1 Actualización contable de Plantilla AIOS-probable
+
+Antes de generar un informe trimestral, o cualquier salida que use las hojas contables de la plantilla, se debe actualizar `Plantilla AIOS-probable.xlsm` mediante este procedimiento:
+
+1. Ejecutar el programa Fox de sociedades en la máquina donde está instalado. El proceso genera `base_anual.txt` y `base.txt`.
+2. Convertir o guardar esos archivos como `base_anual.xlsx` y `base.xlsx`, respectivamente, en la carpeta de OneDrive `FORMATOS ACTUALIZADOS/ANÁLISIS DIARIO/SOCIEDADES`.
+3. Agregar como primera columna de cada archivo `.xlsx` la misma fórmula de concatenación usada como clave en las hojas correspondientes de la plantilla:
+   - `base_anual.xlsx`: fórmula de concatenación de la hoja `base anual`.
+   - `base.xlsx`: fórmula de concatenación de la hoja `base mes`.
+4. Reemplazar el contenido de `base anual` con la información actualizada de `base_anual.xlsx` y el contenido de `base mes` con la información actualizada de `base.xlsx`.
+5. Recalcular y guardar `Plantilla AIOS-probable.xlsm`. Comprobar que el período solicitado exista y que los valores contables relevantes no estén vacíos ni sean ceros anómalos antes de generar los informes.
+
+La hoja `gastos` del boletín trimestral se calcula directamente desde `base anual`. Otras variables mensuales y semestrales se obtienen de `base mes`, `base anual` o de las fórmulas de `CUENTAS` que consultan esas hojas mediante la clave concatenada. Por tanto, actualizar únicamente la fecha o recalcular la plantilla no sustituye la actualización previa de los archivos generados por Fox.
+
+Este procedimiento es externo y exclusivamente documental: debe completarse antes de invocar la skill trimestral. La skill `generar-trimestral-aios` no abre `base_anual.xlsx` ni `base.xlsx`, no reemplaza las hojas `base anual` o `base mes` y no ejecuta las macros `CopiarBalances_BaseAnual` ni `CopiarBalances_BaseMes`; únicamente valida que ambas hojas ya contengan el período solicitado.
+
+### 3.2 Trazabilidad de formatos consultados por query
 
 Para los datos migrados a Teradata, la fuente documental es el formato regulatorio representado por la tabla consultada. Cada métrica debe indicar formato, columna(s), unidad de captura, renglón y filtros principales:
 
@@ -50,7 +66,7 @@ Para los datos migrados a Teradata, la fuente documental es el formato regulator
 | Fallecidos sistema | Formato 493 / `PROD_DWH_CONSULTA.S9_FORMATO_493` | Misma suma de rangos sexo/edad | UC 1, renglones 165, 170 y 175 | Misma ventana de 12 meses; para semestral se divide entre 1000. |
 
 
-## 3.2 Conexión a Teradata (para queries de formatos 491 y 493)
+## 3.3 Conexión a Teradata (para queries de formatos 491 y 493)
 
 Desde esta versión, el proceso también consulta Teradata para obtener agregados de los Formatos 491 y 493. Del Formato 491 obtiene afiliados totales, mujeres afiliadas, afiliados activos, aportantes, concentración de afiliados/personas, grupos de edad y salario mínimo ponderado para la fila 15 semestral; del Formato 493 obtiene traspasos y fallecidos.
 

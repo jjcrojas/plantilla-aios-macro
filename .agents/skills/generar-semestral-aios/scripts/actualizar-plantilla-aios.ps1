@@ -20,6 +20,10 @@ $fecha = [DateTime]::MinValue
 if (-not [DateTime]::TryParseExact($FechaCorte, 'yyyy-MM-dd', $culture, $styles, [ref]$fecha)) {
     throw "FechaCorte debe tener formato AAAA-MM-DD. Valor recibido: $FechaCorte"
 }
+$lastDay = [DateTime]::DaysInMonth($fecha.Year, $fecha.Month)
+if (@(6, 12) -notcontains $fecha.Month -or $fecha.Day -ne $lastDay) {
+    throw "La fecha semestral debe ser 30 de junio o 31 de diciembre. Valor recibido: $FechaCorte"
+}
 
 $plantilla = [System.IO.Path]::GetFullPath($PlantillaPath)
 if (-not (Test-Path -LiteralPath $plantilla -PathType Leaf)) {
@@ -134,21 +138,26 @@ try {
     }
 
     $cuentas = $workbook.Worksheets.Item('cuentas')
-    foreach ($cellRef in @('C4', 'C6', 'G15')) {
+    $requiredCells = @('C4', 'C6', 'C15', 'C21', 'C22', 'C24', 'C28', 'C29', 'C31', 'C32', 'C33', 'C34', 'C35', 'C36', 'C37', 'C38', 'E13', 'G15', 'E41', 'E44', 'H24')
+    $numericValues = @()
+    foreach ($cellRef in $requiredCells) {
         $cell = $cuentas.Range($cellRef)
         if ([string]$cell.Text -match '^#') {
             throw "La celda cuentas!$cellRef contiene un error de Excel: $($cell.Text)"
         }
         try {
-            [void][System.Convert]::ToDouble($cell.Value2, $culture)
+            $numericValues += [System.Convert]::ToDouble($cell.Value2, $culture)
         } catch {
             throw "La celda cuentas!$cellRef no contiene un valor numérico después de actualizar la plantilla."
         }
     }
+    if (@($numericValues | Where-Object { [math]::Abs($_) -gt 0.0000001 }).Count -eq 0) {
+        throw "Todas las celdas de cuentas requeridas por el semestral quedaron en cero para $FechaCorte."
+    }
 
     $workbook.Save()
     $saveChanges = $true
-    Write-Output "PLANTILLA_PREPARADA_OK ruta=$plantilla fecha=$FechaCorte rutina=ActualizarSeriesSinPortapapeles registrosBaseAnual=$([int]$coincidenciasAnual) registrosBaseMes=$([int]$coincidenciasMes) basesModificadas=no"
+    Write-Output "PLANTILLA_SEMESTRAL_PREPARADA_OK ruta=$plantilla fecha=$FechaCorte rutina=ActualizarSeriesSinPortapapeles celdasCuentasValidadas=$($requiredCells.Count) registrosBaseAnual=$([int]$coincidenciasAnual) registrosBaseMes=$([int]$coincidenciasMes) basesModificadas=no"
 } finally {
     if ($null -ne $workbook) {
         try { $workbook.Close($saveChanges) } catch {}

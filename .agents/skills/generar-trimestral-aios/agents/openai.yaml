@@ -1,4 +1,4 @@
 interface:
   display_name: "Generar trimestral AIOS"
-  short_description: "Actualiza la plantilla y genera el trimestral"
-  default_prompt: "Usa $generar-trimestral-aios para actualizar la plantilla AIOS y generar el boletín trimestral del período que te indique."
+  short_description: "Valida la plantilla y genera el trimestral"
+  default_prompt: "Usa $generar-trimestral-aios para validar la plantilla AIOS ya preparada y generar el boletín trimestral del período indicado."

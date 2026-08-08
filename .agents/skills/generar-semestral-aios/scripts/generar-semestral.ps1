@@ -7,7 +7,7 @@ param(
     [string]$PlantillaPath,
     [string]$OutputDir,
     [string]$MavenRepository,
-    [int]$PreferredPort = 18084,
+    [int]$PreferredPort = 18085,
     [int]$MacroTimeoutMinutes = 30,
     [switch]$KeepApplicationRunning,
     [switch]$SoloValidar
@@ -23,10 +23,9 @@ if (-not [DateTime]::TryParseExact($FechaCorte, 'yyyy-MM-dd', $culture, $styles,
     throw "FechaCorte debe tener formato AAAA-MM-DD. Valor recibido: $FechaCorte"
 }
 
-$quarterMonths = @(3, 6, 9, 12)
 $lastDay = [DateTime]::DaysInMonth($fecha.Year, $fecha.Month)
-if ($quarterMonths -notcontains $fecha.Month -or $fecha.Day -ne $lastDay) {
-    throw "La fecha trimestral debe ser 31 de marzo, 30 de junio, 30 de septiembre o 31 de diciembre. Valor recibido: $FechaCorte"
+if (@(6, 12) -notcontains $fecha.Month -or $fecha.Day -ne $lastDay) {
+    throw "La fecha semestral debe ser 30 de junio o 31 de diciembre. Valor recibido: $FechaCorte"
 }
 if ($MacroTimeoutMinutes -lt 1) {
     throw 'MacroTimeoutMinutes debe ser al menos 1.'
@@ -56,12 +55,12 @@ if ($SoloValidar) {
     if ($null -eq $maven) {
         $maven = Get-Command 'mvn' -ErrorAction Stop
     }
-    Write-Output "VALIDACION_TRIMESTRAL_OK proyecto=$projectPath excel=disponible maven=$($maven.Source)"
+    Write-Output "VALIDACION_SEMESTRAL_OK proyecto=$projectPath excel=disponible maven=$($maven.Source)"
     return
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
-    $OutputDir = Join-Path $projectPath "target\aios-output\trimestral-$($fecha.ToString('yyyy-MM'))"
+    $OutputDir = Join-Path $projectPath "target\aios-output\semestral-$($fecha.ToString('yyyy-MM'))"
 }
 $outputPath = [System.IO.Path]::GetFullPath($OutputDir)
 New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
@@ -133,7 +132,7 @@ function Get-ZipEntryText {
     try { return $reader.ReadToEnd() } finally { $reader.Dispose(); $stream.Dispose() }
 }
 
-function Test-TrimestralWorkbook {
+function Test-SemestralWorkbook {
     param(
         [string]$Path,
         [DateTime]$Cutoff
@@ -143,29 +142,31 @@ function Test-TrimestralWorkbook {
     try {
         [xml]$workbookXml = Get-ZipEntryText -Archive $archive -EntryName 'xl/workbook.xml'
         $sheetNames = @($workbookXml.workbook.sheets.sheet | ForEach-Object { [string]$_.name })
-        $expected = @('afiliados', 'aportantes', 'colombia', 'gastos', 'comisiones', 'rentabilidad', 'promotores', 'traspasos')
-        $missing = @($expected | Where-Object { $sheetNames -notcontains $_ })
-        if ($missing.Count -gt 0) {
-            throw "El archivo trimestral no contiene las hojas requeridas: $($missing -join ', ')"
+        if ($sheetNames.Count -lt 1) {
+            throw 'El archivo semestral no contiene hojas.'
         }
 
-        $monthLabels = @('', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic')
-        $periodLabel = "$($monthLabels[$Cutoff.Month])-$($Cutoff.ToString('yy'))"
+        $periodMonth = if ($Cutoff.Month -eq 6) { 'junio' } else { 'diciembre' }
+        $periodYear = $Cutoff.ToString('yyyy')
         $xmlContent = [System.Text.StringBuilder]::new()
         foreach ($entry in $archive.Entries) {
             if ($entry.FullName -eq 'xl/sharedStrings.xml' -or $entry.FullName -like 'xl/worksheets/*.xml') {
                 [void]$xmlContent.Append((Get-ZipEntryText -Archive $archive -EntryName $entry.FullName))
             }
         }
-        if ($xmlContent.ToString().IndexOf($periodLabel, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
-            throw "No se encontró la etiqueta $periodLabel en el archivo trimestral generado."
+        $content = $xmlContent.ToString()
+        if ($content.IndexOf($periodMonth, [StringComparison]::OrdinalIgnoreCase) -lt 0 -or $content.IndexOf($periodYear, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            throw "No se encontró el período $periodMonth $periodYear en el archivo semestral generado."
         }
         foreach ($formulaError in @('#REF!', '#DIV/0!', '#VALUE!', '#NAME?', '#N/A')) {
-            if ($xmlContent.ToString().IndexOf($formulaError, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
-                throw "Se encontró el error de fórmula $formulaError en el archivo trimestral generado."
+            if ($content.IndexOf($formulaError, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                throw "Se encontró el error de fórmula $formulaError en el archivo semestral generado."
             }
         }
-        return $periodLabel
+        if ([regex]::Matches($content, '<v>-?\d+(?:\.\d+)?</v>').Count -lt 10) {
+            throw 'El archivo semestral no contiene suficientes valores numéricos para considerarse generado correctamente.'
+        }
+        return "$periodMonth-$periodYear"
     } finally {
         $archive.Dispose()
     }
@@ -216,10 +217,10 @@ while (-not $macroProcess.HasExited) {
 if ($macroProcess.ExitCode -ne 0) {
     $macroError = if (Test-Path -LiteralPath $macroStderr) { Get-Content -LiteralPath $macroStderr -Raw } else { '' }
     Remove-Item -LiteralPath $excelPidFile -Force -ErrorAction SilentlyContinue
-    throw "Falló la preparación o validación de Plantilla AIOS-probable.xlsm. No se generó el trimestral. $macroError"
+    throw "Falló la preparación o validación de Plantilla AIOS-probable.xlsm. No se generó el semestral. $macroError"
 }
 $macroResult = if (Test-Path -LiteralPath $macroStdout) { Get-Content -LiteralPath $macroStdout -Raw } else { '' }
-if ($macroResult -notmatch 'PLANTILLA_PREPARADA_OK') {
+if ($macroResult -notmatch 'PLANTILLA_SEMESTRAL_PREPARADA_OK') {
     Remove-Item -LiteralPath $excelPidFile -Force -ErrorAction SilentlyContinue
     throw "La preparación de la plantilla terminó sin confirmación verificable. Revise $macroStdout"
 }
@@ -253,17 +254,17 @@ try {
         Start-Sleep -Seconds 2
     }
 
-    $destination = Join-Path $outputPath 'Boletin_AIOS TRIMESTRAL.xlsx'
-    $uri = "$baseUrl/aios/generar?fechaCorte=$FechaCorte&modo=TRIMESTRAL"
+    $destination = Join-Path $outputPath 'semestral.xlsx'
+    $uri = "$baseUrl/aios/generar?fechaCorte=$FechaCorte&modo=SEMESTRAL"
     Invoke-WebRequest -Uri $uri -Method Post -OutFile $destination -TimeoutSec 1800 -UseBasicParsing
     $file = Get-Item -LiteralPath $destination
     if ($file.Length -eq 0) {
-        throw "La generación trimestral de $FechaCorte produjo un archivo vacío."
+        throw "La generación semestral de $FechaCorte produjo un archivo vacío."
     }
-    $periodLabel = Test-TrimestralWorkbook -Path $file.FullName -Cutoff $fecha
+    $periodLabel = Test-SemestralWorkbook -Path $file.FullName -Cutoff $fecha
     Write-Output $macroResult.Trim()
     Write-Output "RESPALDO_PLANTILLA ruta=$backupPath"
-    Write-Output "TRIMESTRAL_GENERADO_OK fecha=$FechaCorte periodo=$periodLabel bytes=$($file.Length) ruta=$($file.FullName)"
+    Write-Output "SEMESTRAL_GENERADO_OK fecha=$FechaCorte periodo=$periodLabel bytes=$($file.Length) ruta=$($file.FullName)"
     $file.FullName
 } finally {
     if ($null -ne $mavenProcess -and -not $KeepApplicationRunning) {
