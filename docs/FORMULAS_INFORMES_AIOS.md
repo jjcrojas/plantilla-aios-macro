@@ -1174,26 +1174,949 @@ $$
 
 Los aportantes y afiliados provienen de queries Teradata del Formato 491.
 
-#### Fila 15: Salario mínimo en USD
+#### Fila 15: Salario promedio en USD
 
 **¿Qué representa la fila 15?**
 
-La fila 15 corresponde al salario mínimo colombiano convertido a dólares.
+La fila 15 corresponde al salario promedio ponderado de los afiliados cotizantes, convertido a dólares.
 
 **Interpretación económica u operativa**
 
-Permite comparar internacionalmente un ingreso laboral de referencia.
+Permite aproximar y comparar internacionalmente el nivel salarial promedio sobre el que se realizan aportes.
 
 **Fórmula conceptual**
 
 $$
-\text{Salario mínimo en USD} = \frac{\text{Salario mínimo en COP}}{\text{TRM}}
+\text{Salario promedio en USD} = \frac{\text{Salario promedio ponderado en COP}}{\text{TRM}}
 $$
 
 **Fórmula implementada**
 
 $$
-\text{F…5863 tokens truncated…ita en la tabla de fórmulas semestrales.
+\text{Fila 15} = \text{mensual.smColombiaUsd()}
+$$
+
+La aplicación calcula el salario ponderado en COP mediante la query del Formato 491 y los salarios mínimos oficiales de `SalarioMinimo.csv`; después lo convierte con la TRM del corte.
+
+#### Fila 16: Pensionados totales
+
+**¿Qué representa la fila 16?**
+
+La fila 16 corresponde al total de pensionados reportados.
+
+**Interpretación económica u operativa**
+
+Dimensiona la población beneficiaria que recibe pensión dentro del sistema.
+
+**Fórmula conceptual**
+
+$$
+\text{Pensionados totales} = \text{Total de pensionados reportados}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 16} = \text{Q495.total()}
+$$
+
+La aplicación consulta `PROD_DWH_CONSULTA.S9_FORMATO_495` para la fecha de corte, `UNIDAD_CAPTURA=1` y `RENGLON=200`. La fórmula de la macro Excel y la query vigente se detallan en la matriz 4.2.
+
+#### Fila 17: Pensionados por invalidez (%)
+
+**¿Qué representa la fila 17?**
+
+La fila 17 corresponde a la proporción de pensionados por invalidez.
+
+**Interpretación económica u operativa**
+
+Mide el peso relativo de las pensiones originadas por invalidez.
+
+**Fórmula conceptual**
+
+$$
+\text{Invalidez} = \frac{\text{Pensionados por invalidez}}{\text{Pensionados totales}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 17} = \frac{\text{Q495.invalidez()}}{\text{Fila 16}}
+$$
+
+El numerador y el total se obtienen una sola vez de la query Q495. La celda se presenta con formato porcentual.
+
+#### Fila 18: Pensionados por vejez (%)
+
+**¿Qué representa la fila 18?**
+
+La fila 18 corresponde a la proporción de pensionados por vejez.
+
+**Interpretación económica u operativa**
+
+Mide el peso relativo de pensiones asociadas al retiro por edad.
+
+**Fórmula conceptual**
+
+$$
+\text{Vejez} = \frac{\text{Pensionados por vejez}}{\text{Pensionados totales}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 18} = \frac{\text{Q495.vejez()}}{\text{Fila 16}}
+$$
+
+El numerador y el total se obtienen una sola vez de la query Q495. La celda se presenta con formato porcentual.
+
+#### Fila 19: Pensionados por sobrevivencia (%)
+
+**¿Qué representa la fila 19?**
+
+La fila 19 corresponde a la proporción de pensionados por sobrevivencia.
+
+**Interpretación económica u operativa**
+
+Mide el peso de beneficios pagados a beneficiarios por sobrevivencia.
+
+**Fórmula conceptual**
+
+$$
+\text{Sobrevivencia} = \frac{\text{Pensionados por sobrevivencia}}{\text{Pensionados totales}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 19} = \frac{\text{Q495.sobrevivencia()}}{\text{Fila 16}}
+$$
+
+El numerador y el total se obtienen una sola vez de la query Q495. La celda se presenta con formato porcentual.
+
+#### Fila 20: Altas de beneficiarios por tipo de prestación
+
+**¿Qué representa la fila 20?**
+
+La fila 20 identifica el bloque destinado a informar las nuevas altas de beneficiarios, clasificadas por tipo de prestación.
+
+**Interpretación económica u operativa**
+
+Permitiría medir el ingreso de nuevos beneficiarios al sistema durante el período. En la versión vigente no existe una fuente implementada para este bloque.
+
+**Fórmula conceptual**
+
+$
+\text{Altas de beneficiarios} = \text{Nuevos beneficiarios reconocidos en el período}
+$
+
+**Fórmula implementada**
+
+$
+\text{Fila 20} = \text{“no disponible”}
+$
+
+La macro histórica escribe \`no disponible\` en esta fila. La aplicación vigente conserva el bloque sin calcular las filas 21–24.
+
+#### Fila 21: Total de altas de beneficiarios
+
+**¿Qué representa la fila 21?**
+
+La fila 21 está destinada al total de nuevas altas de beneficiarios, sin distinguir el tipo de prestación.
+
+**Interpretación económica u operativa**
+
+Permitiría dimensionar el flujo total de nuevos beneficiarios del período.
+
+**Fórmula conceptual**
+
+$
+\text{Total de altas} = \text{Altas por vejez} + \text{Altas por invalidez} + \text{Altas por sobrevivencia}
+$
+
+**Fórmula implementada**
+
+No existe cálculo implementado para la fila 21; la salida conserva la celda de la plantilla sin poblarla.
+
+#### Fila 22: Altas por vejez (%)
+
+**¿Qué representa la fila 22?**
+
+La fila 22 está destinada a la participación de las altas originadas por prestaciones de vejez.
+
+**Interpretación económica u operativa**
+
+Permitiría conocer qué proporción de los nuevos beneficiarios corresponde a pensiones de vejez.
+
+**Fórmula conceptual**
+
+$
+\text{Altas por vejez (\%)} = \frac{\text{Altas por vejez}}{\text{Total de altas}} \times 100
+$
+
+**Fórmula implementada**
+
+No existe cálculo implementado para la fila 22; la salida conserva la celda de la plantilla sin poblarla.
+
+#### Fila 23: Altas por invalidez (%)
+
+**¿Qué representa la fila 23?**
+
+La fila 23 está destinada a la participación de las altas originadas por prestaciones de invalidez.
+
+**Interpretación económica u operativa**
+
+Permitiría conocer qué proporción de los nuevos beneficiarios corresponde a pensiones de invalidez.
+
+**Fórmula conceptual**
+
+$
+\text{Altas por invalidez (\%)} = \frac{\text{Altas por invalidez}}{\text{Total de altas}} \times 100
+$
+
+**Fórmula implementada**
+
+No existe cálculo implementado para la fila 23; la salida conserva la celda de la plantilla sin poblarla.
+
+#### Fila 24: Altas por sobrevivencia (%)
+
+**¿Qué representa la fila 24?**
+
+La fila 24 está destinada a la participación de las altas originadas por prestaciones de sobrevivencia.
+
+**Interpretación económica u operativa**
+
+Permitiría conocer qué proporción de los nuevos beneficiarios corresponde a prestaciones de sobrevivencia.
+
+**Fórmula conceptual**
+
+$
+\text{Altas por sobrevivencia (\%)} = \frac{\text{Altas por sobrevivencia}}{\text{Total de altas}} \times 100
+$
+
+**Fórmula implementada**
+
+No existe cálculo implementado para la fila 24; la salida conserva la celda de la plantilla sin poblarla.
+
+#### Fila 25: Movimiento de afiliados desde Formato 493 (miles)
+
+**¿Qué representa la fila 25?**
+
+La fila 25 corresponde al total de afiliados fallecidos del sistema durante la ventana anual terminada en la fecha de corte, expresado en miles.
+
+**Interpretación económica u operativa**
+
+Mide las salidas del sistema por fallecimiento y permite comparar su magnitud con otros flujos de afiliados.
+
+**Fórmula conceptual**
+
+$$
+\text{Fallecimientos en miles} = \frac{\text{Afiliados fallecidos en la ventana anual}}{1000}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 25} = \frac{\text{Q493.fallecidosSistema()}}{1000}
+$$
+
+La aplicación consulta `PROD_DWH_CONSULTA.S9_FORMATO_493` con `UNIDAD_CAPTURA=1`, renglones 165, 170 y 175, y la ventana anual aplicable. La fórmula histórica de Excel y la query vigente se detallan en la matriz 4.2.
+
+#### Fila 26: Traspasos del sistema
+
+**¿Qué representa la fila 26?**
+
+La fila 26 corresponde al total de traspasos del sistema.
+
+**Interpretación económica u operativa**
+
+Mide la movilidad total de afiliados entre administradoras o fondos.
+
+**Fórmula conceptual**
+
+$$
+\text{Traspasos} = \text{Total de movimientos reportados}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 26} = \text{mensual.traspasosSistema}
+$$
+
+Proviene de la query Q493 de traspasos para la ventana anual; el mismo agregado se reutiliza en la fila 27.
+
+#### Fila 27: Traspasos / afiliados (%)
+
+**¿Qué representa la fila 27?**
+
+La fila 27 corresponde a la intensidad de traspasos frente al total de afiliados.
+
+**Interpretación económica u operativa**
+
+Permite comparar movilidad relativa independientemente del tamaño del sistema.
+
+**Fórmula conceptual**
+
+$$
+\text{Traspasos sobre afiliados} = \frac{\text{Traspasos}}{\text{Afiliados}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 27} = \frac{\text{mensual.traspasosSistema}}{\text{mensual.afiliados}}
+$$
+
+La celda se formatea como porcentaje en Excel.
+
+#### Fila 28: Fondos administrados
+
+**¿Qué representa la fila 28?**
+
+La fila 28 corresponde al valor total de fondos administrados, convertido a millones de dólares.
+
+**Interpretación económica u operativa**
+
+Es el indicador principal del tamaño financiero del sistema de fondos de pensiones.
+
+**Fórmula conceptual**
+
+$$
+\text{Fondos administrados} = \frac{\text{Valor de fondos en COP}}{\text{TRM}}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 28} = \frac{\text{mensual.vrFondo()}}{\text{TRM}}
+$$
+
+`mensual.vrFondo()` proviene de la query `ESTFIN_INDIV_PA`, PUC `100000`, ya expresada en millones de COP. La TRM se consulta una vez para el corte y se reutiliza.
+
+#### Fila 29: Fondos administrados / PIB (%)
+
+**¿Qué representa la fila 29?**
+
+La fila 29 del archivo `Semestral_Colombia.xlsx` corresponde a la proporción del valor total de los fondos de pensiones respecto al Producto Interno Bruto del país, expresada como porcentaje.
+
+**Interpretación económica u operativa**
+
+Este indicador responde qué tan grande es el sistema de fondos de pensiones frente al tamaño total de la economía. Un valor mayor indica que los activos administrados tienen un peso más alto frente a la producción anual del país.
+
+**Fórmula conceptual**
+
+$$
+\text{Fondos sobre PIB} = \frac{\text{Valor total de los fondos de pensiones}}{\text{Producto Interno Bruto}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 29} = \frac{\text{Fila 28}}{\text{PIB semestral en COP} / \text{TRM}}
+$$
+
+En la implementación, la fila 28 ya está expresada en millones de USD y el PIB se convierte con TRM para comparar magnitudes.
+
+#### Fila 30: Portafolio total en USD
+
+**¿Qué representa la fila 30?**
+
+La fila 30 corresponde al valor total de referencia del portafolio convertido a dólares.
+
+**Interpretación económica u operativa**
+
+Sirve como base monetaria para analizar composición y exposición del portafolio.
+
+**Fórmula conceptual**
+
+$$
+\text{Portafolio total en USD} = \frac{\text{Portafolio total en COP}}{\text{TRM}}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 30} = \frac{\text{mensual.total1}}{\text{TRM}}
+$$
+
+El total proviene de los datos de límites o composición leídos por el lector mensual.
+
+#### Fila 31: Deuda gubernamental local (%)
+
+**¿Qué representa la fila 31?**
+
+La fila 31 del archivo `Semestral_Colombia.xlsx` corresponde a la proporción del portafolio total de los fondos de pensiones que está invertida en deuda gubernamental local o interna, expresada como porcentaje del total del portafolio.
+
+**Interpretación económica u operativa**
+
+Este indicador muestra la exposición del portafolio administrado a títulos de deuda pública interna. Permite evaluar qué parte de los recursos pensionales financia deuda gubernamental local y qué tan concentrada está la inversión en este tipo de activo.
+
+**Fórmula conceptual**
+
+$$
+\text{Deuda gubernamental local} = \frac{\text{Valor invertido en deuda gubernamental local}}{\text{Valor total del portafolio de fondos}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 31} = \text{LIMITES!AIOS!C4}
+$$
+
+El archivo `LIMITES` ya entrega la proporción calculada para esta categoría; por eso se toma directamente el ratio de `C4`.
+
+#### Fila 32: Deuda de instituciones financieras locales (%)
+
+**¿Qué representa la fila 32?**
+
+La fila 32 corresponde a la proporción del portafolio total invertida en deuda emitida por instituciones financieras locales.
+
+**Interpretación económica u operativa**
+
+Permite identificar la exposición del portafolio al sector financiero local y evaluar su concentración por tipo de emisor.
+
+**Fórmula conceptual**
+
+$$
+\text{Deuda de instituciones financieras locales} = \frac{\text{Valor invertido en deuda de instituciones financieras locales}}{\text{Valor total del portafolio}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 32} = \text{LIMITES!AIOS!E4}
+$$
+
+El valor proviene del archivo `LIMITES`, hoja `AIOS`, o del campo mensual equivalente para esta categoría.
+
+#### Fila 33: Deuda no financiera local (%)
+
+**¿Qué representa la fila 33?**
+
+La fila 33 corresponde a la proporción del portafolio total invertida en deuda local de emisores no financieros.
+
+**Interpretación económica u operativa**
+
+Permite identificar la exposición del portafolio a deuda local de emisores no financieros y evaluar la diversificación de inversiones.
+
+**Fórmula conceptual**
+
+$$
+\text{Deuda no financiera local} = \frac{\text{Valor invertido en deuda local de emisores no financieros}}{\text{Valor total del portafolio}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 33} = \text{LIMITES!AIOS!G4}
+$$
+
+El valor proviene del archivo `LIMITES`, hoja `AIOS`, o del campo mensual equivalente para esta categoría.
+
+#### Fila 34: Acciones locales (%)
+
+**¿Qué representa la fila 34?**
+
+La fila 34 corresponde a la proporción del portafolio total invertida en acciones o renta variable local.
+
+**Interpretación económica u operativa**
+
+Permite identificar la exposición del portafolio a acciones o renta variable local y evaluar la diversificación de inversiones.
+
+**Fórmula conceptual**
+
+$$
+\text{Acciones locales} = \frac{\text{Valor invertido en acciones o renta variable local}}{\text{Valor total del portafolio}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 34} = \text{LIMITES!AIOS!I4}
+$$
+
+El valor proviene del archivo `LIMITES`, hoja `AIOS`, o del campo mensual equivalente para esta categoría.
+
+#### Fila 35: Administradores de fondos locales (%)
+
+**¿Qué representa la fila 35?**
+
+La fila 35 corresponde a la proporción del portafolio total invertida mediante administradores de fondos locales.
+
+**Interpretación económica u operativa**
+
+Permite identificar la exposición a vehículos gestionados por administradores de fondos locales.
+
+**Fórmula conceptual**
+
+$$
+\text{Administradores de fondos locales} = \frac{\text{Valor invertido mediante administradores de fondos locales}}{\text{Valor total del portafolio}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 35} = \text{LIMITES!AIOS!K4}
+$$
+
+El valor proviene del archivo `LIMITES`, hoja `AIOS`, o del campo mensual equivalente para esta categoría.
+
+#### Fila 36: Sociedades titulizadoras locales (%)
+
+**¿Qué representa la fila 36?**
+
+La fila 36 corresponde a la participación de inversiones locales en sociedades titulizadoras.
+
+**Interpretación económica u operativa**
+
+Permite identificar esta categoría de inversión; en la implementación vigente no se reporta exposición y se escribe cero.
+
+**Fórmula conceptual**
+
+$$
+\text{Sociedades titulizadoras locales} = \frac{\text{Valor invertido en sociedades titulizadoras locales}}{\text{Valor total del portafolio}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 36} = 0
+$$
+
+Es una constante.
+
+#### Fila 37: Deuda gubernamental exterior (%)
+
+**¿Qué representa la fila 37?**
+
+La fila 37 corresponde a la proporción del portafolio total invertida en deuda gubernamental extranjera.
+
+**Interpretación económica u operativa**
+
+Permite identificar la exposición del portafolio a deuda gubernamental extranjera y evaluar la diversificación de inversiones.
+
+**Fórmula conceptual**
+
+$$
+\text{Deuda gubernamental exterior} = \frac{\text{Valor invertido en deuda gubernamental extranjera}}{\text{Valor total del portafolio}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 37} = \text{LIMITES!AIOS!O4}
+$$
+
+El valor proviene del archivo `LIMITES`, hoja `AIOS`, o del campo mensual equivalente para esta categoría.
+
+#### Fila 38: Deuda de instituciones financieras del exterior (%)
+
+**¿Qué representa la fila 38?**
+
+La fila 38 corresponde a la proporción del portafolio total invertida en deuda emitida por instituciones financieras del exterior.
+
+**Interpretación económica u operativa**
+
+Permite identificar la exposición del portafolio al sector financiero internacional.
+
+**Fórmula conceptual**
+
+$$
+\text{Deuda de instituciones financieras del exterior} = \frac{\text{Valor invertido en deuda de instituciones financieras del exterior}}{\text{Valor total del portafolio}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 38} = \text{LIMITES!AIOS!Q4}
+$$
+
+El valor proviene del archivo `LIMITES`, hoja `AIOS`, o del campo mensual equivalente para esta categoría.
+
+#### Fila 39: Deuda no financiera exterior (%)
+
+**¿Qué representa la fila 39?**
+
+La fila 39 corresponde a la proporción del portafolio total invertida en deuda privada o no financiera del exterior.
+
+**Interpretación económica u operativa**
+
+Permite identificar la exposición del portafolio a deuda privada o no financiera del exterior y evaluar la diversificación de inversiones.
+
+**Fórmula conceptual**
+
+$$
+\text{Deuda no financiera exterior} = \frac{\text{Valor invertido en deuda privada o no financiera del exterior}}{\text{Valor total del portafolio}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 39} = \text{LIMITES!AIOS!S4}
+$$
+
+El valor proviene del archivo `LIMITES`, hoja `AIOS`, o del campo mensual equivalente para esta categoría.
+
+#### Fila 40: Acciones exterior (%)
+
+**¿Qué representa la fila 40?**
+
+La fila 40 corresponde a la proporción del portafolio total invertida en acciones o renta variable extranjera.
+
+**Interpretación económica u operativa**
+
+Permite identificar la exposición del portafolio a acciones o renta variable extranjera y evaluar la diversificación de inversiones.
+
+**Fórmula conceptual**
+
+$$
+\text{Acciones exterior} = \frac{\text{Valor invertido en acciones o renta variable extranjera}}{\text{Valor total del portafolio}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 40} = \text{LIMITES!AIOS!U4}
+$$
+
+El valor proviene del archivo `LIMITES`, hoja `AIOS`, o del campo mensual equivalente para esta categoría.
+
+#### Fila 41: Administradores de fondos del exterior (%)
+
+**¿Qué representa la fila 41?**
+
+La fila 41 corresponde a la proporción del portafolio total invertida mediante administradores de fondos del exterior.
+
+**Interpretación económica u operativa**
+
+Permite identificar la exposición a vehículos gestionados por administradores internacionales.
+
+**Fórmula conceptual**
+
+$$
+\text{Administradores de fondos del exterior} = \frac{\text{Valor invertido mediante administradores de fondos del exterior}}{\text{Valor total del portafolio}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 41} = \text{LIMITES!AIOS!W4}
+$$
+
+El valor proviene del archivo `LIMITES`, hoja `AIOS`, o del campo mensual equivalente para esta categoría.
+
+#### Fila 42: Sociedades titulizadoras del exterior (%)
+
+**¿Qué representa la fila 42?**
+
+La fila 42 corresponde a la participación de inversiones del exterior en sociedades titulizadoras.
+
+**Interpretación económica u operativa**
+
+Permite identificar esta categoría de inversión exterior. La macro y la aplicación vigente usan fuentes distintas para poblarla.
+
+**Fórmula conceptual**
+
+$$
+\text{Sociedades titulizadoras del exterior} = \frac{\text{Valor invertido en sociedades titulizadoras del exterior}}{\text{Valor total del portafolio}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 42} = 2
+$$
+
+La macro histórica toma `LIMITES!AIOS!Y4`; la aplicación vigente escribe la constante `2`. Esta diferencia se conserva explícita en la matriz 4.3.
+
+#### Fila 43: Otros activos (%)
+
+**¿Qué representa la fila 43?**
+
+La fila 43 corresponde a la proporción del portafolio clasificada como otros activos.
+
+**Interpretación económica u operativa**
+
+Completa la clasificación de activos cuando existen rubros no incluidos en categorías principales.
+
+**Fórmula conceptual**
+
+$$
+\text{Otros activos} = \frac{\text{Valor de otros activos}}{\text{Portafolio total}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 43} = \text{mensual.otros}
+$$
+
+Proviene de la lectura mensual de límites o composición.
+
+#### Fila 44: Exposición exterior seleccionada (%)
+
+**¿Qué representa la fila 44?**
+
+La fila 44 corresponde a la suma de rubros exteriores seleccionados del archivo de límites.
+
+**Interpretación económica u operativa**
+
+Resume la exposición internacional agrupada en categorías específicas del portafolio.
+
+**Fórmula conceptual**
+
+$$
+\text{Exposición exterior seleccionada} = \frac{\text{Rubros exteriores seleccionados}}{\text{Portafolio total}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 44} = (O4 + Q4 + S4 + U4 + W4 + Y4) \times 100
+$$
+
+Se calcula desde `LIMITES`, hoja `AIOS`.
+
+#### Fila 45: Fondos / deuda gubernamental total (%)
+
+**¿Qué representa la fila 45?**
+
+La fila 45 corresponde a la relación entre fondos administrados y deuda gubernamental total.
+
+**Interpretación económica u operativa**
+
+Permite comparar el tamaño de los fondos de pensiones frente al saldo de deuda pública total.
+
+**Fórmula conceptual**
+
+$$
+\text{Fondos sobre deuda pública total} = \frac{\text{Fondos administrados}}{\text{Deuda gubernamental total}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 45} = \frac{\text{Fila 28}}{\text{Deuda gubernamental total en USD}}
+$$
+
+La deuda gubernamental total proviene de `PIB_PEA_TRM_DG`, hoja `Hoja1`, columna `M`.
+
+#### Fila 46: Número de administradoras
+
+**¿Qué representa la fila 46?**
+
+La fila 46 corresponde al número de administradoras de fondos de pensiones incluidas en el informe.
+
+**Interpretación económica u operativa**
+
+Dimensiona la cantidad de entidades que participan en el sistema reportado.
+
+**Fórmula conceptual**
+
+$$
+\text{Número de administradoras} = \text{Entidades incluidas en el informe}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 46} = 4
+$$
+
+La aplicación escribe `4`: Colfondos, Porvenir, Protección y Skandia.
+
+#### Fila 47: Participación Protección + Porvenir (%)
+
+**¿Qué representa la fila 47?**
+
+La fila 47 corresponde a la participación conjunta de Protección y Porvenir sobre el total del sistema.
+
+**Interpretación económica u operativa**
+
+Mide concentración de mercado de las administradoras seleccionadas dentro del total de fondos.
+
+**Fórmula conceptual**
+
+$$
+\text{Participación Protección y Porvenir} = \frac{\text{Fondos Protección} + \text{Fondos Porvenir}}{\text{Fondos totales del sistema}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 47} = \frac{\text{Fondos Protección} + \text{Fondos Porvenir}}{\text{Fondos del sistema}}
+$$
+
+Los tres valores se consultan en `ESTFIN_INDIV_PA` para el PUC `100000`. La aplicación divide el porcentaje calculado por 100 antes de escribirlo porque la celda usa formato porcentual.
+
+#### Fila 48: Activos en USD
+
+**¿Qué representa la fila 48?**
+
+La fila 48 corresponde a activos contables convertidos a dólares.
+
+**Interpretación económica u operativa**
+
+Mide el tamaño del balance por el lado de activos en una moneda comparable.
+
+**Fórmula conceptual**
+
+$$
+\text{Activos en USD} = \frac{\text{Activos en COP}}{\text{TRM}}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 48} = \frac{\text{mensual.activosCuentas}}{\text{TRM}}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 49: Pasivos en USD
+
+**¿Qué representa la fila 49?**
+
+La fila 49 corresponde a pasivos contables convertidos a dólares.
+
+**Interpretación económica u operativa**
+
+Mide las obligaciones del balance en una moneda comparable.
+
+**Fórmula conceptual**
+
+$$
+\text{Pasivos en USD} = \frac{\text{Pasivos en COP}}{\text{TRM}}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 49} = \frac{\text{mensual.pasivosCuentas}}{\text{TRM}}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 50: Patrimonio en USD
+
+**¿Qué representa la fila 50?**
+
+La fila 50 corresponde a patrimonio contable convertido a dólares.
+
+**Interpretación económica u operativa**
+
+Mide el valor patrimonial contable de la entidad o sistema reportado.
+
+**Fórmula conceptual**
+
+$$
+\text{Patrimonio en USD} = \frac{\text{Activos} - \text{Pasivos}}{\text{TRM}}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 50} = \frac{\text{Activos cuentas} - \text{Pasivos cuentas}}{\text{TRM}}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 51: Comisiones
+
+**¿Qué representa la fila 51?**
+
+La fila 51 corresponde a ingresos por comisiones según la plantilla contable.
+
+**Interpretación económica u operativa**
+
+Mide ingresos operacionales asociados a la administración de recursos.
+
+**Fórmula conceptual**
+
+$$
+\text{Comisiones} = \text{Ingresos por comisiones reportados}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 51} = \text{CUENTAS!E13}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 52: Gastos
+
+**¿Qué representa la fila 52?**
+
+La fila 52 corresponde a gastos reportados en la plantilla contable.
+
+**Interpretación económica u operativa**
+
+Mide egresos operativos o administrativos del periodo.
+
+**Fórmula conceptual**
+
+$$
+\text{Gastos} = \text{Gastos reportados}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 52} = \text{CUENTAS!G15}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 53: Resultado operacional
+
+**¿Qué representa la fila 53?**
+
+La fila 53 corresponde a resultado de operación antes del resultado neto.
+
+**Interpretación económica u operativa**
+
+Mide desempeño operativo de la entidad o sistema reportado.
+
+**Fórmula conceptual**
+
+$$
+\text{Resultado operacional} = \text{Ingresos operacionales} - \text{Gastos operacionales}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 53} = \text{CUENTAS!E41}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 54: Resultado neto
+
+**¿Qué representa la fila 54?**
+
+La fila 54 corresponde a resultado final del periodo.
+
+**Interpretación económica u operativa**
+
+Mide utilidad o pérdida final después de ingresos y gastos.
+
+**Fórmula conceptual**
+
+$$
+\text{Resultado neto} = \text{Ingresos totales} - \text{Gastos totales}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 54} = \text{CUENTAS!E44}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
 
 #### Fila 55: Gastos de administración
 
