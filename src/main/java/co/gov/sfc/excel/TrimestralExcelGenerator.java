@@ -9,6 +9,11 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Component
@@ -128,41 +133,144 @@ public class TrimestralExcelGenerator {
 
     int findOrAppendRow(Sheet sheet, LocalDate fechaCorte, String etiqueta) {
         if (sheet == null) throw new IllegalStateException("No existe una hoja requerida en Boletin_AIOS TRIMESTRAL.xlsx");
+        sortAndNormalizePeriodRows(sheet);
         DataFormatter formatter = new DataFormatter();
-        String etiquetaNorm = etiqueta == null ? "" : etiqueta.trim().toLowerCase();
+        String etiquetaCanonica = canonicalPeriodLabel(fechaCorte);
         for (int r = 0; r <= sheet.getLastRowNum(); r++) {
             Row row = sheet.getRow(r); if (row == null) continue;
             Cell c = row.getCell(0); if (c == null) continue;
-            String texto = formatter.formatCellValue(c);
-            if (texto != null && texto.trim().toLowerCase().equals(etiquetaNorm)) return r + 1;
-            if (c.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(c)) {
-                LocalDate d = c.getLocalDateTimeCellValue().toLocalDate();
-                if (d.getYear() == fechaCorte.getYear() && d.getMonth() == fechaCorte.getMonth()) return r + 1;
+            LocalDate periodo = periodDate(c, formatter);
+            if (samePeriod(periodo, fechaCorte)) {
+                c.setCellValue(etiquetaCanonica);
+                normalizeSeptemberLabels(row, formatter);
+                return r + 1;
             }
         }
-        int lastPeriodRow = 5;
+
+        int lastPeriodRow = -1;
+        int insertionRow = -1;
         for (int rowIndex = 5; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
             Row candidate = sheet.getRow(rowIndex);
             if (candidate == null) continue;
-            if (isPeriodCell(candidate.getCell(0), formatter)) lastPeriodRow = rowIndex;
+            LocalDate periodo = periodDate(candidate.getCell(0), formatter);
+            if (periodo == null) continue;
+            lastPeriodRow = rowIndex;
+            if (insertionRow < 0 && periodo.isAfter(fechaCorte)) insertionRow = rowIndex;
         }
-        int r = Math.max(lastPeriodRow + 1, 6);
+        int r = insertionRow >= 0 ? insertionRow : Math.max(lastPeriodRow + 1, 6);
         if (r <= sheet.getLastRowNum()) {
             sheet.shiftRows(r, sheet.getLastRowNum(), 1, true, false);
         }
         Row row = sheet.getRow(r); if (row == null) row = sheet.createRow(r);
         copyPreviousRowFormat(sheet, r);
         Cell c = row.getCell(0); if (c == null) c = row.createCell(0);
-        c.setCellValue(etiqueta);
+        c.setCellValue(etiquetaCanonica);
         return r + 1;
     }
 
-    private boolean isPeriodCell(Cell cell, DataFormatter formatter) {
-        if (cell == null) return false;
-        if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) return true;
-        String value = formatter.formatCellValue(cell);
-        return value != null && value.trim().matches("(?iu)^[\\p{L}]{3}\\.?-\\d{2,4}$");
+    private void sortAndNormalizePeriodRows(Sheet sheet) {
+        DataFormatter formatter = new DataFormatter();
+        List<PeriodRowSnapshot> periods = new ArrayList<>();
+        for (int rowIndex = 5; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) continue;
+            LocalDate period = periodDate(row.getCell(0), formatter);
+            if (period != null) periods.add(new PeriodRowSnapshot(rowIndex, period, snapshot(row)));
+        }
+        if (periods.isEmpty()) return;
+
+        List<RowSnapshot> ordered = periods.stream()
+                .sorted(Comparator.comparing(PeriodRowSnapshot::period))
+                .map(PeriodRowSnapshot::row)
+                .toList();
+        for (int i = 0; i < periods.size(); i++) {
+            Row target = sheet.getRow(periods.get(i).rowIndex());
+            if (target == null) target = sheet.createRow(periods.get(i).rowIndex());
+            restore(target, ordered.get(i));
+            normalizeSeptemberLabels(target, formatter);
+        }
     }
+
+    private RowSnapshot snapshot(Row row) {
+        Map<Integer, CellSnapshot> cells = new HashMap<>();
+        for (Cell cell : row) {
+            Object value = switch (cell.getCellType()) {
+                case STRING -> cell.getStringCellValue();
+                case NUMERIC -> cell.getNumericCellValue();
+                case BOOLEAN -> cell.getBooleanCellValue();
+                case FORMULA -> cell.getCellFormula();
+                case ERROR -> cell.getErrorCellValue();
+                default -> null;
+            };
+            cells.put(cell.getColumnIndex(), new CellSnapshot(cell.getCellType(), value, cell.getCellStyle()));
+        }
+        return new RowSnapshot(row.getHeight(), cells);
+    }
+
+    private void restore(Row row, RowSnapshot snapshot) {
+        List<Cell> existing = new ArrayList<>();
+        row.forEach(existing::add);
+        existing.forEach(row::removeCell);
+        row.setHeight(snapshot.height());
+        snapshot.cells().forEach((column, cellSnapshot) -> {
+            Cell cell = row.createCell(column, cellSnapshot.type());
+            if (cellSnapshot.style() != null) cell.setCellStyle(cellSnapshot.style());
+            if (cellSnapshot.value() == null) return;
+            switch (cellSnapshot.type()) {
+                case STRING -> cell.setCellValue((String) cellSnapshot.value());
+                case NUMERIC -> cell.setCellValue((Double) cellSnapshot.value());
+                case BOOLEAN -> cell.setCellValue((Boolean) cellSnapshot.value());
+                case FORMULA -> cell.setCellFormula((String) cellSnapshot.value());
+                case ERROR -> cell.setCellErrorValue((Byte) cellSnapshot.value());
+                default -> { }
+            }
+        });
+    }
+
+    private void normalizeSeptemberLabels(Row row, DataFormatter formatter) {
+        for (Cell cell : row) {
+            String value = formatter.formatCellValue(cell);
+            if (value != null && value.trim().matches("(?iu)^sept\\.?-\\d{2,4}$")) {
+                cell.setCellValue(value.trim().replaceFirst("(?iu)^sept\\.?-", "sep-"));
+            }
+        }
+    }
+
+    private LocalDate periodDate(Cell cell, DataFormatter formatter) {
+        if (cell == null) return null;
+        if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+            LocalDate date = cell.getLocalDateTimeCellValue().toLocalDate();
+            return date.withDayOfMonth(1);
+        }
+        String value = formatter.formatCellValue(cell);
+        if (value == null) return null;
+        var matcher = java.util.regex.Pattern.compile("(?iu)^([\\p{L}]{3,4})\\.?-(\\d{2}|\\d{4})$")
+                .matcher(value.trim());
+        if (!matcher.matches()) return null;
+        Integer month = Map.ofEntries(
+                Map.entry("ene", 1), Map.entry("feb", 2), Map.entry("mar", 3), Map.entry("abr", 4),
+                Map.entry("may", 5), Map.entry("jun", 6), Map.entry("jul", 7), Map.entry("ago", 8),
+                Map.entry("sep", 9), Map.entry("sept", 9), Map.entry("oct", 10), Map.entry("nov", 11),
+                Map.entry("dic", 12)
+        ).get(matcher.group(1).toLowerCase(Locale.ROOT));
+        if (month == null) return null;
+        int year = Integer.parseInt(matcher.group(2));
+        if (year < 100) year += 2000;
+        return LocalDate.of(year, month, 1);
+    }
+
+    private boolean samePeriod(LocalDate left, LocalDate right) {
+        return left != null && left.getYear() == right.getYear() && left.getMonth() == right.getMonth();
+    }
+
+    private String canonicalPeriodLabel(LocalDate date) {
+        String[] months = {"", "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"};
+        return months[date.getMonthValue()] + "-" + String.format("%02d", date.getYear() % 100);
+    }
+
+    private record CellSnapshot(CellType type, Object value, CellStyle style) { }
+    private record RowSnapshot(short height, Map<Integer, CellSnapshot> cells) { }
+    private record PeriodRowSnapshot(int rowIndex, LocalDate period, RowSnapshot row) { }
 
     private void copyPreviousRowFormat(Sheet sheet, int targetRowIndex) {
         if (targetRowIndex <= 0) return;

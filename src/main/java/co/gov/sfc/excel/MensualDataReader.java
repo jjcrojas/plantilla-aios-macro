@@ -33,18 +33,21 @@ public class MensualDataReader {
     private final FondoAdministradoQueryService fondoAdministradoQueryService;
     private final Formato493QueryService formato493QueryService;
     private final Formato495QueryService formato495QueryService;
+    private final TrmService trmService;
 
     public MensualDataReader(InsumosLocator locator, AiosProperties properties,
                              Formato491QueryService formato491QueryService,
                              FondoAdministradoQueryService fondoAdministradoQueryService,
                              Formato493QueryService formato493QueryService,
-                             Formato495QueryService formato495QueryService) {
+                             Formato495QueryService formato495QueryService,
+                             TrmService trmService) {
         this.locator = locator;
         this.properties = properties;
         this.formato491QueryService = formato491QueryService;
         this.fondoAdministradoQueryService = fondoAdministradoQueryService;
         this.formato493QueryService = formato493QueryService;
         this.formato495QueryService = formato495QueryService;
+        this.trmService = trmService;
         // Evitar asignaciones gigantes en POI que pueden terminar en OOM con archivos grandes.
         // 100 MB es suficiente para los insumos actuales y más conservador en memoria.
         IOUtils.setByteArrayMaxOverride(100_000_000);
@@ -175,7 +178,7 @@ public class MensualDataReader {
         String textoFecha = mes + "-" + String.format("%02d", fechaCorte.getYear() % 100);
 
         BigDecimal afiliados = afiliadosQuery;
-        BigDecimal trm = readTrmFromSeries(fechaCorte);
+        BigDecimal trm = trmService.obtener(fechaCorte);
         BigDecimal pea = readFromFormatoPlantilla(fechaCorte, "V11");
         BigDecimal deudaG = readFromFormatoPlantilla(fechaCorte, "V16");
         BigDecimal activosCuentas = readFromPlantillaSheet(fechaCorte, "CUENTAS", "C6");
@@ -416,38 +419,6 @@ public class MensualDataReader {
     private record PensionadosData(BigDecimal totalPen, BigDecimal totalInv, BigDecimal totalVej, BigDecimal totalSob) {}
 
 
-
-    private BigDecimal readTrmFromSeries(LocalDate fechaCorte) {
-        try {
-            var seriesFile = locator.findRequired("PIB_PEA_TRM_DG", fechaCorte);
-            if (shouldSkipPoiOpen(seriesFile, "PIB_PEA_TRM_DG")) {
-                return BigDecimal.ONE;
-            }
-            try (Workbook wb = WorkbookFactory.create(seriesFile.toFile(), null, true)) {
-                Sheet sheet = wb.getSheet("Hoja1");
-                if (sheet == null) {
-                    sheet = wb.getSheetAt(0);
-                }
-                BigDecimal trm = BigDecimal.ONE;
-                LocalDate mejorFecha = LocalDate.MIN;
-                for (Row row : sheet) {
-                    LocalDate fecha = cellAsDate(row.getCell(1)); // Columna B
-                    if (fecha == null || fecha.isAfter(fechaCorte)) {
-                        continue;
-                    }
-                    BigDecimal valor = num(sheet, row.getRowNum() + 1, 3, null); // Columna C
-                    if (!fecha.isBefore(mejorFecha)) {
-                        mejorFecha = fecha;
-                        trm = valor;
-                    }
-                }
-                return trm.signum() == 0 ? BigDecimal.ONE : trm;
-            }
-        } catch (Exception e) {
-            log.warn("No se pudo leer TRM desde series PIB_PEA_TRM_DG: {}", e.getMessage());
-            return BigDecimal.ONE;
-        }
-    }
 
     private Sheet getSheetIgnoreCase(Workbook wb, String name) {
         for (int i = 0; i < wb.getNumberOfSheets(); i++) {

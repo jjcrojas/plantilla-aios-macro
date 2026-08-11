@@ -64,4 +64,24 @@ class TrimestralExcelGeneratorTest {
         Path out = generator.generar(LocalDate.of(2025, 6, 30), data);
         assertTrue(out.toFile().exists());
     }
+
+    @Test
+    void shouldSortExistingPeriodsChronologicallyAndNormalizeSeptemberLabel() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            var sheet = workbook.createSheet("afiliados");
+            sheet.createRow(14).createCell(0).setCellValue("jun-25");
+            sheet.createRow(15).createCell(0).setCellValue("dic-25");
+            sheet.createRow(16).createCell(0).setCellValue("sept-25");
+
+            TrimestralExcelGenerator generator = new TrimestralExcelGenerator(
+                    new AiosProperties(Path.of("."), Path.of("."), Path.of("."), 40, true));
+
+            int row = generator.findOrAppendRow(sheet, LocalDate.of(2025, 9, 30), "sept-25");
+
+            assertEquals(16, row);
+            assertEquals("jun-25", sheet.getRow(14).getCell(0).getStringCellValue());
+            assertEquals("sep-25", sheet.getRow(15).getCell(0).getStringCellValue());
+            assertEquals("dic-25", sheet.getRow(16).getCell(0).getStringCellValue());
+        }
+    }
 }

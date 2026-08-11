@@ -74,7 +74,7 @@ public class MensualExcelGenerator {
                 write(sheet, row, 16, BigDecimal.valueOf(4), "constante", "", "");
                 write(sheet, row, 17, data.consFdosAdmon(), "Query Teradata PROD_DWH_CONSULTA.FORMATO491", "FORMATO491", "Top 2 AFP por TOTAL_AFILIADOS_TOTAL / total sistema");
                 write(sheet, row, 18, data.porcVrFondo(), "Query Teradata PROD_DWH_CONSULTA.ESTFIN_INDIV_PA", "PUC 100000", "(Proteccion+Porvenir)/total sistema * 100");
-                write(sheet, row, 19, trm(data), "series PIB_PEA_TRM_DG.xlsm", "Hoja1", "TRM<=fecha");
+                write(sheet, row, 19, trm(data), "Servicio web TRM Superfinanciera (archivo PIB_PEA_TRM_DG como contingencia)", "queryTCRM", "fecha de corte");
     }
 
     private BigDecimal trm(MensualData data) {

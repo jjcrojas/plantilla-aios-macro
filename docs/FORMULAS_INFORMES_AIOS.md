@@ -1,10 +1,278 @@
 # Fórmulas y fuentes de datos de informes AIOS
 
+## Explicación conceptual por archivo
+
+Esta sección se presenta primero deliberadamente: antes de revisar celdas, fórmulas o SQL, permite entender **qué representa cada dato**. Después aparece la matriz técnica que diferencia tres niveles que no deben confundirse:
+
+1. **Fórmula Excel heredada**: operación o referencia usada por la versión histórica de la macro y sus libros auxiliares.
+2. **Cálculo vigente**: operación ejecutada actualmente por Java. Cuando no hubo cambio funcional coincide con la fórmula Excel.
+3. **Query**: SQL que reemplaza la lectura de un libro histórico. El enlace lleva al SQL completo, con fechas de ejemplo para corte 30 de junio de 2025.
+
+### Archivo mensual
+
+El archivo mensual es una serie de tiempo del sistema. Cada fila representa un mes y combina tamaño del sistema, movilidad de afiliados, valor del portafolio, composición de inversiones, rentabilidad, concentración y TRM.
+
+| Destino | Concepto | Qué representa / cómo se interpreta |
+|---|---|---|
+| B | Afiliados | Personas vinculadas al sistema; mide cobertura acumulada. |
+| C | Aportantes | Afiliados que cotizan; mide cobertura contributiva efectiva. |
+| D | Traspasos | Movimientos entre administradoras o fondos durante la ventana anual móvil. |
+| E–F | Fondos y límites en USD | Tamaño monetario convertido con la TRM única del período. |
+| G–M | Composición del portafolio | Participación por clase de activo local, exterior y otros. |
+| N–O | Rentabilidad a un año | Rendimiento nominal y real del fondo moderado. |
+| P | Referencia fija | Código constante exigido por la estructura histórica. |
+| Q | Concentración | Participación de las dos AFP con mayor número de afiliados. |
+| R | Participación Protección + Porvenir | Peso conjunto de ambas administradoras en el fondo del sistema. |
+| S | TRM | COP por USD consultada una sola vez y reutilizada en todos los cálculos del período. |
+
+Fórmulas conceptuales clave del mensual:
+
+$$\text{Monto USD}=\frac{\text{Monto COP}}{\text{TRM}}$$
+
+$$\text{Concentración}=\frac{\text{Afiliados de las dos AFP más grandes}}{\text{Afiliados del sistema}}$$
+
+### Archivo trimestral
+
+El archivo trimestral conserva una serie cronológica por hoja. Cada fila corresponde a un cierre de marzo, junio, septiembre (`sep`) o diciembre; las columnas desagregan administradoras y tipos de fondo.
+
+| Hoja | Concepto | Qué representa / cómo se interpreta |
+|---|---|---|
+| `afiliados` | Afiliados por AFP y fondo | Distribución de personas entre fondos moderado, conservador, mayor riesgo y alternativas aplicables. |
+| `aportantes` | Aportantes por AFP | Base contributiva activa de cada administradora. |
+| `colombia` | Fondos administrados | Saldos contables por AFP/fondo convertidos a la unidad del boletín. |
+| `traspasos` | Traspasos por AFP | Movilidad de afiliados atribuida a cada administradora. |
+| `gastos` | Gastos netos | Gastos contables netos convertidos de COP a USD. |
+| `promotores` | Promotores | Campo histórico; actualmente se escribe `0` o `n.d.` cuando no existe fuente confiable. |
+| `rentabilidad` | Rentabilidad por AFP/fondo | Rendimiento nominal y real del período aplicable. |
+| `comisiones` | Comisión obligatoria | Porcentaje cobrado por cada administradora. |
+
+Fórmula conceptual clave del trimestral:
+
+$$\text{Gasto neto USD}=\frac{\text{Débitos}-\text{Créditos}}{\text{TRM}}$$
+
+### Archivo semestral
+
+El archivo semestral reúne indicadores de cobertura, demografía, pensionados, movilidad, tamaño financiero, composición del portafolio, situación contable, costos, comisiones y rentabilidad. Cada columna es un cierre de junio o diciembre. El diccionario completo fila por fila se conserva en [Diccionario conceptual de datos semestrales](#5-diccionario-conceptual-de-datos-semestrales).
+
+Los bloques funcionales son:
+
+| Filas | Bloque conceptual | Lectura funcional |
+|---:|---|---|
+| 3–15 | Afiliación, edades, aportantes y PEA | Cobertura, composición demográfica y densidad contributiva. |
+| 16–19 | Pensionados | Total y composición por invalidez, vejez y sobrevivencia. |
+| 25–27 | Movilidad | Fallecidos, traspasos y relación de traspasos frente a afiliados. |
+| 28–47 | Fondos y portafolio | Tamaño frente al PIB/deuda y composición local/exterior. |
+| 48–69 | Contabilidad y eficiencia | Activos, pasivos, patrimonio, resultados, gastos y razones por afiliado/aportante. |
+| 70–80 | Comisiones y parámetros | Tasas, distribución empleador/trabajador y antigüedad del sistema. |
+| 81–89 | Rentabilidad | Fila 81 sin dato implementado y rentabilidades nominales/reales de 1, 3, 5 y 10 años. |
+
+El antiguo “numeral 7” pertenece a este archivo: la fila 61 ya no evalúa `G6` de `Formato_136_Meses.xlsm`; obtiene los aportes recibidos mediante [Q136-APORTES](#q136-aportes) y luego conserva la razón económica de la macro:
+
+$$\text{Fila 61}=\frac{(\text{Aportes recibidos}/\text{TRM})}{(\text{Aportantes}/1000)}\times1000$$
+
+Otras fórmulas conceptuales clave del semestral:
+
+$$\text{Cobertura}=\frac{\text{Afiliados o aportantes}}{\text{PEA}}\times100$$
+
+$$\text{Fondos/PIB}=\frac{\text{Fondos administrados}}{\text{PIB}}\times100$$
+
+$$\text{Resultado neto/patrimonio}=\frac{\text{Resultado neto}}{\text{Patrimonio}}\times100$$
+
+## Matriz principal de trazabilidad
+
+La propuesta adoptada evita una columna `Query` llena de guiones: el identificador enlazado se muestra solamente cuando el dato se consulta en Teradata. En los demás casos se indica `—`. Las tablas exhaustivas de las secciones siguientes amplían cada celda y cada fila.
+
+### Mensual: Excel heredado, cálculo vigente y query
+
+| Destino | Fórmula Excel heredada / dato | Cálculo vigente | Fuente, hoja, celda o tabla | Unidad | Query |
+|---:|---|---|---|---|---|
+| B | Total afiliados del Formato 491 | `SUM(TOTAL_AFILIADOS_TOTAL)` | Formato 491, renglón 999 | Personas | [Q491-TOTALES](#q491-totales) |
+| C | Total cotizantes del Formato 491 | `SUM(TOTAL_AFILIADOS_COTIZANTES)` | Formato 491, renglón 999 | Personas | [Q491-TOTALES](#q491-totales) |
+| D | Total traspasos del Formato 493 | Suma de rangos de edad en ventana anual móvil | Formato 493 | Personas | [Q493-TRASPASOS](#q493-traspasos) |
+| E | `restot!J14 / TRM` | `vrFondo / TRM` | `SISTEMA TOTAL`, `restot`, total sistema | USD | — |
+| F | `AIOS!AB4 / TRM` | `total1 / TRM` | `LIMITES`, `AIOS!AB4` | USD | — |
+| G–K | `AIOS!C4,E4,G4,I4,K4 * 100` | Igual | `LIMITES`, hoja `AIOS` | Puntos porcentuales | — |
+| L | `SUM(AIOS!O4,Q4,S4,U4,W4,Y4) * 100` | Igual | `LIMITES`, hoja `AIOS` | Puntos porcentuales | — |
+| M | `AIOS!AA4 * 100` | Igual | `LIMITES`, `AIOS!AA4` | Puntos porcentuales | — |
+| N–O | Búsqueda por fecha de rentabilidad nominal/real | Rentabilidad 1 año × 100 | `Rent_Vr_Uni_Moderado` / series NAV e IPC | Puntos porcentuales | — |
+| P | `4` | `4` | Constante | Valor crudo | — |
+| Q | Dos AFP mayores / total | Igual, calculado con afiliados por entidad | Formato 491 | Ratio | [Q491-CONCENTRACION](#q491-concentracion) |
+| R | `(restot!C14 + restot!D14) / restot!J14` | Igual | `SISTEMA TOTAL`, `restot` | Ratio | — |
+| S | Búsqueda de TRM por fecha | Servicio web SFC; fallback `PIB_PEA_TRM_DG` | Servicio TRM / archivo de contingencia | COP/USD | — |
+
+### Trimestral: Excel heredado, cálculo vigente y query
+
+| Hoja/destino | Fórmula Excel heredada / dato | Cálculo vigente | Fuente | Unidad | Query |
+|---|---|---|---|---|---|
+| `afiliados` | Lectura Formato 491 por AFP, UC y fondo | Agregación equivalente | Formato 491 | Personas | [Q491-AFILIADOS-FONDO](#q491-afiliados-fondo) |
+| `aportantes` | Lectura Formato 491 por AFP | `SUM(TOTAL_AFILIADOS_COTIZANTES)` por entidad | Formato 491 | Personas | [Q491-APORTANTES-ENTIDAD](#q491-aportantes-entidad) |
+| `colombia` | Saldos por patrimonio/AFP | Suma PUC `100000` por patrimonio y entidad | `ESTFIN_INDIV_PA` | Miles COP / conversión de plantilla | [Q136-FONDOS](#q136-fondos) |
+| `traspasos` | Lectura Formato 493 por AFP | Suma de rangos con filtro de entidad | Formato 493 | Personas | [Q493-TRASPASOS](#q493-traspasos) |
+| `gastos` | `(Débitos - Créditos) / TRM` | Igual | `Plantilla AIOS-probable`, `base anual` | USD | — |
+| `promotores` | Campo del boletín histórico | `0`/`n.d.` sin fuente disponible | Constante temporal | Valor crudo | — |
+| `rentabilidad` | Búsqueda por fecha en hojas de rentabilidad | Lectura/evaluación de series | Libros de rentabilidad | Porcentaje | — |
+| `comisiones` | Comisión por AFP | Mapa de comisiones por administradora | Datos trimestrales | Porcentaje | — |
+
+### Semestral: claves para leer la tabla exhaustiva
+
+En la tabla semestral detallada, la columna **Fórmula / dato** corresponde a la fórmula económica de la macro Excel, y **Fuente, hoja y celda** identifica su origen. Para las filas migradas a Teradata se aplican estos enlaces:
+
+| Filas destino | Dato reemplazado o complementado | Query |
+|---|---|---|
+| 3–15 | Afiliados, activos, sexo, edades, aportantes y salario ponderado | [Q491-TOTALES](#q491-totales), [Q491-EDADES](#q491-edades), [Q491-SALARIO](#q491-salario) |
+| 16–19 | Pensionados y composición | [Q495-PENSIONADOS](#q495-pensionados) |
+| 25–27 | Fallecidos y traspasos | [Q493-FALLECIDOS](#q493-fallecidos), [Q493-TRASPASOS](#q493-traspasos) |
+| 61–62 | Aportes recibidos | [Q136-APORTES](#q136-aportes) |
+
+
+## Queries
+
+Los SQL usan como ejemplo el corte **30 de junio de 2025**. En ejecución, Java reemplaza las fechas y demás parámetros mediante sentencias preparadas. Los enlaces a las clases Java corresponden a la fuente de verdad ejecutable.
+
+<a id="q491-totales"></a>
+### Q491-TOTALES — afiliados, activos, mujeres y aportantes
+
+```sql
+SELECT
+  SUM(COALESCE(TOTAL_AFILIADOS_TOTAL,0)) AS afiliados,
+  SUM(COALESCE(TOTAL_AFILIADOS_ACTIVOS_TOTAL,0)) AS activos,
+  SUM(COALESCE(TOTAL_AFILIADOS_M,0)) AS mujeres,
+  SUM(COALESCE(TOTAL_AFILIADOS_COTIZANTES,0)) AS aportantes
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL=DATE '2025-06-30' AND RENGLON='999'
+  AND SUBSTR(NUMERO_IDENTIFICACION,9,4)
+      IN ('1000','5000','6000','7000','8000');
+```
+
+<a id="q491-edades"></a>
+### Q491-EDADES — grupos de edad
+
+```sql
+SELECT
+ SUM(CASE WHEN CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER)=1
+                AND CAST(TRIM(RENGLON) AS INTEGER)<80
+          THEN COALESCE(TOTAL_AFILIADOS_TOTAL,0) ELSE 0 END) AS menor_30,
+ SUM(CASE WHEN (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER)=1 AND CAST(TRIM(RENGLON) AS INTEGER) BETWEEN 80 AND 150)
+                OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER)=4 AND CAST(TRIM(RENGLON) AS INTEGER) BETWEEN 5 AND 15)
+          THEN COALESCE(TOTAL_AFILIADOS_TOTAL,0) ELSE 0 END) AS edad_30_44,
+ SUM(CASE WHEN CAST(TRIM(RENGLON) AS INTEGER) BETWEEN 155 AND 225
+                OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER)>1 AND CAST(TRIM(RENGLON) AS INTEGER) BETWEEN 20 AND 50)
+                OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) BETWEEN 2 AND 3 AND CAST(TRIM(RENGLON) AS INTEGER)<20)
+          THEN COALESCE(TOTAL_AFILIADOS_TOTAL,0) ELSE 0 END) AS edad_45_59,
+ SUM(CASE WHEN (CAST(TRIM(RENGLON) AS INTEGER)>=230 AND CAST(TRIM(RENGLON) AS INTEGER)<999)
+                OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER)>1 AND CAST(TRIM(RENGLON) AS INTEGER) BETWEEN 55 AND 80)
+          THEN COALESCE(TOTAL_AFILIADOS_TOTAL,0) ELSE 0 END) AS mayor_60
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL=DATE '2025-06-30'
+  AND SUBSTR(NUMERO_IDENTIFICACION,9,4) IN ('1000','5000','6000','7000','8000');
+```
+
+<a id="q491-aportantes-entidad"></a>
+### Q491-APORTANTES-ENTIDAD — aportantes por AFP
+
+```sql
+SELECT CODIGO_ENTIDAD, SUM(COALESCE(TOTAL_AFILIADOS_COTIZANTES,0)) AS aportantes
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL=DATE '2025-06-30' AND RENGLON='999'
+  AND CODIGO_ENTIDAD IN (2,3,9,10)
+  AND SUBSTR(NUMERO_IDENTIFICACION,9,4) IN ('1000','5000','6000','7000','8000')
+GROUP BY CODIGO_ENTIDAD;
+```
+
+<a id="q491-afiliados-fondo"></a>
+### Q491-AFILIADOS-FONDO — afiliados por AFP, UC y fondo
+
+```sql
+SELECT CODIGO_ENTIDAD, CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) AS uc,
+       SUBSTR(NUMERO_IDENTIFICACION,9,4) AS fondo,
+       SUM(COALESCE(TOTAL_AFILIADOS_TOTAL,0)) AS afiliados
+FROM PROD_DWH_CONSULTA.FORMATO491
+WHERE FECBAL=DATE '2025-06-30' AND RENGLON='999' AND CODIGO_ENTIDAD IN (2,3,9,10)
+  AND ((CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER)=1
+        AND SUBSTR(NUMERO_IDENTIFICACION,9,4) IN ('1000','5000','6000','8000'))
+    OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER) IN (2,3)
+        AND SUBSTR(NUMERO_IDENTIFICACION,9,4)='5000')
+    OR (CAST(TRIM(UNIDAD_CAPTURA) AS INTEGER)=4
+        AND SUBSTR(NUMERO_IDENTIFICACION,9,4)='1000'))
+GROUP BY 1,2,3;
+```
+
+<a id="q491-concentracion"></a>
+### Q491-CONCENTRACION — dos AFP mayores sobre el sistema
+
+Se obtiene con `SUM(TOTAL_AFILIADOS_TOTAL)` agrupado por `CODIGO_ENTIDAD`, se ordena de mayor a menor y se divide la suma de las dos primeras AFP entre el total. La sentencia exacta está en [`Formato491QueryService`](../src/main/java/co/gov/sfc/excel/Formato491QueryService.java).
+
+<a id="q491-salario"></a>
+### Q491-SALARIO — salario mínimo ponderado
+
+Pondera las columnas IBC de hombres y mujeres por 1, 2, 3, 4, 8, 12, 16, 20 y 25 salarios mínimos y divide entre afiliados. El salario 2025 procede de `SalarioMinimo.csv`; el SQL completo está en [`Formato491QueryService.sqlSalarioMinimoPonderado`](../src/main/java/co/gov/sfc/excel/Formato491QueryService.java).
+
+<a id="q493-traspasos"></a>
+### Q493-TRASPASOS — traspasos del sistema o por AFP
+
+```sql
+SELECT COALESCE(SUM(
+ COALESCE(MUJERES_RANGO_EDAD_31,0)+COALESCE(MUJERES_RANGO_EDAD_31_36,0)+
+ COALESCE(MUJERES_RANGO_EDAD_36_41,0)+COALESCE(MUJERES_RANGO_EDAD_41_46,0)+
+ COALESCE(MUJERES_RANGO_EDAD_46,0)+COALESCE(HOMBRES_RANGO_EDAD_36,0)+
+ COALESCE(HOMBRES_RANGO_EDAD_36_41,0)+COALESCE(HOMBRES_RANGO_EDAD_41_46,0)+
+ COALESCE(HOMBRES_RANGO_EDAD_46_51,0)+COALESCE(HOMBRES_RANGO_EDAD_51,0)),0)
+FROM PROD_DWH_CONSULTA.S9_FORMATO_493
+WHERE FECHA_CORTE BETWEEN DATE '2024-07-31' AND DATE '2025-06-30'
+ AND ((UNIDAD_CAPTURA=1 AND RENGLON IN (70,75,90,95))
+   OR (UNIDAD_CAPTURA=2 AND RENGLON IN (40,45,60,65))
+   OR (UNIDAD_CAPTURA=3 AND RENGLON IN (40,45,60,65))
+   OR (UNIDAD_CAPTURA=6 AND RENGLON IN (35,40,45,50)));
+```
+
+Para una AFP se agrega `CODIGO_ENTIDAD`: Protección `2`, Porvenir `3`, Skandia `9` o Colfondos `10`.
+
+<a id="q493-fallecidos"></a>
+### Q493-FALLECIDOS — fallecidos del sistema
+
+Usa la misma suma de columnas sexo/edad de `Q493-TRASPASOS`, con `UNIDAD_CAPTURA=1`, `RENGLON IN (165,170,175)` y la misma ventana `2024-07-31` a `2025-06-30`.
+
+<a id="q136-fondos"></a>
+### Q136-FONDOS — saldos por AFP y patrimonio
+
+```sql
+SELECT e.Codigo_Entidad, SUM(eip.Saldo_Sincierre_Total_Moneda_0)/1000 AS valor_miles
+FROM PROD_DWH_CONSULTA.ESTFIN_INDIV_PA eip
+JOIN PROD_DWH_CONSULTA.ENTIDADES e ON eip.Ent_ID=e.Ent_ID
+JOIN PROD_DWH_CONSULTA.PATRIMONIOS_AUTONOMOS pa ON eip.Paau_ID=pa.Paau_ID
+JOIN PROD_DWH_CONSULTA.TIEMPO t ON eip.Tie_ID=t.Tie_ID
+JOIN PROD_DWH_CONSULTA.PUC p ON eip.Puc_ID=p.Puc_ID
+WHERE eip.Tipo_Informe=17 AND e.Tipo_Entidad=23 AND e.Estado=1
+ AND pa.Tipo_Patrimonio=6 AND pa.Codigo_Patrimonio=1000
+ AND p.Codigo=100000 AND t.Fecha=DATE '2025-06-30'
+GROUP BY 1;
+```
+
+<a id="q136-aportes"></a>
+### Q136-APORTES — aportes recibidos (filas 61 y 62)
+
+```sql
+SELECT COALESCE(SUM(e.valor)/1000000,0) AS valor_total
+FROM prod_dwh_consulta.entidades a, prod_dwh_consulta.tiempo b,
+ prod_dwh_consulta.patrimonios_autonomos c, prod_dwh_consulta.negfid_insumos d,
+ prod_dwh_consulta.negfid_insumo_entidad e
+WHERE d.inf_id=e.inf_id AND e.ent_id=a.ent_id AND e.tie_id=b.tie_id AND e.paau_id=c.paau_id
+ AND c.tipo_patrimonio=6 AND c.codigo_patrimonio=1000
+ AND d.nivel1=136 AND d.nivel2=2 AND d.nivel3=4 AND d.nivel4=10
+ AND a.tipo_entidad=23 AND e.valor<>0
+ AND b.fecha BETWEEN DATE '2024-06-01' AND DATE '2025-06-30';
+```
+
+<a id="q495-pensionados"></a>
+### Q495-PENSIONADOS — total y composición
+
+Las cuatro consultas suman las columnas de vejez (`*_V_*`), invalidez (`*_I_*`) y sobrevivencia (`*_S_*`) correspondientes, siempre con `FECHA_CORTE=DATE '2025-06-30'`, `UNIDAD_CAPTURA=1` y `RENGLON=200`. Las listas exactas de columnas están en [`Formato495QueryService`](../src/main/java/co/gov/sfc/excel/Formato495QueryService.java), métodos `sqlTotal`, `sqlInvalidez`, `sqlVejez` y `sqlSobrevivencia`; así se evita mantener una copia divergente del SQL ejecutable.
+
 ## 1. Convenciones
 
 | Convención | Significado |
 |---|---|
-| `TRM` | Tasa representativa del mercado leída de `PIB_PEA_TRM_DG`; si llega en cero se usa `1` para evitar división por cero. |
+| `TRM` | Tasa representativa del mercado consultada una vez por fecha al servicio web de la Superfinanciera y reutilizada en todos los cálculos. Si el servicio falla o devuelve un dato inválido, se lee de `PIB_PEA_TRM_DG`. |
 | `pct(x)` | `x * 100`, usado cuando la plantilla espera puntos porcentuales. |
 | `safeDivide(a,b)` | `a / b` con escala 8 y redondeo `HALF_UP`; retorna cero si el denominador es nulo o cero. |
 | `MM` | Millones. |
@@ -2500,6 +2768,7 @@ $$
 
 Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
 
+<!-- Fin del documento -->
 #### Fila 83: Rentabilidad real 10 años
 
 **¿Qué representa la fila 83?**
@@ -2523,7 +2792,6 @@ $$
 $$
 
 Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
-
 #### Fila 84: Rentabilidad nominal 5 años
 
 **¿Qué representa la fila 84?**
@@ -2668,8 +2936,3 @@ $$
 
 Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
 
-## 7. Query de Formato 136 para fila 61
-
-La fila 61 ya no evalúa `G6` en `Formato_136_Meses.xlsm`. El valor `aportesRecibidos136` se consulta en Teradata con `SUM(e.valor)/1000000`, niveles `136/2/4/10`, patrimonio autónomo tipo `6`, código `1000`, tipo de entidad `23` y `e.valor <> 0`.
-
-La ventana de fechas es `fechaCorte.minusYears(1).withDayOfMonth(1)` hasta `fechaCorte`; para corte `30/06/2025`, se consulta desde `01/06/2024` hasta `30/06/2025`.

@@ -149,7 +149,7 @@ function Test-TrimestralWorkbook {
             throw "El archivo trimestral no contiene las hojas requeridas: $($missing -join ', ')"
         }
 
-        $monthLabels = @('', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic')
+        $monthLabels = @('', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic')
         $periodLabel = "$($monthLabels[$Cutoff.Month])-$($Cutoff.ToString('yy'))"
         $xmlContent = [System.Text.StringBuilder]::new()
         foreach ($entry in $archive.Entries) {

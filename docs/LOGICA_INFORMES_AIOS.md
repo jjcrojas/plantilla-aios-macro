@@ -1,5 +1,12 @@
 # Documentación de lógica de generación de informes AIOS
 
+> La trazabilidad funcional y técnica dato por dato se documenta en
+> [Fórmulas y fuentes de datos de informes AIOS](FORMULAS_INFORMES_AIOS.md).
+> Esa es la referencia principal: presenta primero la explicación conceptual
+> de cada archivo, después compara la fórmula Excel heredada con el cálculo
+> vigente y finalmente enlaza los queries Teradata reproducibles para el corte
+> de ejemplo del 30 de junio de 2025.
+
 ## 1. Propósito del programa
 
 Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual**, **trimestral** y **semestral**. El usuario entrega una fecha de corte y un modo de generación; el servicio central valida la periodicidad, lee los insumos de Excel requeridos, calcula indicadores, escribe los valores sobre plantillas de salida y, cuando se solicita el modo `TODO`, empaqueta los archivos generados en un ZIP.
@@ -9,7 +16,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 | Componente | Responsabilidad |
 |---|---|
 | `AiosGeneracionService` | Orquesta el flujo de generación según el modo: mensual, trimestral, semestral o todo. Valida meses trimestrales y semestrales, captura errores de memoria y crea ZIP en modo `TODO`. |
-| `MensualDataReader` | Lee los insumos base mensuales y arma el record `MensualData`: afiliados, aportantes, traspasos, TRM, límites, rentabilidades, PEA, deuda, pensionados, fondos, activos y pasivos. |
+| `MensualDataReader` | Lee los insumos base mensuales y arma el record `MensualData`: afiliados, aportantes, traspasos, TRM, límites, rentabilidades, PEA, deuda, pensionados, fondos, activos y pasivos. La TRM se obtiene una sola vez por fecha mediante el servicio web de la Superfinanciera y se reutiliza; `PIB_PEA_TRM_DG` actúa como contingencia. |
 | `MensualExcelGenerator` | Escribe el boletín mensual sobre `Boletin_AIOS MENSUAL.xlsx`, hoja `HOJA1`, en la fila que coincide con la etiqueta de fecha. |
 | `TrimestralDataReader` | Lee y calcula los mapas por administradora/fondo requeridos para el boletín trimestral: afiliados, aportantes, traspasos, Colombia USD, gastos USD, comisiones y rentabilidades. |
 | `TrimestralExcelGenerator` | Escribe los mapas trimestrales en las hojas de la plantilla trimestral: `afiliados`, `aportantes`, `colombia`, `traspasos`, `gastos`, `promotores`, `rentabilidad` y `comisiones`. |
@@ -25,7 +32,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx` | Ya no se usa para traspasos ni fallecidos migrados del Formato 493. | Los valores migrados se consultan con Teradata sobre `PROD_DWH_CONSULTA.S9_FORMATO_493`; se conserva solo como referencia histórica/manual. |
 | `SISTEMA TOTAL` | Fondos administrados, composición y participación de entidades. | Hoja `restot`: `J14`, `C14`, `D14` y otros valores por administradora/fondo. |
 | `LIMITES` | Límites de inversión locales y del exterior. | Hoja `AIOS`: `AB4`, `C4`, `E4`, `G4`, `I4`, `K4`, `O4`, `Q4`, `S4`, `U4`, `W4`, `Y4`, `AA4`. |
-| `PIB_PEA_TRM_DG` | PEA, PIB semestral, TRM y deuda gubernamental. | Hoja `Hoja1`: fecha en columna `L`, deuda gubernamental en columna `M`, además de series de TRM/PEA/PIB usadas por los lectores. |
+| `PIB_PEA_TRM_DG` | PEA, PIB semestral, TRM de contingencia y deuda gubernamental. | Hoja `Hoja1`: fecha en columna `L`, deuda gubernamental en columna `M`, además de series de PEA/PIB y la TRM usada solo si falla el servicio web. |
 | `Series_Formato-495 PENSIONADOS.xlsm` | Total y composición de pensionados. | Hoja `TOTAL PENSIONADOS`, parámetro `B4`, serie en columna `I`; hoja `por Entidad`, parámetro `C6`, celdas `BI62`, `BH62`, `BJ62`. |
 | Query Teradata Formato 136 | Aportes recibidos para indicadores semestrales. | `SUM(e.valor)/1000000` desde `prod_dwh_consulta.negfid_insumo_entidad` filtrando `nivel1=136`, `nivel2=2`, `nivel3=4`, `nivel4=10`, patrimonio 1000 y tipo entidad 23. |
 | `Plantilla AIOS-probable.xlsm` | Datos contables de cuentas, activos/pasivos, patrimonio, resultados y gastos trimestrales. Debe actualizarse previamente con las salidas del programa Fox de sociedades. | Hojas `base anual`, `base mes` y `CUENTAS`; en `CUENTAS`: `C4`, `C6`, `C15`, `C21`, `C22`, `C24`, `C28`, `C29`, `C31:C38`, `E13`, `G15`, `E41`, `E44`, `H24`. |

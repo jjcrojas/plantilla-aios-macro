@@ -1,0 +1,4 @@
+interface:
+  display_name: "Generar todos AIOS"
+  short_description: "Genera mensuales, trimestrales y semestrales"
+  default_prompt: "Usa $generar-todos-aios para generar todos los informes AIOS del periodo solicitado."

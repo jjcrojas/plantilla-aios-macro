@@ -3,12 +3,16 @@ package co.gov.sfc.excel;
 import co.gov.sfc.config.AiosProperties;
 import co.gov.sfc.insumos.InsumosLocator;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.DataFormat;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.FormulaEvaluator;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.CellValue;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
@@ -25,8 +29,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -245,6 +251,7 @@ public class SemestralExcelGenerator {
                 log.info("Semestral traza rentabilidades: 10y(nom={},real={}) 5y(nom={},real={}) 3y(nom={},real={}) 1y(nom={},real={})",
                         rent.nominal10(), rent.real10(), rent.nominal5(), rent.real5(), rent.nominal3(), rent.real3(), rent.nominal1(), rent.real1());
                 logFilasSemestral(hoja, col, fechaCorte, mensual, trimestral, detallesFilas);
+                normalizarEstilosSemestral(hoja);
 
                 try (var os = Files.newOutputStream(out)) {
                     wb.write(os);
@@ -714,6 +721,47 @@ public class SemestralExcelGenerator {
             if (targetCell == null) targetCell = row.createCell(targetColIndex);
             targetCell.setCellStyle(sourceCell.getCellStyle());
         }
+    }
+
+    void normalizarEstilosSemestral(Sheet sheet) {
+        Workbook workbook = sheet.getWorkbook();
+        Map<Integer, Font> blackFonts = new HashMap<>();
+        Map<String, CellStyle> normalizedStyles = new HashMap<>();
+        for (Row row : sheet) {
+            for (Cell cell : row) {
+                CellStyle original = cell.getCellStyle();
+                boolean removeBandFill = row.getRowNum() == 80 && cell.getColumnIndex() >= 2;
+                String key = original.getIndex() + ":" + removeBandFill;
+                CellStyle normalized = normalizedStyles.computeIfAbsent(key, ignored -> {
+                    CellStyle style = workbook.createCellStyle();
+                    style.cloneStyleFrom(original);
+                    Font font = blackFonts.computeIfAbsent((int) original.getFontIndex(), fontIndex ->
+                            cloneFontInBlack(workbook, workbook.getFontAt(fontIndex)));
+                    style.setFont(font);
+                    if (removeBandFill) {
+                        style.setFillPattern(FillPatternType.NO_FILL);
+                        style.setFillForegroundColor((short) 0);
+                        style.setFillBackgroundColor((short) 0);
+                    }
+                    return style;
+                });
+                cell.setCellStyle(normalized);
+            }
+        }
+    }
+
+    private Font cloneFontInBlack(Workbook workbook, Font source) {
+        Font target = workbook.createFont();
+        target.setFontName(source.getFontName());
+        target.setFontHeight(source.getFontHeight());
+        target.setBold(source.getBold());
+        target.setItalic(source.getItalic());
+        target.setStrikeout(source.getStrikeout());
+        target.setUnderline(source.getUnderline());
+        target.setTypeOffset(source.getTypeOffset());
+        target.setCharSet(source.getCharSet());
+        target.setColor(IndexedColors.BLACK.getIndex());
+        return target;
     }
 
     private String normalize(String value) {
