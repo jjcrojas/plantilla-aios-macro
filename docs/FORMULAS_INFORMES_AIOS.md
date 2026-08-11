@@ -460,7 +460,1578 @@ WHERE FECHA_CORTE = DATE '2025-06-30'
 
 La lista exacta de columnas de cada variante está en [`Formato495QueryService`](../src/main/java/co/gov/sfc/excel/Formato495QueryService.java), métodos `sqlTotal`, `sqlInvalidez`, `sqlVejez` y `sqlSobrevivencia`. Esa clase es la fuente de verdad para evitar duplicar y desactualizar una lista extensa de campos.
 
-## 6. Fuentes que continúan en archivos
+## 6. Explicación conceptual detallada por archivo
+
+Las siguientes secciones usan un patrón completo para cada dato: **qué representa**, **interpretación**, **fórmula conceptual** y, cuando aplica, **fórmula implementada**. La fuente técnica exacta se conserva en las tablas anteriores.
+
+### 6.1 Archivo mensual (`Boletin_AIOS MENSUAL.xlsx`)
+
+#### Columna B: Afiliados totales
+
+**¿Qué representa?**
+
+La columna B del archivo mensual corresponde al número total de personas afiliadas al sistema de fondos de pensiones.
+
+**Interpretación**
+
+Permite dimensionar la cobertura total del sistema y sirve como denominador para indicadores de composición.
+
+**Fórmula conceptual**
+
+$$
+\text{Afiliados} = \text{Hombres afiliados} + \text{Mujeres afiliadas}
+$$
+
+#### Columna C: Aportantes
+
+**¿Qué representa?**
+
+La columna C del archivo mensual corresponde al número de afiliados que realizaron aportes en el periodo reportado.
+
+**Interpretación**
+
+Mide la base activa que efectivamente contribuye al sistema.
+
+**Fórmula conceptual**
+
+$$
+\text{Aportantes} = \text{Afiliados con aporte registrado}
+$$
+
+#### Columna D: Traspasos del sistema
+
+**¿Qué representa?**
+
+La columna D del archivo mensual corresponde al total de movimientos de traslado entre administradoras o fondos.
+
+**Interpretación**
+
+Mide movilidad o rotación de afiliados dentro del sistema.
+
+**Fórmula conceptual**
+
+$$
+\text{Traspasos} = \text{Total de traslados reportados}
+$$
+
+#### Columna E: Valor del fondo en USD
+
+**¿Qué representa?**
+
+La columna E del archivo mensual corresponde al valor del fondo administrado convertido a dólares.
+
+**Interpretación**
+
+Permite comparar el tamaño financiero del portafolio en una moneda común.
+
+**Fórmula conceptual**
+
+$$
+\text{Valor del fondo (USD)} = \frac{\text{Valor del fondo en COP}}{\text{TRM}}
+$$
+
+#### Columna F: Total de límites en USD
+
+**¿Qué representa?**
+
+La columna F del archivo mensual corresponde al total de referencia de límites convertido a dólares.
+
+**Interpretación**
+
+Sirve como base monetaria para revisar composición de límites de inversión.
+
+**Fórmula conceptual**
+
+$$
+\text{Total límites (USD)} = \frac{\text{Total límites en COP}}{\text{TRM}}
+$$
+
+#### Columna G: Deuda gubernamental local (%)
+
+**¿Qué representa?**
+
+La columna G del archivo mensual corresponde a la proporción del portafolio invertida en deuda pública interna.
+
+**Interpretación**
+
+Mide exposición a deuda soberana local.
+
+**Fórmula conceptual**
+
+$$
+\text{Deuda gubernamental local} = \frac{\text{Deuda gubernamental local}}{\text{Portafolio total}} \times 100
+$$
+
+#### Columna H: Depósitos y efectivo local (%)
+
+**¿Qué representa?**
+
+La columna H del archivo mensual corresponde a la proporción del portafolio en liquidez local.
+
+**Interpretación**
+
+Mide el peso de instrumentos líquidos locales dentro del portafolio.
+
+**Fórmula conceptual**
+
+$$
+\text{Efectivo local} = \frac{\text{Depósitos y efectivo locales}}{\text{Portafolio total}} \times 100
+$$
+
+#### Columna I: Deuda no financiera local (%)
+
+**¿Qué representa?**
+
+La columna I del archivo mensual corresponde a la proporción invertida en deuda local de emisores no financieros.
+
+**Interpretación**
+
+Mide exposición a crédito corporativo local.
+
+**Fórmula conceptual**
+
+$$
+\text{Deuda no financiera local} = \frac{\text{Deuda no financiera local}}{\text{Portafolio total}} \times 100
+$$
+
+#### Columna J: Acciones locales (%)
+
+**¿Qué representa?**
+
+La columna J del archivo mensual corresponde a la proporción del portafolio invertida en renta variable local.
+
+**Interpretación**
+
+Mide exposición al mercado accionario colombiano.
+
+**Fórmula conceptual**
+
+$$
+\text{Acciones locales} = \frac{\text{Acciones locales}}{\text{Portafolio total}} \times 100
+$$
+
+#### Columna K: Fondos locales (%)
+
+**¿Qué representa?**
+
+La columna K del archivo mensual corresponde a la proporción invertida en vehículos colectivos locales.
+
+**Interpretación**
+
+Mide uso de fondos o vehículos locales dentro del portafolio.
+
+**Fórmula conceptual**
+
+$$
+\text{Fondos locales} = \frac{\text{Fondos locales}}{\text{Portafolio total}} \times 100
+$$
+
+#### Columna L: Inversiones del exterior seleccionadas (%)
+
+**¿Qué representa?**
+
+La columna L del archivo mensual corresponde al agregado de categorías de inversión exterior seleccionadas.
+
+**Interpretación**
+
+Resume diversificación internacional en rubros específicos.
+
+**Fórmula conceptual**
+
+$$
+\text{Exterior seleccionado} = \frac{\text{Rubros exteriores seleccionados}}{\text{Portafolio total}} \times 100
+$$
+
+#### Columna M: Otros activos (%)
+
+**¿Qué representa?**
+
+La columna M del archivo mensual corresponde a categorías de portafolio no clasificadas en rubros principales.
+
+**Interpretación**
+
+Completa la composición del portafolio y ayuda a identificar saldos residuales.
+
+**Fórmula conceptual**
+
+$$
+\text{Otros activos} = \frac{\text{Otros activos}}{\text{Portafolio total}} \times 100
+$$
+
+#### Columna N: Rentabilidad nominal 1 año (%)
+
+**¿Qué representa?**
+
+La columna N del archivo mensual corresponde al retorno anual sin descontar inflación.
+
+**Interpretación**
+
+Mide desempeño financiero observado en términos nominales.
+
+**Fórmula conceptual**
+
+$$
+\text{Rentabilidad nominal} = \left(\frac{\text{Valor final}}{\text{Valor inicial}} - 1\right) \times 100
+$$
+
+#### Columna O: Rentabilidad real 1 año (%)
+
+**¿Qué representa?**
+
+La columna O del archivo mensual corresponde al retorno anual descontando inflación.
+
+**Interpretación**
+
+Mide ganancia de poder adquisitivo del portafolio.
+
+**Fórmula conceptual**
+
+$$
+\text{Rentabilidad real} = \left(\frac{1+\text{Rentabilidad nominal}}{1+\text{Inflación}} - 1\right) \times 100
+$$
+
+#### Columna P: Referencia fija
+
+**¿Qué representa?**
+
+La columna P del archivo mensual corresponde a un valor constante de la plantilla.
+
+**Interpretación**
+
+Funciona como control o referencia operacional sin fuente externa.
+
+**Fórmula conceptual**
+
+$$
+\text{Referencia} = 4
+$$
+
+#### Columna Q: Concentración de afiliados (personas)
+
+**¿Qué representa?**
+
+La columna Q del archivo mensual corresponde a la concentración de afiliados, es decir, personas afiliadas. Se calcula con query sobre `PROD_DWH_CONSULTA.FORMATO491`, no con el Excel 491.
+
+**Interpretación**
+
+Mide peso relativo de fondos/administradoras seleccionadas dentro del sistema.
+
+**Fórmula conceptual**
+
+$$
+\text{Concentración afiliados} = \frac{\text{Afiliados de las dos AFP con más afiliados}}{\text{Afiliados totales del sistema}} \times 100
+$$
+
+#### Columna R: Participación Protección + Porvenir (%)
+
+**¿Qué representa?**
+
+La columna R del archivo mensual corresponde a la participación conjunta de Protección y Porvenir sobre el total del sistema.
+
+**Interpretación**
+
+Mide concentración de mercado en esas administradoras.
+
+**Fórmula conceptual**
+
+$$
+\text{Participación} = \frac{\text{Protección} + \text{Porvenir}}{\text{Sistema total}} \times 100
+$$
+
+#### Columna S: TRM
+
+**¿Qué representa?**
+
+La columna S del archivo mensual corresponde a la tasa de cambio usada para convertir COP a USD.
+
+**Interpretación**
+
+Permite expresar valores monetarios en una moneda comparable.
+
+**Fórmula conceptual**
+
+$$
+\text{USD} = \frac{\text{COP}}{\text{TRM}}
+$$
+
+### 6.2 Archivo trimestral (`Boletin_AIOS TRIMESTRAL.xlsx`)
+
+#### Hoja `afiliados`: Afiliados por administradora y fondo
+
+**¿Qué representa?**
+
+La hoja `afiliados` del archivo trimestral corresponde al número de afiliados distribuido por administradora y tipo de fondo. Desde la migración a Teradata, estos valores no dependen del Excel local del Formato 491; se consultan desde `PROD_DWH_CONSULTA.FORMATO491` con `RENGLON = 999`, códigos de entidad de AFP y reglas de unidad de captura/tipo de fondo equivalentes a la hoja `multifondos`.
+
+**Interpretación**
+
+Permite analizar composición, participación y concentración de afiliados entre entidades y fondos.
+
+**Fórmula conceptual**
+
+$$
+\text{Afiliados por grupo} = \sum \text{Afiliados del grupo reportado}
+$$
+
+#### Hoja `aportantes`: Aportantes por administradora
+
+**¿Qué representa?**
+
+La hoja `aportantes` del archivo trimestral corresponde al número de personas que aportan por administradora.
+
+**Interpretación**
+
+Mide actividad contributiva efectiva y permite comparar entidades.
+
+**Fórmula conceptual**
+
+$$
+\text{Aportantes por administradora} = \sum \text{Aportantes reportados}
+$$
+
+#### Hoja `colombia`: Saldos de Colombia por fondo
+
+**¿Qué representa?**
+
+La hoja `colombia` del archivo trimestral corresponde a saldos o fondos administrados asociados a Colombia, por administradora y fondo.
+
+**Interpretación**
+
+Mide el tamaño de los recursos administrados por segmento.
+
+**Fórmula conceptual**
+
+$$
+\text{Saldo Colombia} = \text{Valor reportado por fondo/administradora}
+$$
+
+#### Hoja `traspasos`: Traspasos trimestrales
+
+**¿Qué representa?**
+
+La hoja `traspasos` del archivo trimestral corresponde a movimientos de traslado por administradora durante el periodo.
+
+**Interpretación**
+
+Mide movilidad relativa de afiliados y competencia por traslados.
+
+**Fórmula conceptual**
+
+$$
+\text{Traspasos trimestrales} = \sum \text{Traslados del trimestre}
+$$
+
+#### Hoja `gastos`: Gastos en USD
+
+**¿Qué representa?**
+
+La hoja `gastos` del archivo trimestral corresponde a gastos netos convertidos a dólares.
+
+**Interpretación**
+
+Permite comparar egresos entre administradoras usando una moneda homogénea.
+
+**Fórmula conceptual**
+
+$$
+\text{Gastos (USD)} = \frac{\text{Gastos netos en COP}}{\text{TRM}}
+$$
+
+#### Hoja `promotores`: Promotores
+
+**¿Qué representa?**
+
+La hoja `promotores` del archivo trimestral corresponde al número de promotores o fuerza comercial cuando exista fuente disponible.
+
+**Interpretación**
+
+Mide capacidad comercial o red de atención asociada a las administradoras.
+
+**Fórmula conceptual**
+
+$$
+\text{Promotores} = \text{Cantidad reportada de promotores}
+$$
+
+#### Hoja `rentabilidad`: Rentabilidad nominal y real
+
+**¿Qué representa?**
+
+La hoja `rentabilidad` del archivo trimestral corresponde al rendimiento de los fondos por administradora/fondo.
+
+**Interpretación**
+
+Mide desempeño financiero con y sin efecto de inflación.
+
+**Fórmula conceptual**
+
+$$
+\text{Rentabilidad real} = \left(\frac{1+\text{Rentabilidad nominal}}{1+\text{Inflación}} - 1\right) \times 100
+$$
+
+#### Hoja `comisiones`: Comisiones obligatorias
+
+**¿Qué representa?**
+
+La hoja `comisiones` del archivo trimestral corresponde al porcentaje de comisión cobrado por las administradoras para aportes obligatorios.
+
+**Interpretación**
+
+Mide costo para el afiliado/aportante por administración de recursos.
+
+**Fórmula conceptual**
+
+$$
+\text{Comisión promedio} = \frac{\sum \text{Comisiones por administradora}}{\text{Número de administradoras}}
+$$
+
+### 6.3 Archivo semestral (`Semestral_Colombia.xlsx` / `semestral.xlsx`)
+
+#### Fila 3: Afiliados totales
+
+**¿Qué representa la fila 3?**
+
+La fila 3 del archivo `Semestral_Colombia.xlsx` corresponde al número total de personas afiliadas al sistema de fondos de pensiones.
+
+**Interpretación económica u operativa**
+
+Este dato dimensiona la cobertura total del sistema y sirve como base para calcular composiciones por edad, género y actividad contributiva.
+
+**Fórmula conceptual**
+
+$$
+\text{Afiliados totales} = \text{Hombres afiliados} + \text{Mujeres afiliadas}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 3} = \text{mensual.afiliados}
+$$
+
+Se obtiene desde query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, sumando `TOTAL_AFILIADOS_TOTAL` para `RENGLON=999` y fondos 1000/5000/6000/7000/8000.
+
+#### Fila 4: Afiliados menores de 30 años (%)
+
+**¿Qué representa la fila 4?**
+
+La fila 4 corresponde a la proporción de afiliados menores de 30 años dentro del total de afiliados.
+
+**Interpretación económica u operativa**
+
+Indica qué tan joven es la base de afiliados y qué proporción se encuentra en etapas tempranas de acumulación pensional.
+
+**Fórmula conceptual**
+
+$$
+\text{Menores de 30} = \frac{\text{Afiliados menores de 30}}{\text{Afiliados totales}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 4} = \frac{\text{mensual.afiliadosMenor30}}{\text{mensual.afiliados}} \times 100
+$$
+
+Los afiliados menores de 30 provienen de query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, con las reglas de subcuenta y unidad de captura documentadas para el rango de edad.
+
+#### Fila 5: Afiliados de 30 a 44 años (%)
+
+**¿Qué representa la fila 5?**
+
+La fila 5 corresponde a la proporción de afiliados entre 30 y 44 años dentro del total de afiliados.
+
+**Interpretación económica u operativa**
+
+Permite observar la concentración de afiliados en una etapa laboral media, usualmente asociada a acumulación pensional estable.
+
+**Fórmula conceptual**
+
+$$
+\text{Afiliados 30 a 44} = \frac{\text{Afiliados de 30 a 44}}{\text{Afiliados totales}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 5} = \frac{\text{mensual.afiliados30a44}}{\text{mensual.afiliados}} \times 100
+$$
+
+El numerador proviene de query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, usando las subcuentas/unidades de captura parametrizadas para el rango de 30 a 44 años.
+
+#### Fila 6: Afiliados de 45 a 59 años (%)
+
+**¿Qué representa la fila 6?**
+
+La fila 6 corresponde a la proporción de afiliados entre 45 y 59 años dentro del total.
+
+**Interpretación económica u operativa**
+
+Ayuda a anticipar la maduración del sistema y el peso de afiliados próximos a edades de retiro.
+
+**Fórmula conceptual**
+
+$$
+\text{Afiliados 45 a 59} = \frac{\text{Afiliados de 45 a 59}}{\text{Afiliados totales}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 6} = \frac{\text{mensual.afiliados45a59}}{\text{mensual.afiliados}} \times 100
+$$
+
+El numerador proviene de query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, usando las subcuentas/unidades de captura parametrizadas para el rango de 45 a 59 años.
+
+#### Fila 7: Afiliados mayores de 60 años (%)
+
+**¿Qué representa la fila 7?**
+
+La fila 7 corresponde a la proporción de afiliados mayores de 60 años dentro del total.
+
+**Interpretación económica u operativa**
+
+Mide la presencia de población afiliada próxima o posterior a edades típicas de retiro.
+
+**Fórmula conceptual**
+
+$$
+\text{Afiliados mayores de 60} = \frac{\text{Afiliados mayores de 60}}{\text{Afiliados totales}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 7} = \frac{\text{mensual.afiliadosMayor60}}{\text{mensual.afiliados}} \times 100
+$$
+
+El numerador proviene de query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, usando las subcuentas/unidades de captura parametrizadas para mayores de 60 años.
+
+#### Fila 8: Total de distribución por edad
+
+**¿Qué representa la fila 8?**
+
+La fila 8 representa el total porcentual de los grupos de edad.
+
+**Interpretación económica u operativa**
+
+Funciona como control conceptual: la suma de las participaciones por edad debe explicar el total de afiliados.
+
+**Fórmula conceptual**
+
+$$
+\text{Total grupos de edad} = 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 8} = 100
+$$
+
+Es una constante de la plantilla.
+
+#### Fila 9: Afiliados en miles
+
+**¿Qué representa la fila 9?**
+
+La fila 9 muestra el total de afiliados expresado en miles de personas.
+
+**Interpretación económica u operativa**
+
+Reduce la escala del dato poblacional y facilita comparación con otros países o series históricas.
+
+**Fórmula conceptual**
+
+$$
+\text{Afiliados en miles} = \frac{\text{Afiliados totales}}{1000}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 9} = \frac{\text{mensual.afiliados}}{1000}
+$$
+
+Usa el total de afiliados de la fila 3.
+
+#### Fila 10: Mujeres afiliadas (%)
+
+**¿Qué representa la fila 10?**
+
+La fila 10 corresponde a la participación de mujeres dentro del total de afiliados.
+
+**Interpretación económica u operativa**
+
+Permite analizar composición por género del sistema pensional.
+
+**Fórmula conceptual**
+
+$$
+\text{Mujeres afiliadas} = \frac{\text{Mujeres afiliadas}}{\text{Afiliados totales}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 10} = \frac{\text{mensual.mujeres}}{\text{mensual.afiliados}} \times 100
+$$
+
+Mujeres se lee por query Teradata sobre `PROD_DWH_CONSULTA.FORMATO491`, sumando `TOTAL_AFILIADOS_M` para `RENGLON = '999'` y los fondos obligatorios `1000`, `5000`, `6000`, `7000` y `8000`. El denominador `mensual.afiliados` usa el total de afiliados por query (`SUM(TOTAL_AFILIADOS_TOTAL)`) con los mismos filtros.
+
+#### Fila 11: Aportantes
+
+**¿Qué representa la fila 11?**
+
+La fila 11 corresponde al número de personas que realizaron aportes al sistema.
+
+**Interpretación económica u operativa**
+
+Representa la base activa que efectivamente contribuye y no solo la población afiliada.
+
+**Fórmula conceptual**
+
+$$
+\text{Aportantes} = \text{Personas con aporte registrado}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 11} = \text{mensual.aportantes}
+$$
+
+Se lee por query Teradata desde `PROD_DWH_CONSULTA.FORMATO491`, sumando `TOTAL_AFILIADOS_COTIZANTES` para `RENGLON=999`, fondos 1000/5000/6000/7000/8000 y sin filtro por `CODIGO_ENTIDAD` en el semestral.
+
+#### Fila 12: Afiliados / PEA (%)
+
+**¿Qué representa la fila 12?**
+
+La fila 12 muestra los afiliados como proporción de la Población Económicamente Activa.
+
+**Interpretación económica u operativa**
+
+Mide la cobertura del sistema frente al mercado laboral potencial.
+
+**Fórmula conceptual**
+
+$$
+\text{Afiliados sobre PEA} = \frac{\text{Afiliados}}{\text{PEA}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 12} = \frac{\text{mensual.afiliados}}{\text{mensual.pea}} \times 100
+$$
+
+La PEA proviene de `PIB_PEA_TRM_DG`.
+
+#### Fila 13: Aportantes / PEA (%)
+
+**¿Qué representa la fila 13?**
+
+La fila 13 muestra los aportantes como proporción de la Población Económicamente Activa.
+
+**Interpretación económica u operativa**
+
+Mide la cobertura contributiva efectiva del sistema frente al mercado laboral.
+
+**Fórmula conceptual**
+
+$$
+\text{Aportantes sobre PEA} = \frac{\text{Aportantes}}{\text{PEA}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 13} = \frac{\text{mensual.aportantes}}{\text{mensual.pea}} \times 100
+$$
+
+Combina aportantes por query Teradata del Formato 491 con PEA de `PIB_PEA_TRM_DG`.
+
+#### Fila 14: Aportantes / afiliados (%)
+
+**¿Qué representa la fila 14?**
+
+La fila 14 corresponde al porcentaje de afiliados que aportan efectivamente.
+
+**Interpretación económica u operativa**
+
+Es un indicador de densidad contributiva o actividad efectiva de la base afiliada.
+
+**Fórmula conceptual**
+
+$$
+\text{Aportantes sobre afiliados} = \frac{\text{Aportantes}}{\text{Afiliados}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 14} = \frac{\text{mensual.aportantes}}{\text{mensual.afiliados}} \times 100
+$$
+
+Los aportantes y afiliados provienen de queries Teradata del Formato 491.
+
+#### Fila 15: Salario mínimo en USD
+
+**¿Qué representa la fila 15?**
+
+La fila 15 corresponde al salario mínimo colombiano convertido a dólares.
+
+**Interpretación económica u operativa**
+
+Permite comparar internacionalmente un ingreso laboral de referencia.
+
+**Fórmula conceptual**
+
+$$
+\text{Salario mínimo en USD} = \frac{\text{Salario mínimo en COP}}{\text{TRM}}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{F…5863 tokens truncated…ita en la tabla de fórmulas semestrales.
+
+#### Fila 55: Gastos de administración
+
+**¿Qué representa la fila 55?**
+
+La fila 55 corresponde a rubro administrativo seleccionado.
+
+**Interpretación económica u operativa**
+
+Mide la carga administrativa relevante para los indicadores del reporte.
+
+**Fórmula conceptual**
+
+$$
+\text{Administración} = \text{Gasto administrativo reportado}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 55} = \text{CUENTAS!H24}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 56: Cuenta 511500 en USD
+
+**¿Qué representa la fila 56?**
+
+La fila 56 corresponde a cuenta 511500 convertida a dólares.
+
+**Interpretación económica u operativa**
+
+Permite analizar este rubro específico en moneda comparable.
+
+**Fórmula conceptual**
+
+$$
+\text{Cuenta 511500 en USD} = \frac{\text{Cuenta 511500 en COP}}{\text{TRM}}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 56} = \frac{\text{CUENTAS!C21}}{\text{TRM}}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 57: Cuenta 511527 en USD
+
+**¿Qué representa la fila 57?**
+
+La fila 57 corresponde a cuenta 511527 convertida a dólares.
+
+**Interpretación económica u operativa**
+
+Permite analizar afiliaciones a fondos de pensiones en moneda comparable.
+
+**Fórmula conceptual**
+
+$$
+\text{Cuenta 511527 en USD} = \frac{\text{Cuenta 511527 en COP}}{\text{TRM}}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 57} = \frac{\text{CUENTAS!C22}}{\text{TRM}}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 58: Cuentas 511500 + 511527 en USD
+
+**¿Qué representa la fila 58?**
+
+La fila 58 corresponde a suma de las cuentas 511500 y 511527 convertida a dólares.
+
+**Interpretación económica u operativa**
+
+Resume los rubros de comisión y afiliación solicitados para el análisis.
+
+**Fórmula conceptual**
+
+$$
+\text{Cuentas 511500 y 511527 en USD} = \frac{\text{Cuenta 511500} + \text{Cuenta 511527}}{\text{TRM}}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 58} = \frac{\text{CUENTAS!C21} + \text{CUENTAS!C22}}{\text{TRM}}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 59: Otros gastos operacionales en USD
+
+**¿Qué representa la fila 59?**
+
+La fila 59 corresponde a suma de cuentas seleccionadas de gastos operacionales convertida a dólares.
+
+**Interpretación económica u operativa**
+
+Mide la carga de gastos operacionales distintos de los rubros principales.
+
+**Fórmula conceptual**
+
+$$
+\text{Otros gastos operacionales en USD} = \frac{\text{Suma de cuentas de gastos seleccionadas}}{\text{TRM}}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 59} = \frac{C24+C28+C29+C31+C32+C33+C34+C35+C36+C37+C38}{\text{TRM}}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 60: Gasto de operación 510000 en USD
+
+**¿Qué representa la fila 60?**
+
+La fila 60 corresponde a cuenta 510000 convertida a dólares.
+
+**Interpretación económica u operativa**
+
+Mide el gasto operacional agregado en moneda comparable.
+
+**Fórmula conceptual**
+
+$$
+\text{Gasto operación 510000 en USD} = \frac{\text{Cuenta 510000}}{\text{TRM}}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 60} = \frac{\text{CUENTAS!C15}}{\text{TRM}}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 61: Aportes recibidos por aportante
+
+**¿Qué representa la fila 61?**
+
+La fila 61 corresponde a aportes recibidos convertidos a dólares y normalizados por aportantes en miles.
+
+**Interpretación económica u operativa**
+
+Mide la intensidad de aportes recibidos por población aportante.
+
+**Fórmula conceptual**
+
+$$
+\text{Aportes por aportante} = \frac{\text{Aportes recibidos en USD}}{\text{Aportantes}/1000} \times 1000
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 61} = \frac{\text{Query Teradata Formato 136}/\text{TRM}}{\text{Aportantes}/1000} \times 1000
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 62: Gastos / aportes recibidos (%)
+
+**¿Qué representa la fila 62?**
+
+La fila 62 corresponde a gastos frente a aportes recibidos.
+
+**Interpretación económica u operativa**
+
+Mide la carga de gastos sobre el flujo de aportes recibidos.
+
+**Fórmula conceptual**
+
+$$
+\text{Gastos sobre aportes} = \frac{\text{Gastos}}{\text{Aportes recibidos}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 62} = \frac{\text{cuentas.gastos}}{\text{aportesRecibidos}/\text{TRM}} \times 100
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 63: Patrimonio / fondos administrados (%)
+
+**¿Qué representa la fila 63?**
+
+La fila 63 corresponde a patrimonio frente al valor de fondos administrados.
+
+**Interpretación económica u operativa**
+
+Mide respaldo patrimonial relativo al tamaño de recursos administrados.
+
+**Fórmula conceptual**
+
+$$
+\text{Patrimonio sobre fondos} = \frac{\text{Patrimonio}}{\text{Fondos administrados}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 63} = \frac{\text{Patrimonio base mes}/\text{TRM}}{\text{Fila 28}} \times 100
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 64: Patrimonio por afiliado
+
+**¿Qué representa la fila 64?**
+
+La fila 64 corresponde a patrimonio distribuido por afiliado.
+
+**Interpretación económica u operativa**
+
+Mide respaldo patrimonial promedio asociado a cada afiliado.
+
+**Fórmula conceptual**
+
+$$
+\text{Patrimonio por afiliado} = \frac{\text{Patrimonio}}{\text{Afiliados}} \times 1{,}000{,}000
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 64} = \frac{\text{Fila 50}}{\text{Afiliados}} \times 1{,}000{,}000
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 65: Resultado neto / comisiones (%)
+
+**¿Qué representa la fila 65?**
+
+La fila 65 corresponde a resultado neto frente a comisiones.
+
+**Interpretación económica u operativa**
+
+Mide margen o rentabilidad sobre ingresos por comisiones.
+
+**Fórmula conceptual**
+
+$$
+\text{Resultado sobre comisiones} = \frac{\text{Resultado neto}}{\text{Comisiones}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 65} = \frac{\text{Fila 54}}{\text{Fila 51}} \times 100
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 66: Resultado neto / patrimonio (%)
+
+**¿Qué representa la fila 66?**
+
+La fila 66 corresponde a resultado neto frente al patrimonio.
+
+**Interpretación económica u operativa**
+
+Aproxima la rentabilidad sobre patrimonio.
+
+**Fórmula conceptual**
+
+$$
+\text{Resultado sobre patrimonio} = \frac{\text{Resultado neto}}{\text{Patrimonio}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 66} = \frac{\text{Fila 54}}{\text{Fila 50}} \times 100
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 67: Gastos por afiliado
+
+**¿Qué representa la fila 67?**
+
+La fila 67 corresponde a gastos distribuidos por afiliado.
+
+**Interpretación económica u operativa**
+
+Mide costo promedio asociado a cada afiliado.
+
+**Fórmula conceptual**
+
+$$
+\text{Gasto por afiliado} = \frac{\text{Gastos}}{\text{Afiliados}} \times 1{,}000{,}000
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 67} = \frac{\text{Fila 52}}{\text{Afiliados}} \times 1{,}000{,}000
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 68: Comisiones por aportante
+
+**¿Qué representa la fila 68?**
+
+La fila 68 corresponde a comisiones distribuidas por aportante.
+
+**Interpretación económica u operativa**
+
+Mide ingreso promedio por aportante.
+
+**Fórmula conceptual**
+
+$$
+\text{Comisión por aportante} = \frac{\text{Comisiones}}{\text{Aportantes}} \times 1{,}000{,}000
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 68} = \frac{\text{Fila 51}}{\text{Aportantes}} \times 1{,}000{,}000
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 69: Administración / aportes por aportante
+
+**¿Qué representa la fila 69?**
+
+La fila 69 corresponde a gasto administrativo frente al indicador de aportes por aportante.
+
+**Interpretación económica u operativa**
+
+Mide carga administrativa relativa al flujo de aportes normalizado.
+
+**Fórmula conceptual**
+
+$$
+\text{Administración sobre aportes por aportante} = \frac{\text{Administración}}{\text{Aportes por aportante}}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 69} = \frac{\text{Fila 55}}{\text{Fila 61}}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 70: Referencia fija
+
+**¿Qué representa la fila 70?**
+
+La fila 70 corresponde a valor fijo de referencia.
+
+**Interpretación económica u operativa**
+
+Mantiene la estructura de la plantilla.
+
+**Fórmula conceptual**
+
+$$
+\text{Fila 70} = 16
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 70} = 16
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 71: Comisión promedio obligatoria (%)
+
+**¿Qué representa la fila 71?**
+
+La fila 71 corresponde a promedio de comisiones obligatorias de administradoras seleccionadas.
+
+**Interpretación económica u operativa**
+
+Mide el costo promedio de comisión obligatoria.
+
+**Fórmula conceptual**
+
+$$
+\text{Comisión promedio} = \frac{\text{COL} + \text{POR} + \text{PRO} + \text{SKA}}{4} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 71} = \text{promedio(comisiones obligatorias)} \times 100
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 72: Referencia cero
+
+**¿Qué representa la fila 72?**
+
+La fila 72 corresponde a rubro sin dato activo.
+
+**Interpretación económica u operativa**
+
+Reserva de plantilla.
+
+**Fórmula conceptual**
+
+$$
+\text{Fila 72} = 0
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 72} = 0
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 73: Referencia cero
+
+**¿Qué representa la fila 73?**
+
+La fila 73 corresponde a rubro sin dato activo.
+
+**Interpretación económica u operativa**
+
+Reserva de plantilla.
+
+**Fórmula conceptual**
+
+$$
+\text{Fila 73} = 0
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 73} = 0
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 74: Aporte trabajador
+
+**¿Qué representa la fila 74?**
+
+La fila 74 corresponde a parte trabajador de la diferencia entre 3 y comisión promedio.
+
+**Interpretación económica u operativa**
+
+Estima la distribución del aporte residual hacia trabajador.
+
+**Fórmula conceptual**
+
+$$
+\text{Aporte trabajador} = (3 - \text{Comisión promedio}) \times 0.25
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 74} = (3 - \text{Fila 71}) \times 0.25
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 75: Aporte empleador
+
+**¿Qué representa la fila 75?**
+
+La fila 75 corresponde a parte empleador de la diferencia entre 3 y comisión promedio.
+
+**Interpretación económica u operativa**
+
+Estima la distribución del aporte residual hacia empleador.
+
+**Fórmula conceptual**
+
+$$
+\text{Aporte empleador} = (3 - \text{Comisión promedio}) \times 0.75
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 75} = (3 - \text{Fila 71}) \times 0.75
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 76: Referencia cero
+
+**¿Qué representa la fila 76?**
+
+La fila 76 corresponde a rubro sin dato activo.
+
+**Interpretación económica u operativa**
+
+Reserva de plantilla.
+
+**Fórmula conceptual**
+
+$$
+\text{Fila 76} = 0
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 76} = 0
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 77: Comisiones
+
+**¿Qué representa la fila 77?**
+
+La fila 77 corresponde a comisiones contables reutilizadas.
+
+**Interpretación económica u operativa**
+
+Base para medir comisiones respecto a fondos.
+
+**Fórmula conceptual**
+
+$$
+\text{Comisiones} = \text{Comisiones reportadas}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 77} = \text{Fila 51}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 78: Fondos administrados
+
+**¿Qué representa la fila 78?**
+
+La fila 78 corresponde a valor de fondos administrados reutilizado.
+
+**Interpretación económica u operativa**
+
+Base de activos administrados para indicadores de eficiencia.
+
+**Fórmula conceptual**
+
+$$
+\text{Fondos administrados} = \text{Valor total de fondos}
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 78} = \text{Fila 28}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 79: Comisiones / fondos
+
+**¿Qué representa la fila 79?**
+
+La fila 79 corresponde a comisiones frente a fondos administrados.
+
+**Interpretación económica u operativa**
+
+Mide peso de comisiones sobre activos administrados.
+
+**Fórmula conceptual**
+
+$$
+\text{Comisiones sobre fondos} = \frac{\text{Comisiones}}{\text{Fondos administrados}} \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 79} = \frac{\text{Fila 77}}{\text{Fila 78}}
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 80: Años desde 1994
+
+**¿Qué representa la fila 80?**
+
+La fila 80 corresponde a años transcurridos desde el año base 1994.
+
+**Interpretación económica u operativa**
+
+Mide antigüedad del periodo de referencia.
+
+**Fórmula conceptual**
+
+$$
+\text{Años desde 1994} = \text{Año de corte} - 1994
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 80} = \text{fechaCorte.year} - 1994
+$$
+
+La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+
+#### Fila 81: Sin información disponible
+
+**¿Qué representa la fila 81?**
+
+No se tiene información disponible para la fila 81 del archivo semestral dentro del mapeo implementado actualmente.
+
+**Interpretación económica u operativa**
+
+No es posible asignar una interpretación económica u operativa sin una fuente o definición funcional confirmada para esta fila.
+
+**Fórmula conceptual**
+
+No aplica.
+
+**Fórmula implementada**
+
+No aplica.
+
+No se encontró escritura de la fila 81 en `SemestralExcelGenerator`; por tanto se documenta explícitamente como información no disponible.
+
+#### Fila 82: Rentabilidad nominal 10 años
+
+**¿Qué representa la fila 82?**
+
+La fila 82 corresponde al retorno nominal anualizado para el horizonte de 10 años.
+
+**Interpretación económica u operativa**
+
+Mide desempeño financiero a 10 años sin descontar inflación.
+
+**Fórmula conceptual**
+
+$$
+\text{Rentabilidad nominal} = \left(\left(\frac{\text{NAV final}}{\text{NAV inicial}}\right)^{1/n} - 1\right) \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 82} = \text{RentabilidadService(10 años, nominal)}
+$$
+
+Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+
+<!-- Fin del documento -->
+#### Fila 83: Rentabilidad real 10 años
+
+**¿Qué representa la fila 83?**
+
+La fila 83 corresponde al retorno real anualizado para el horizonte de 10 años.
+
+**Interpretación económica u operativa**
+
+Mide desempeño financiero a 10 años descontando inflación.
+
+**Fórmula conceptual**
+
+$$
+\text{Rentabilidad real} = \left(\frac{1+\text{Rentabilidad nominal}}{1+\text{Inflación anualizada}} - 1\right) \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 83} = \text{RentabilidadService(10 años, real)}
+$$
+
+Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+#### Fila 84: Rentabilidad nominal 5 años
+
+**¿Qué representa la fila 84?**
+
+La fila 84 corresponde al retorno nominal anualizado para el horizonte de 5 años.
+
+**Interpretación económica u operativa**
+
+Mide desempeño financiero a 5 años sin descontar inflación.
+
+**Fórmula conceptual**
+
+$$
+\text{Rentabilidad nominal} = \left(\left(\frac{\text{NAV final}}{\text{NAV inicial}}\right)^{1/n} - 1\right) \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 84} = \text{RentabilidadService(5 años, nominal)}
+$$
+
+Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+
+#### Fila 85: Rentabilidad real 5 años
+
+**¿Qué representa la fila 85?**
+
+La fila 85 corresponde al retorno real anualizado para el horizonte de 5 años.
+
+**Interpretación económica u operativa**
+
+Mide desempeño financiero a 5 años descontando inflación.
+
+**Fórmula conceptual**
+
+$$
+\text{Rentabilidad real} = \left(\frac{1+\text{Rentabilidad nominal}}{1+\text{Inflación anualizada}} - 1\right) \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 85} = \text{RentabilidadService(5 años, real)}
+$$
+
+Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+
+#### Fila 86: Rentabilidad nominal 3 años
+
+**¿Qué representa la fila 86?**
+
+La fila 86 corresponde al retorno nominal anualizado para el horizonte de 3 años.
+
+**Interpretación económica u operativa**
+
+Mide desempeño financiero a 3 años sin descontar inflación.
+
+**Fórmula conceptual**
+
+$$
+\text{Rentabilidad nominal} = \left(\left(\frac{\text{NAV final}}{\text{NAV inicial}}\right)^{1/n} - 1\right) \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 86} = \text{RentabilidadService(3 años, nominal)}
+$$
+
+Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+
+#### Fila 87: Rentabilidad real 3 años
+
+**¿Qué representa la fila 87?**
+
+La fila 87 corresponde al retorno real anualizado para el horizonte de 3 años.
+
+**Interpretación económica u operativa**
+
+Mide desempeño financiero a 3 años descontando inflación.
+
+**Fórmula conceptual**
+
+$$
+\text{Rentabilidad real} = \left(\frac{1+\text{Rentabilidad nominal}}{1+\text{Inflación anualizada}} - 1\right) \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 87} = \text{RentabilidadService(3 años, real)}
+$$
+
+Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+
+#### Fila 88: Rentabilidad nominal 1 año
+
+**¿Qué representa la fila 88?**
+
+La fila 88 corresponde al retorno nominal anualizado para el horizonte de 1 año.
+
+**Interpretación económica u operativa**
+
+Mide desempeño financiero a 1 año sin descontar inflación.
+
+**Fórmula conceptual**
+
+$$
+\text{Rentabilidad nominal} = \left(\left(\frac{\text{NAV final}}{\text{NAV inicial}}\right)^{1/n} - 1\right) \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 88} = \text{RentabilidadService(1 año, nominal)}
+$$
+
+Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+
+#### Fila 89: Rentabilidad real 1 año
+
+**¿Qué representa la fila 89?**
+
+La fila 89 corresponde al retorno real anualizado para el horizonte de 1 año.
+
+**Interpretación económica u operativa**
+
+Mide desempeño financiero a 1 año descontando inflación.
+
+**Fórmula conceptual**
+
+$$
+\text{Rentabilidad real} = \left(\frac{1+\text{Rentabilidad nominal}}{1+\text{Inflación anualizada}} - 1\right) \times 100
+$$
+
+**Fórmula implementada**
+
+$$
+\text{Fila 89} = \text{RentabilidadService(1 año, real)}
+$$
+
+Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+
+## 7. Fuentes que continúan en archivos
 
 | Fuente | Uso |
 |---|---|
@@ -471,7 +2042,7 @@ La lista exacta de columnas de cada variante está en [`Formato495QueryService`]
 | `Valores_Fondo_Moder` / `MODERADO` | NAV histórico usado para rentabilidades nominales. |
 | `Comisión FPO desde 2003.xlsx` | Comisiones obligatorias y de seguro por AFP. |
 
-## 7. Controles de generación
+## 8. Controles de generación
 
 - Los montos en COP se convierten a USD con la única TRM consultada para el período.
 - Las divisiones usan `safeDivide`: si el denominador es cero, se escribe cero.
