@@ -67,8 +67,8 @@ El archivo mensual es una serie de tiempo del sistema. Cada fila identifica un m
 | Fondo mutuo (K) | `AIOS!K4 * 100` | `LIMITES del nuevo.xlsm`, hoja `AIOS`, celda `K4`. | Porcentaje | — | — |
 | Emisores extranjeros (L) | `(O4 + Q4 + S4 + U4 + W4 + Y4) * 100` | `LIMITES del nuevo.xlsm`, hoja `AIOS`, celdas `O4,Q4,S4,U4,W4,Y4`. | Porcentaje | — | — |
 | Otros instrumentos (M) | `AIOS!AA4 * 100` | `LIMITES del nuevo.xlsm`, hoja `AIOS`, celda `AA4`. | Porcentaje | — | — |
-| Rentabilidad nominal (N) | `tmp_nominal_1 * 100` | `Rent_Vr_Uni_Moderado.xlsm`: valor nominal de doce meses; la macro carga la serie del período. | Porcentaje | — | — |
-| Rentabilidad real (O) | `tmp_real_1 * 100` | `Rent_Vr_Uni_Moderado.xlsm`: valor real de doce meses; equivale a la búsqueda por fecha documentada en la serie. | Porcentaje | — | — |
+| Rentabilidad nominal (N) | Macro: escribe `D4 = fecha_corte - 1 año` y `D5 = fecha_corte`; toma `D11` y calcula `tmp_nominal_1 * 100`. | `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`: fechas de entrada `D4:D5`, resultado nominal `D11`. La aplicación vigente reproduce la búsqueda sobre la serie de esa hoja. | Porcentaje | — | — |
+| Rentabilidad real (O) | Macro: con las mismas fechas de `D4:D5`, toma `D10` y calcula `tmp_real_1 * 100`. | `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`: fechas de entrada `D4:D5`, resultado real `D10`. La aplicación busca la fecha de corte en la serie real y admite el día hábil anterior. | Porcentaje | — | — |
 | N.° administradoras (P) | `4` | Constante de la macro: cuatro administradoras vigentes incluidas en la generación (Colfondos, Porvenir, Protección y Skandia). | Número | — | — |
 | Concentración fondos administrados (Q) | `((multifondos!J8 + multifondos!J9) / multifondos!J12) * 100` | Macro: `Serie_Formato_ 491 AFILIADOS AFP.xlsm`, hoja `multifondos`, celdas `J8,J9,J12`. | Porcentaje | [Q491-CONCENTRACION](#q491-concentracion) | Agrupa afiliados por AFP, ordena de mayor a menor y divide las dos mayores entre el total del sistema. |
 | Concentración cuentas administradas (R) | `(fondos Protección + fondos Porvenir) / fondos del sistema * 100` | Macro: `SISTEMA TOTAL`, hoja `restot`, valores de Protección, Porvenir y total. Aplicación: PUC `100000` en `ESTFIN_INDIV_PA`. | Porcentaje | [Q136-FONDOS](#q136-fondos) | Calcula los saldos por AFP y obtiene la participación conjunta de Protección y Porvenir. |
@@ -100,7 +100,7 @@ El archivo trimestral contiene una hoja por tema. Cada fila corresponde a un cie
 | Fondos administrados | `saldo del fondo y AFP / TRM`; Skandia moderado suma el fondo alternativo. | Macro: balances por tipo de fondo (`MOD`, `CON`, `MR`, `RP`) y `SISTEMA TOTAL`. | MM USD | [Q136-FONDOS](#q136-fondos) | Suma PUC `100000` por patrimonio y AFP en `ESTFIN_INDIV_PA`, luego convierte con TRM. |
 | Gastos operativos | `(débito - crédito) / TRM` para cada AFP. | `Plantilla AIOS-probable.xlsm`, hoja `cuentas`: Protección `C50-D57`, Porvenir `C51-D69`, Skandia `C52-D81`, Colfondos `C53-D93`; datos originados en `base anual`. | USD según escala del boletín | — | — |
 | Comisiones | Cada comisión obligatoria y de seguro se multiplica por `100`. | `Comisión FPO desde 2003.xlsx`, hoja `COTIZACION CORTE ANUAL`: Skandia `B1:C1`, Porvenir `F1:G1`, Protección `N1:O1`, Colfondos `R1:S1`. | Porcentaje | — | — |
-| Rentabilidad nominal/real | `tmp_nominal_AFP_12 * 100` y `tmp_real_AFP_12 * 100`. | Libros de rentabilidad por AFP y fondo; series del cierre y de doce meses antes. | Porcentaje | — | — |
+| Rentabilidad nominal/real | En cada hoja de AFP se escribe `D4 = fecha_corte - 1 año` y `D5 = fecha_corte`; se toma `D11` para nominal y `D10` para real, y cada resultado se multiplica por `100`. | `Rent_Vr_Uni_Moderado.xlsm`, hojas `Colfondos`, `Porvenir`, `Protección` y `oldmutual`: entradas `D4:D5`, salida real `D10` y salida nominal `D11`. La aplicación vigente realiza la misma parametrización y evaluación por hoja. | Porcentaje | — | — |
 | Promotores | `n.d.` | Sin fuente implementada; se conserva explícitamente como no disponible. | No aplica | — | — |
 | Traspasos por AFP | Resultado de `BQ11` después de escribir la fecha en `B11` y el código de AFP en `D4`. | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Traslados Entre AFP`. | Personas | [Q493-TRASPASOS](#q493-traspasos) | Misma ventana y suma de rangos del sistema, agregando `CODIGO_ENTIDAD` por AFP. |
 
@@ -239,14 +239,14 @@ El archivo semestral reúne indicadores de cobertura, demografía, pensionados, 
 | 78. Fondo de aportes obligatorios (b) | Reutiliza `fila 28` | Fondos administrados en MM USD. | MM USD | [Q136-FONDOS](#q136-fondos) | Reutiliza los fondos calculados desde PUC `100000`. |
 | 79. (a)/(b) | `fila 77 / fila 78` | Filas 77 y 78. | Ratio | — | — |
 | 80. Antigüedad en el sistema | `año(fecha_corte) - 1994` | Fecha del período. | Años | — | — |
-| 82. Últimos 10 años nominal | `tmp_nominal_10 * 100` | NAV de `Valores_Fondo_Moder` / hoja `MODERADO`, valores inicial y final. | Porcentaje anualizado | — | — |
-| 83. Últimos 10 años real | `tmp_real_10 * 100` | Nominal de 10 años e IPC de `Rent_Vr_Uni_Moderado`. | Porcentaje anualizado | — | — |
-| 84. Últimos 5 años nominal | `tmp_nominal_5 * 100` | NAV de `Valores_Fondo_Moder` / `MODERADO`. | Porcentaje anualizado | — | — |
-| 85. Últimos 5 años real | `tmp_real_5 * 100` | Nominal de 5 años e IPC. | Porcentaje anualizado | — | — |
-| 86. Últimos 3 años nominal | `tmp_nominal_3 * 100` | NAV de `Valores_Fondo_Moder` / `MODERADO`. | Porcentaje anualizado | — | — |
-| 87. Últimos 3 años real | `tmp_real_3 * 100` | Nominal de 3 años e IPC. | Porcentaje anualizado | — | — |
-| 88. Últimos 12 meses nominal | `tmp_nominal_1 * 100` | NAV de `Valores_Fondo_Moder` / `MODERADO`. | Porcentaje | — | — |
-| 89. Últimos 12 meses real | `tmp_real_1 * 100` | Nominal de 12 meses e IPC de `Rent_Vr_Uni_Moderado`. | Porcentaje | — | — |
+| 82. Últimos 10 años nominal | Macro: `Consolidado!D4 = fecha_corte - 10 años`, `D5 = fecha_corte`; toma `D11` y calcula `tmp_nominal_10 * 100`. | Macro: `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`, entradas `D4:D5`, salida nominal `D11`. Aplicación: NAV de `Valores_Fondo_Moder`, hojas de administradoras, fecha en `A` y NAV en `O`. | Porcentaje anualizado | — | — |
+| 83. Últimos 10 años real | Macro: con `D4 = fecha_corte - 10 años` y `D5 = fecha_corte`, toma `D10` y calcula `tmp_real_10 * 100`. | Macro: `Rent_Vr_Uni_Moderado.xlsm`, `Consolidado!D4:D5`, salida real `D10`. Aplicación: nominal calculada con NAV e IPC de `IPC_BR` o, si no tiene cobertura suficiente, de `IPC` en el mismo libro. | Porcentaje anualizado | — | — |
+| 84. Últimos 5 años nominal | Macro: `Consolidado!D4 = fecha_corte - 5 años`, `D5 = fecha_corte`; toma `D11` y calcula `tmp_nominal_5 * 100`. | Macro: `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`, entradas `D4:D5`, salida nominal `D11`. Aplicación: NAV de `Valores_Fondo_Moder`, fecha en `A` y NAV en `O`. | Porcentaje anualizado | — | — |
+| 85. Últimos 5 años real | Macro: con `D4 = fecha_corte - 5 años` y `D5 = fecha_corte`, toma `D10` y calcula `tmp_real_5 * 100`. | Macro: `Rent_Vr_Uni_Moderado.xlsm`, `Consolidado!D4:D5`, salida real `D10`. Aplicación: nominal calculada con NAV e IPC de las hojas `IPC_BR` o `IPC`. | Porcentaje anualizado | — | — |
+| 86. Últimos 3 años nominal | Macro: `Consolidado!D4 = fecha_corte - 3 años`, `D5 = fecha_corte`; toma `D11` y calcula `tmp_nominal_3 * 100`. | Macro: `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`, entradas `D4:D5`, salida nominal `D11`. Aplicación: NAV de `Valores_Fondo_Moder`, fecha en `A` y NAV en `O`. | Porcentaje anualizado | — | — |
+| 87. Últimos 3 años real | Macro: con `D4 = fecha_corte - 3 años` y `D5 = fecha_corte`, toma `D10` y calcula `tmp_real_3 * 100`. | Macro: `Rent_Vr_Uni_Moderado.xlsm`, `Consolidado!D4:D5`, salida real `D10`. Aplicación: nominal calculada con NAV e IPC de las hojas `IPC_BR` o `IPC`. | Porcentaje anualizado | — | — |
+| 88. Últimos 12 meses nominal | Macro: `Consolidado!D4 = fecha_corte - 1 año`, `D5 = fecha_corte`; toma `D11` y calcula `tmp_nominal_1 * 100`. | Macro: `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`, entradas `D4:D5`, salida nominal `D11`. Aplicación: NAV de `Valores_Fondo_Moder`, fecha en `A` y NAV en `O`. | Porcentaje | — | — |
+| 89. Últimos 12 meses real | Macro: con `D4 = fecha_corte - 1 año` y `D5 = fecha_corte`, toma `D10` y calcula `tmp_real_1 * 100`. | Macro: `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`, entradas `D4:D5`, salida real `D10`. Aplicación: nominal calculada con NAV e IPC de `IPC_BR` o `IPC`; si falta NAV histórico, usa como contingencia `Consolidado`, fecha en `A` y NAV en `E`. | Porcentaje | — | — |
 
 ## 5. Queries
 
@@ -674,6 +674,10 @@ $$
 \text{Rentabilidad nominal} = \left(\frac{\text{Valor final}}{\text{Valor inicial}} - 1\right) \times 100
 $$
 
+**Fórmula implementada por la macro Excel**
+
+La macro abre `Rent_Vr_Uni_Moderado.xlsm`, usa la hoja `Consolidado`, escribe la fecha inicial (`fecha_corte - 1 año`) en `D4` y la fecha final en `D5`. Después toma la rentabilidad nominal de `D11` y escribe `D11 * 100` en la columna N del mensual.
+
 #### Columna O: Rentabilidad real 1 año (%)
 
 **¿Qué representa?**
@@ -689,6 +693,10 @@ Mide ganancia de poder adquisitivo del portafolio.
 $$
 \text{Rentabilidad real} = \left(\frac{1+\text{Rentabilidad nominal}}{1+\text{Inflación}} - 1\right) \times 100
 $$
+
+**Fórmula implementada por la macro Excel**
+
+Con las mismas fechas en `Consolidado!D4:D5`, la macro toma la rentabilidad real de `D10` y escribe `D10 * 100` en la columna O del mensual. La aplicación vigente reproduce la búsqueda sobre la serie del libro y puede usar el día hábil anterior cuando la fecha de corte no aparece exactamente.
 
 #### Columna P: Referencia fija
 
@@ -867,6 +875,10 @@ Mide desempeño financiero con y sin efecto de inflación.
 $$
 \text{Rentabilidad real} = \left(\frac{1+\text{Rentabilidad nominal}}{1+\text{Inflación}} - 1\right) \times 100
 $$
+
+**Fórmula implementada**
+
+En `Rent_Vr_Uni_Moderado.xlsm`, la macro y la aplicación vigente procesan las hojas `Colfondos`, `Porvenir`, `Protección` y `oldmutual`. En cada hoja escriben `D4 = fecha_corte - 1 año` y `D5 = fecha_corte`; leen la rentabilidad real de `D10` y la nominal de `D11`, y multiplican ambos resultados por `100` antes de escribirlos en la hoja `rentabilidad` del boletín trimestral.
 
 #### Hoja `comisiones`: Comisiones obligatorias
 
@@ -2762,6 +2774,12 @@ No aplica.
 
 No se encontró escritura de la fila 81 en `SemestralExcelGenerator`; por tanto se documenta explícitamente como información no disponible.
 
+**Patrón de parametrización de rentabilidades para las filas 82–89**
+
+En la macro Excel histórica, todas estas filas se obtienen de `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`. La fecha final del informe se escribe en `D5`. La fecha inicial se escribe en `D4` y se cambia sucesivamente a `fecha_corte - 10 años`, `-5 años`, `-3 años` y `-1 año`. Después del recálculo de la hoja, `D10` devuelve la rentabilidad real y `D11` la nominal. La macro realiza estos cambios automáticamente, conserva los resultados en variables temporales y los multiplica por `100` al escribir las filas 82–89; el usuario no debe modificar manualmente `D4` ni `D5`.
+
+La aplicación vigente no necesita modificar manualmente `Consolidado!D4:D5` para generar el semestral. Calcula cada horizonte con NAV de `Valores_Fondo_Moder`: busca las hojas `CO_Vr_Uni`, `OM_Vr_Uni`, `PRO_Vr_Uni` y `PO_Vr_Uni` —o sus equivalentes `Colfondos`, `OldMutual`, `Protección` y `Porvenir`—, tomando la fecha de la columna `A` y el NAV de la columna `O`. Para la rentabilidad real usa el IPC de `Rent_Vr_Uni_Moderado.xlsm`, hoja `IPC_BR` (`A`: fecha, `B`: índice); si `IPC_BR` no tiene cobertura suficiente, utiliza la hoja `IPC` con las mismas columnas. Si falta NAV histórico, usa como contingencia `Consolidado`, con fecha en `A` y NAV en `E`.
+
 #### Fila 82: Rentabilidad nominal 10 años
 
 **¿Qué representa la fila 82?**
@@ -2784,9 +2802,8 @@ $$
 \text{Fila 82} = \text{RentabilidadService(10 años, nominal)}
 $$
 
-Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+Macro Excel: `Consolidado!D4 = fecha_corte - 10 años`, `D5 = fecha_corte`, resultado nominal en `D11`. Aplicación vigente: cálculo anualizado con NAV inicial y final de las series descritas en el patrón anterior.
 
-<!-- Fin del documento -->
 #### Fila 83: Rentabilidad real 10 años
 
 **¿Qué representa la fila 83?**
@@ -2809,7 +2826,8 @@ $$
 \text{Fila 83} = \text{RentabilidadService(10 años, real)}
 $$
 
-Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+Macro Excel: usa las mismas fechas de 10 años en `Consolidado!D4:D5` y toma el resultado real de `D10`. Aplicación vigente: ajusta la rentabilidad nominal con el IPC inicial y final.
+
 #### Fila 84: Rentabilidad nominal 5 años
 
 **¿Qué representa la fila 84?**
@@ -2832,7 +2850,7 @@ $$
 \text{Fila 84} = \text{RentabilidadService(5 años, nominal)}
 $$
 
-Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+Macro Excel: `Consolidado!D4 = fecha_corte - 5 años`, `D5 = fecha_corte`, resultado nominal en `D11`. Aplicación vigente: cálculo anualizado con NAV inicial y final.
 
 #### Fila 85: Rentabilidad real 5 años
 
@@ -2856,7 +2874,7 @@ $$
 \text{Fila 85} = \text{RentabilidadService(5 años, real)}
 $$
 
-Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+Macro Excel: usa las mismas fechas de 5 años en `Consolidado!D4:D5` y toma el resultado real de `D10`. Aplicación vigente: ajusta la rentabilidad nominal con el IPC inicial y final.
 
 #### Fila 86: Rentabilidad nominal 3 años
 
@@ -2880,7 +2898,7 @@ $$
 \text{Fila 86} = \text{RentabilidadService(3 años, nominal)}
 $$
 
-Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+Macro Excel: `Consolidado!D4 = fecha_corte - 3 años`, `D5 = fecha_corte`, resultado nominal en `D11`. Aplicación vigente: cálculo anualizado con NAV inicial y final.
 
 #### Fila 87: Rentabilidad real 3 años
 
@@ -2904,7 +2922,7 @@ $$
 \text{Fila 87} = \text{RentabilidadService(3 años, real)}
 $$
 
-Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+Macro Excel: usa las mismas fechas de 3 años en `Consolidado!D4:D5` y toma el resultado real de `D10`. Aplicación vigente: ajusta la rentabilidad nominal con el IPC inicial y final.
 
 #### Fila 88: Rentabilidad nominal 1 año
 
@@ -2928,7 +2946,7 @@ $$
 \text{Fila 88} = \text{RentabilidadService(1 año, nominal)}
 $$
 
-Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+Macro Excel: `Consolidado!D4 = fecha_corte - 1 año`, `D5 = fecha_corte`, resultado nominal en `D11`. Aplicación vigente: cálculo anualizado con NAV inicial y final.
 
 #### Fila 89: Rentabilidad real 1 año
 
@@ -2952,7 +2970,7 @@ $$
 \text{Fila 89} = \text{RentabilidadService(1 año, real)}
 $$
 
-Se calcula con NAV de `Valores_Fondo_Moder` e IPC de `Rent_Vr_Uni_Moderado` según corresponda.
+Macro Excel: usa las mismas fechas de un año en `Consolidado!D4:D5` y toma el resultado real de `D10`. Aplicación vigente: ajusta la rentabilidad nominal con el IPC inicial y final.
 
 ## 7. Fuentes que continúan en archivos
 
