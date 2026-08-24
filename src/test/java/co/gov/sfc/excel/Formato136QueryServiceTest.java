@@ -42,34 +42,34 @@ class Formato136QueryServiceTest {
 
         doAnswer(invocation -> {
             RowCallbackHandler handler = invocation.getArgument(1);
-            handler.processRow(row(10, "ENT_10", "7890000.00"));
+            handler.processRow(row(10, "ENT_10", "7890.00"));
             return null;
-        }).when(jdbcTemplate).query(contains("pa.Codigo_Patrimonio = ?"),
+        }).when(jdbcTemplate).query(contains("c.codigo_patrimonio = ?"),
                 any(RowCallbackHandler.class), eq(5000), eq(Date.valueOf("2025-06-30")));
 
         doAnswer(invocation -> {
             RowCallbackHandler handler = invocation.getArgument(1);
-            handler.processRow(row(2, "ENT_2", "94247215063"));
-            handler.processRow(row(3, "ENT_3", "128081241326"));
-            handler.processRow(row(9, "ENT_9", "11964471789"));
-            handler.processRow(row(9, "SKANDIA_ALT", "453166850"));
-            handler.processRow(row(10, "ENT_10", "32491777302"));
+            handler.processRow(row(2, "ENT_2", "94247215.063"));
+            handler.processRow(row(3, "ENT_3", "128081241.326"));
+            handler.processRow(row(9, "ENT_9", "11964471.789"));
+            handler.processRow(row(9, "SKANDIA_ALT", "453166.850"));
+            handler.processRow(row(10, "ENT_10", "32491777.302"));
             return null;
-        }).when(jdbcTemplate).query(contains("pa.Codigo_Patrimonio IN (4, 8000)"),
+        }).when(jdbcTemplate).query(contains("c.Codigo_Patrimonio IN (1000, 8000)"),
                 any(RowCallbackHandler.class), eq(Date.valueOf("2025-06-30")));
 
         doAnswer(invocation -> {
             RowCallbackHandler handler = invocation.getArgument(1);
-            handler.processRow(row(3, "ENT_3", "1200000.00"));
+            handler.processRow(row(3, "ENT_3", "1200.00"));
             return null;
-        }).when(jdbcTemplate).query(contains("pa.Codigo_Patrimonio = ?"),
+        }).when(jdbcTemplate).query(contains("c.codigo_patrimonio = ?"),
                 any(RowCallbackHandler.class), eq(7000), eq(Date.valueOf("2025-06-30")));
 
         doAnswer(invocation -> {
             RowCallbackHandler handler = invocation.getArgument(1);
-            handler.processRow(row(9, "ENT_9", "800000.00"));
+            handler.processRow(row(9, "ENT_9", "800.00"));
             return null;
-        }).when(jdbcTemplate).query(contains("pa.Codigo_Patrimonio = ?"),
+        }).when(jdbcTemplate).query(contains("c.codigo_patrimonio = ?"),
                 any(RowCallbackHandler.class), eq(6000), eq(Date.valueOf("2025-06-30")));
 
         Formato136QueryService service = new Formato136QueryService(jdbcTemplate);
@@ -84,9 +84,9 @@ class Formato136QueryServiceTest {
         assertNumericEquals("1200", valores.get("rp_porv"));
         assertNumericEquals("800", valores.get("mr_sk"));
 
-        verify(jdbcTemplate).query(contains("FROM PROD_DWH_CONSULTA.ESTFIN_INDIV_PA"),
+        verify(jdbcTemplate).query(contains("PROD_DWH_CONSULTA.NEGFID_INSUMO_ENTIDAD"),
                 any(RowCallbackHandler.class), eq(5000), eq(Date.valueOf("2025-06-30")));
-        verify(jdbcTemplate).query(contains("p.Codigo = 100000"),
+        verify(jdbcTemplate).query(contains("d.nivel4 = 305"),
                 any(RowCallbackHandler.class), eq(Date.valueOf("2025-06-30")));
     }
 
@@ -98,7 +98,7 @@ class Formato136QueryServiceTest {
         ResultSet rs = mock(ResultSet.class);
         when(rs.getInt("codigo_entidad")).thenReturn(codigoEntidad);
         when(rs.getString("clave_reporte")).thenReturn(claveReporte);
-        when(rs.getBigDecimal("valor_miles")).thenReturn(new BigDecimal(valorMiles));
+        when(rs.getBigDecimal("valor_mm_cop")).thenReturn(new BigDecimal(valorMiles));
         return rs;
     }
 }

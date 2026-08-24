@@ -29,13 +29,15 @@ public class TrimestralDataReader {
     private final Formato491QueryService formato491QueryService;
     private final Formato493QueryService formato493QueryService;
     private final Formato136QueryService formato136QueryService;
+    private final ComisionesSfcService comisionesSfcService;
 
-    public TrimestralDataReader(MensualDataReader mensualDataReader, InsumosLocator locator, Formato491QueryService formato491QueryService, Formato493QueryService formato493QueryService, Formato136QueryService formato136QueryService) {
+    public TrimestralDataReader(MensualDataReader mensualDataReader, InsumosLocator locator, Formato491QueryService formato491QueryService, Formato493QueryService formato493QueryService, Formato136QueryService formato136QueryService, ComisionesSfcService comisionesSfcService) {
         this.mensualDataReader = mensualDataReader;
         this.locator = locator;
         this.formato491QueryService = formato491QueryService;
         this.formato493QueryService = formato493QueryService;
         this.formato136QueryService = formato136QueryService;
+        this.comisionesSfcService = comisionesSfcService;
     }
 
     public TrimestralData read(LocalDate fechaCorte) {
@@ -43,6 +45,14 @@ public class TrimestralDataReader {
     }
 
     public TrimestralData read(LocalDate fechaCorte, MensualData mensual) {
+        return read(fechaCorte, mensual, true);
+    }
+
+    public TrimestralData readForSemestral(LocalDate fechaCorte, MensualData mensual) {
+        return read(fechaCorte, mensual, false);
+    }
+
+    private TrimestralData read(LocalDate fechaCorte, MensualData mensual, boolean permitirFallbackComisiones) {
 
         log.info("Afiliados trimestrales del Formato 491 se consultarán en Teradata; no se requiere archivo Excel local 491 para fechaCorte={}", fechaCorte);
         Map<String, BigDecimal> afiliados = formato491QueryService.leerAfiliadosTrimestralPorFondo(fechaCorte);
@@ -50,7 +60,9 @@ public class TrimestralDataReader {
         Map<String, BigDecimal> traspasos = formato493QueryService.leerTraspasosPorEntidad(fechaCorte);
         Map<String, BigDecimal> colombiaUsd = readColombiaUsd(fechaCorte, mensual.trm());
         Map<String, BigDecimal> gastosUsd = readGastosUsd(fechaCorte, mensual.trm());
-        Map<String, BigDecimal> comisionesPct = readComisiones(fechaCorte);
+        Map<String, BigDecimal> comisionesPct = permitirFallbackComisiones
+                ? readComisiones(fechaCorte)
+                : readComisionesOcrRequerido(fechaCorte);
         Map<String, BigDecimal> rentNominalPct = new HashMap<>();
         Map<String, BigDecimal> rentRealPct = new HashMap<>();
         readRentabilidad(fechaCorte, rentNominalPct, rentRealPct);
@@ -178,6 +190,19 @@ public class TrimestralDataReader {
     }
 
     private Map<String, BigDecimal> readComisiones(LocalDate fechaCorte) {
+        try {
+            Map<String, BigDecimal> web = comisionesSfcService.leer(fechaCorte);
+            log.info("Comisiones trimestrales obtenidas de Carta Circular SFC para fechaCorte={}: {}", fechaCorte, web);
+            return web;
+        } catch (Exception e) {
+            log.warn("No fue posible obtener comisiones desde la Carta Circular SFC para fechaCorte={}; se usará el Excel histórico. Causa: {}",
+                    fechaCorte, e.getMessage());
+        }
+
+        return readComisionesExcel(fechaCorte);
+    }
+
+    private Map<String, BigDecimal> readComisionesExcel(LocalDate fechaCorte) {
         Map<String, BigDecimal> out = new HashMap<>();
         try {
             Path file = findComisionesFile(fechaCorte);
@@ -201,6 +226,26 @@ public class TrimestralDataReader {
         return out;
     }
 
+    private Map<String, BigDecimal> readComisionesOcrRequerido(LocalDate fechaCorte) {
+        Path cacheDir = Path.of("target", "aios-cache", "comisiones-sfc", fechaCorte.toString()).toAbsolutePath().normalize();
+        Path pdf = cacheDir.resolve("carta-circular-comisiones.pdf");
+        Path ocr = cacheDir.resolve("ocr.txt");
+        log.info("Semestral fila 71: fuente=OCR Carta Circular SFC fechaCorte={} pdfCache={} textoOcr={}",
+                fechaCorte, pdf, ocr);
+        Map<String, BigDecimal> values = comisionesSfcService.leer(fechaCorte);
+        Set<String> requeridas = Set.of("col_obl", "por_obl", "pro_obl", "ska_obl");
+        Set<String> faltantes = new HashSet<>(requeridas);
+        faltantes.removeAll(values.keySet());
+        if (!faltantes.isEmpty()) {
+            throw new IllegalStateException("OCR incompleto para la fila 71; faltan comisiones " + faltantes
+                    + ". PDF=" + pdf + ", OCR=" + ocr);
+        }
+        Map<String, BigDecimal> out = new HashMap<>();
+        requeridas.forEach(key -> out.put(key, values.get(key)));
+        log.info("Semestral fila 71: comisiones obligatorias obtenidas por OCR fechaCorte={} valores={} pdfCache={} textoOcr={}",
+                fechaCorte, out, pdf, ocr);
+        return out;
+    }
     private void readRentabilidad(LocalDate fechaCorte, Map<String, BigDecimal> nom, Map<String, BigDecimal> real) {
         try {
             Path file = locator.findRequired("Rent_Vr_Uni_Moderado", fechaCorte);

@@ -58,7 +58,7 @@ El archivo mensual es una serie de tiempo del sistema. Cada fila identifica un m
 | Afiliados (B) | `afiliados = hombres + mujeres` | `Serie_Formato_ 491 AFILIADOS AFP.xlsm`, hoja `informe de prensa`: `C11 + D11`. | Personas | [Q491-TOTALES](#q491-totales) | Suma `TOTAL_AFILIADOS_TOTAL`, renglón 999, para fondos 1000/5000/6000/7000/8000. |
 | Aportantes (C) | `aportantes = multifondos!E25` | `Serie_Formato_ 491 AFILIADOS AFP.xlsm`, hoja `multifondos`, celda `E25`. | Personas | [Q491-TOTALES](#q491-totales) | Suma `TOTAL_AFILIADOS_COTIZANTES`, renglón 999, sin filtro por AFP para obtener el sistema. |
 | Traspasos anuales (D) | `traspasos_sistema = 'Traslados Entre AFP'!BQ11`, con entidad `99` en `D4` | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Traslados Entre AFP`: fecha en `B11`, entidad en `D4`, resultado en `BQ11`. | Personas | [Q493-TRASPASOS](#q493-traspasos) | Suma los rangos de edad de hombres y mujeres para las UC/renglones de traspasos en una ventana móvil de doce meses. |
-| Fondos administrados (E) | `vr_fondo / TRM` | Macro: balance `SISTEMA TOTAL`, hoja `restot`, total del sistema. Aplicación: saldo PUC `100000` de `ESTFIN_INDIV_PA`. | MM USD | [Q136-FONDOS](#q136-fondos) | Suma el saldo contable de fondos administrados y lo convierte con la TRM. |
+| Fondos administrados (E) | `vr_fondo / TRM` | Macro Excel (sin cambios): balance `SISTEMA TOTAL`, hoja `restot`, total del sistema. Aplicación AIOS: `SUM(valor)/1000000` desde `NEGFID_INSUMO_ENTIDAD`, niveles `136/2/4/305`. | MM USD | [Q136-FONDOS](#q136-fondos) | La aplicación suma los fondos administrados en millones de COP y los convierte con la TRM. |
 | Inversión total (F) | `LIMITES!AIOS!AB4 / TRM` | `LIMITES del nuevo.xlsm`, hoja `AIOS`, celda `AB4`. | USD según escala del libro | — | — |
 | Inversión deuda gubernamental (G) | `AIOS!C4 * 100` | `LIMITES del nuevo.xlsm`, hoja `AIOS`, celda `C4`. | Porcentaje | — | — |
 | Instituciones financieras (H) | `AIOS!E4 * 100` | `LIMITES del nuevo.xlsm`, hoja `AIOS`, celda `E4`. | Porcentaje | — | — |
@@ -71,7 +71,7 @@ El archivo mensual es una serie de tiempo del sistema. Cada fila identifica un m
 | Rentabilidad real (O) | Macro: con las mismas fechas de `D4:D5`, toma `D10` y calcula `tmp_real_1 * 100`. | `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`: fechas de entrada `D4:D5`, resultado real `D10`. La aplicación busca la fecha de corte en la serie real y admite el día hábil anterior. | Porcentaje | — | — |
 | N.° administradoras (P) | `4` | Constante de la macro: cuatro administradoras vigentes incluidas en la generación (Colfondos, Porvenir, Protección y Skandia). | Número | — | — |
 | Concentración fondos administrados (Q) | `((multifondos!J8 + multifondos!J9) / multifondos!J12) * 100` | Macro: `Serie_Formato_ 491 AFILIADOS AFP.xlsm`, hoja `multifondos`, celdas `J8,J9,J12`. | Porcentaje | [Q491-CONCENTRACION](#q491-concentracion) | Agrupa afiliados por AFP, ordena de mayor a menor y divide las dos mayores entre el total del sistema. |
-| Concentración cuentas administradas (R) | `(fondos Protección + fondos Porvenir) / fondos del sistema * 100` | Macro: `SISTEMA TOTAL`, hoja `restot`, valores de Protección, Porvenir y total. Aplicación: PUC `100000` en `ESTFIN_INDIV_PA`. | Porcentaje | [Q136-FONDOS](#q136-fondos) | Calcula los saldos por AFP y obtiene la participación conjunta de Protección y Porvenir. |
+| Concentración cuentas administradas (R) | `(fondos Protección + fondos Porvenir) / fondos del sistema * 100` | Macro Excel (sin cambios): `SISTEMA TOTAL`, hoja `restot`, valores de Protección, Porvenir y total. Aplicación AIOS: la misma razón con valores de `NEGFID_INSUMO_ENTIDAD`, niveles `136/2/4/305`. | Porcentaje | [Q136-FONDOS](#q136-fondos) | Agrupa la nueva fuente por AFP y obtiene la participación conjunta de Protección y Porvenir. |
 | Tipo de cambio (S) | Búsqueda de la TRM aplicable a la fecha | Servicio web TRM de la Superfinanciera; contingencia: `PIB_PEA_TRM_DG`, fecha y valor de TRM. | COP/USD | — | No es Teradata: se consulta una vez al servicio oficial y se reutiliza. |
 
 ## 3. Archivo trimestral
@@ -97,7 +97,7 @@ El archivo trimestral contiene una hoja por tema. Cada fila corresponde a un cie
 |---|---|---|---|---|---|
 | Afiliados por AFP y fondo | La macro toma las celdas `C:H` de las filas 8–11 de `multifondos`; para Skandia moderado suma `mod_sk + alt_sk`. | `Serie_Formato_ 491 AFILIADOS AFP.xlsm`, hoja `multifondos`: Porvenir fila 8, Protección 9, Colfondos 10, Skandia 11. | Personas | [Q491-AFILIADOS-FONDO](#q491-afiliados-fondo) | Agrupa `TOTAL_AFILIADOS_TOTAL` por AFP, UC y código de fondo con renglón 999. |
 | Aportantes por AFP | `cot_colf`, `cot_porv`, `cot_prot`, `cot_sk`; las administradoras históricas sin dato reciben cero. | `Serie_Formato_ 491 AFILIADOS AFP.xlsm`, `multifondos!J19:J22`. | Personas | [Q491-APORTANTES-ENTIDAD](#q491-aportantes-entidad) | Suma `TOTAL_AFILIADOS_COTIZANTES` para cada código de AFP. |
-| Fondos administrados | `saldo del fondo y AFP / TRM`; Skandia moderado suma el fondo alternativo. | Macro: balances por tipo de fondo (`MOD`, `CON`, `MR`, `RP`) y `SISTEMA TOTAL`. | MM USD | [Q136-FONDOS](#q136-fondos) | Suma PUC `100000` por patrimonio y AFP en `ESTFIN_INDIV_PA`, luego convierte con TRM. |
+| Fondos administrados | `saldo del fondo y AFP / TRM`; Skandia moderado suma el fondo alternativo. | Macro Excel (sin cambios): balances por tipo de fondo (`MOD`, `CON`, `MR`, `RP`) y `SISTEMA TOTAL`. Aplicación AIOS: desagrega `SUM(valor)/1000000` de `NEGFID_INSUMO_ENTIDAD` por patrimonio y AFP. | MM USD | [Q136-FONDOS](#q136-fondos) | Usa niveles `136/2/4/305`, conserva la distribución por fondo y AFP, y convierte con TRM. |
 | Gastos operativos | `(débito - crédito) / TRM` para cada AFP. | `Plantilla AIOS-probable.xlsm`, hoja `cuentas`: Protección `C50-D57`, Porvenir `C51-D69`, Skandia `C52-D81`, Colfondos `C53-D93`; datos originados en `base anual`. | USD según escala del boletín | — | — |
 | Comisiones | Cada comisión obligatoria y de seguro se multiplica por `100`. | `Comisión FPO desde 2003.xlsx`, hoja `COTIZACION CORTE ANUAL`: Skandia `B1:C1`, Porvenir `F1:G1`, Protección `N1:O1`, Colfondos `R1:S1`. | Porcentaje | — | — |
 | Rentabilidad nominal/real | En cada hoja de AFP se escribe `D4 = fecha_corte - 1 año` y `D5 = fecha_corte`; se toma `D11` para nominal y `D10` para real, y cada resultado se multiplica por `100`. | `Rent_Vr_Uni_Moderado.xlsm`, hojas `Colfondos`, `Porvenir`, `Protección` y `oldmutual`: entradas `D4:D5`, salida real `D10` y salida nominal `D11`. La aplicación vigente realiza la misma parametrización y evaluación por hoja. | Porcentaje | — | — |
@@ -176,7 +176,7 @@ El archivo semestral reúne indicadores de cobertura, demografía, pensionados, 
 
 | Fila / indicador | Fórmula Excel | Fuente, hoja, celda | Unidad | Query | Descripción query |
 |---|---|---|---|---|---|
-| 28. Fondos administrados | `vr_fondo / TRM` | Macro: `SISTEMA TOTAL`, `restot`, total sistema. | MM USD | [Q136-FONDOS](#q136-fondos) | Suma saldos PUC `100000` y convierte con TRM. |
+| 28. Fondos administrados | `vr_fondo / TRM` | Macro Excel (sin cambios): `SISTEMA TOTAL`, `restot`, total sistema. Aplicación AIOS: `SUM(valor)/1000000` desde `NEGFID_INSUMO_ENTIDAD`, niveles `136/2/4/305`. | MM USD | [Q136-FONDOS](#q136-fondos) | Convierte a USD el total consultado por la aplicación. |
 | 29. Fondos / PIB | `(vr_fondo / TRM) / (PIB / TRM)` | `SISTEMA TOTAL` y serie PIB de `PIB_PEA_TRM_DG`. | Porcentaje mediante formato Excel | [Q136-FONDOS](#q136-fondos) | El valor de fondos procede de Teradata; PIB permanece en archivo. |
 | 30. Composición total | `LIMITES!AIOS!AB4 / TRM` | `LIMITES del nuevo.xlsm`, `AIOS!AB4`. | USD según escala | — | — |
 | 31. Deuda gubernamental local | `AIOS!C4` | `LIMITES del nuevo.xlsm`, `AIOS!C4`. | Ratio/porcentaje | — | — |
@@ -195,7 +195,7 @@ El archivo semestral reúne indicadores de cobertura, demografía, pensionados, 
 | 44. Inversión en moneda extranjera | `O4 + Q4 + S4 + U4 + W4 + Y4` | `LIMITES del nuevo.xlsm`, hoja `AIOS`. | Ratio/porcentaje | — | — |
 | 45. Fondos / deuda gubernamental | `(vr_fondo / TRM) / deuda_gubernamental_USD` | Fondos del sistema y `PIB_PEA_TRM_DG`, serie de deuda gubernamental. | Porcentaje mediante formato Excel | [Q136-FONDOS](#q136-fondos) | Fondos desde Teradata; deuda continúa en archivo. |
 | 46. Número de administradoras | `4` | Constante: Colfondos, Porvenir, Protección y Skandia. | Número | — | — |
-| 47. Participación de las dos mayores | `(fondos Protección + fondos Porvenir) / total fondos * 100` | Macro: `SISTEMA TOTAL`, `restot`; aplicación: saldos PUC `100000`. | Porcentaje | [Q136-FONDOS](#q136-fondos) | Calcula la participación conjunta de Protección y Porvenir. |
+| 47. Participación de las dos mayores | `(fondos Protección + fondos Porvenir) / total fondos * 100` | Macro Excel (sin cambios): `SISTEMA TOTAL`, `restot`. Aplicación AIOS: valores agrupados por AFP desde `NEGFID_INSUMO_ENTIDAD`, niveles `136/2/4/305`. | Porcentaje | [Q136-FONDOS](#q136-fondos) | Calcula la participación conjunta de Protección y Porvenir con la nueva fuente. |
 
 ### 4.4 Matriz de trazabilidad semestral: balance, gastos y eficiencia
 
@@ -204,8 +204,8 @@ El archivo semestral reúne indicadores de cobertura, demografía, pensionados, 
 | 48. Activo | `CUENTAS!C6 / TRM` | `Plantilla AIOS-probable.xlsm`, hoja `CUENTAS`, celda `C6`. | USD | — | — |
 | 49. Pasivo | `CUENTAS!C4 / TRM` | Mismo libro, `CUENTAS!C4`. | USD | — | — |
 | 50. Patrimonio neto | `(CUENTAS!C6 - CUENTAS!C4) / TRM` | Mismo libro, activo `C6` y pasivo `C4`. | USD | — | — |
-| 51. Ingresos por comisiones | `CUENTAS!E13` | `Plantilla AIOS-probable.xlsm`, `CUENTAS!E13`. | Unidad contable de la plantilla | — | — |
-| 52. Gastos operativos | `CUENTAS!G15` | Mismo libro, `CUENTAS!G15`. | Unidad contable de la plantilla | — | — |
+| 51. Ingresos por comisiones | `(saldo 411500 corte + saldo 411500 cierre anterior - saldo 411500 mismo corte anterior) / 1,000,000 / TRM` | Query Teradata `ESTFIN_INDIV`, cuenta 411500, Tipo_Informe=0. | MM USD | `ESTFIN_INDIV` | Consulta parametrizada con las tres fechas y la TRM del corte. |
+| 52. Gastos operativos | `(510000 - (510300+510400+510600+510700+510800+512500+512800+512900+513900))`, aplicando `saldo corte + cierre anterior - mismo corte anterior`, luego `/1,000,000/TRM` | Query Teradata `ESTFIN_INDIV`, Tipo_Informe=0. | MM USD | `ESTFIN_INDIV` | Fechas y TRM parametrizadas según el corte. |
 | 53. Resultado operativo | Macro: `comisiones - gastos`; aplicación: valor contable de resultado operativo. | Macro usa filas 51–52; aplicación lee `CUENTAS!E41`. | Unidad contable de la plantilla | — | — |
 | 54. Resultado neto | `CUENTAS!E44` | `Plantilla AIOS-probable.xlsm`, `CUENTAS!E44`. | Unidad contable de la plantilla | — | — |
 | 55. Gastos de administración | `CUENTAS!H24` | Mismo libro, `CUENTAS!H24`. | Unidad contable de la plantilla | — | — |
@@ -229,14 +229,14 @@ El archivo semestral reúne indicadores de cobertura, demografía, pensionados, 
 | Fila / indicador | Fórmula Excel | Fuente, hoja, celda | Unidad | Query | Descripción query |
 |---|---|---|---|---|---|
 | 70. Tasa de aporte obligatorio | `16` | Constante regulatoria de la macro. | Porcentaje | — | — |
-| 71. Comisión sobre el salario | `promedio(comisión obligatoria de Colfondos, Porvenir, Protección y Skandia) * 100` | `Comisión FPO desde 2003.xlsx`, `COTIZACION CORTE ANUAL`: `B1,F1,N1,R1`. | Porcentaje | — | — |
+| 71. Comisión sobre el salario | `promedio(comisión obligatoria de Colfondos, Porvenir, Protección y Skandia)` | `Comisión FPO desde 2003.xlsx`, `COTIZACION CORTE ANUAL`: `B1,F1,N1,R1`. | Porcentaje | — | — |
 | 72. Comisión sobre saldo | `0` | Constante de la macro. | Porcentaje | — | — |
 | 73. Comisión sobre rentabilidad | `0` | Constante de la macro. | Porcentaje | — | — |
 | 74. Porcentaje trabajador | `(3 - fila 71) * 0.25` | Fila 71 y constantes 3/0,25. | Porcentaje | — | — |
 | 75. Porcentaje empleador | `(3 - fila 71) * 0.75` | Fila 71 y constantes 3/0,75. | Porcentaje | — | — |
 | 76. Porcentaje Estado | `0` | Constante de la macro. | Porcentaje | — | — |
 | 77. Ingresos por comisiones (a) | `CUENTAS!E13` | `Plantilla AIOS-probable.xlsm`, `CUENTAS!E13`. | Unidad contable | — | — |
-| 78. Fondo de aportes obligatorios (b) | Reutiliza `fila 28` | Fondos administrados en MM USD. | MM USD | [Q136-FONDOS](#q136-fondos) | Reutiliza los fondos calculados desde PUC `100000`. |
+| 78. Fondo de aportes obligatorios (b) | Reutiliza `fila 28` | Fondos administrados en MM USD. | MM USD | [Q136-FONDOS](#q136-fondos) | Reutiliza el total calculado por la aplicación desde `NEGFID_INSUMO_ENTIDAD`. |
 | 79. (a)/(b) | `fila 77 / fila 78` | Filas 77 y 78. | Ratio | — | — |
 | 80. Antigüedad en el sistema | `año(fecha_corte) - 1994` | Fecha del período. | Años | — | — |
 | 82. Últimos 10 años nominal | Macro: `Consolidado!D4 = fecha_corte - 10 años`, `D5 = fecha_corte`; toma `D11` y calcula `tmp_nominal_10 * 100`. | Macro: `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`, entradas `D4:D5`, salida nominal `D11`. Aplicación: intenta construir el NAV promedio con `Valores_Fondo_Moder.xlsx`, hojas `CO_Vr_Uni`, `OM_Vr_Uni`, `PRO_Vr_Uni` y `PO_Vr_Uni` (`A`: fecha; `O`: NAV). Si ese histórico no cubre el inicio, incorpora `Rent_Vr_Uni_Moderado.xlsm`, `Consolidado` (`A`: fecha; `E`: NAV). El log identifica el archivo, hoja y celdas realmente usados. | Porcentaje anualizado | — | — |
@@ -403,23 +403,42 @@ WHERE UNIDAD_CAPTURA = 1
 ```
 
 <a id="q136-fondos"></a>
-### Q136-FONDOS — fondos administrados por AFP y patrimonio
+### Q136-FONDOS — fondos administrados en la aplicación AIOS
+
+> **Alcance del cambio:** la macro Excel no cambia. La macro continúa obteniendo el dato desde sus balances `SISTEMA TOTAL` y la hoja `restot`. Las consultas siguientes documentan exclusivamente cómo la aplicación AIOS reemplaza esa lectura.
+
+Para el total `vr_fondo`, la aplicación agrupa por administradora para obtener en una misma consulta el total del sistema y la concentración conjunta de Protección y Porvenir. Para el corte del ejemplo:
 
 ```sql
-SELECT e.Codigo_Entidad,
-       SUM(eip.Saldo_Sincierre_Total_Moneda_0)/1000 AS valor_miles
-FROM PROD_DWH_CONSULTA.ESTFIN_INDIV_PA eip
-JOIN PROD_DWH_CONSULTA.ENTIDADES e ON eip.Ent_ID=e.Ent_ID
-JOIN PROD_DWH_CONSULTA.PATRIMONIOS_AUTONOMOS pa ON eip.Paau_ID=pa.Paau_ID
-JOIN PROD_DWH_CONSULTA.TIEMPO t ON eip.Tie_ID=t.Tie_ID
-JOIN PROD_DWH_CONSULTA.PUC p ON eip.Puc_ID=p.Puc_ID
-WHERE eip.Tipo_Informe=17 AND e.Tipo_Entidad=23 AND e.Estado=1
-  AND pa.Tipo_Patrimonio=6 AND pa.Codigo_Patrimonio=1000
-  AND p.Codigo=100000 AND t.Fecha=DATE '2025-06-30'
-GROUP BY 1;
+SELECT a.Codigo_Entidad AS CODIGO_ENTIDAD,
+       COALESCE(SUM(e.valor), 0) / 1000000 AS VALOR_MM_COP
+FROM PROD_DWH_CONSULTA.ENTIDADES a
+JOIN PROD_DWH_CONSULTA.NEGFID_INSUMO_ENTIDAD e ON e.ent_id = a.ent_id
+JOIN PROD_DWH_CONSULTA.TIEMPO b ON e.tie_id = b.tie_id
+JOIN PROD_DWH_CONSULTA.PATRIMONIOS_AUTONOMOS c ON e.paau_id = c.paau_id
+JOIN PROD_DWH_CONSULTA.NEGFID_INSUMOS d ON d.inf_id = e.inf_id
+WHERE c.tipo_patrimonio = 6
+  AND c.codigo_patrimonio IN (1000, 5000, 6000, 7000, 8000)
+  AND d.nivel1 = 136
+  AND d.nivel2 = 2
+  AND d.nivel3 = 4
+  AND d.nivel4 = 305
+  AND a.tipo_entidad = 23
+  AND e.valor <> 0
+  AND b.fecha = DATE '2025-06-30'
+GROUP BY a.Codigo_Entidad;
 ```
 
-Para los demás fondos se sustituye el código de patrimonio; Skandia moderado incluye patrimonios `4` y `8000`. Código: [`Formato136QueryService`](../src/main/java/co/gov/sfc/excel/Formato136QueryService.java) y [`FondoAdministradoQueryService`](../src/main/java/co/gov/sfc/excel/FondoAdministradoQueryService.java).
+La suma de `VALOR_MM_COP` de todas las administradoras es `vr_fondo`. La concentración se calcula como `(Protección + Porvenir) / total del sistema * 100` con los resultados de esta misma consulta.
+
+Para la hoja `colombia` del trimestral, la aplicación usa las mismas tablas, niveles, fecha y unidad, pero filtra o agrupa también por código de patrimonio para conservar el desglose por AFP y fondo:
+
+- Moderado: patrimonios `1000` y `8000`; el patrimonio `8000` de Skandia se identifica como alternativo y se suma al moderado al escribir el boletín.
+- Conservador: patrimonio `5000`.
+- Mayor riesgo: patrimonio `6000`.
+- Retiro programado: patrimonio `7000`.
+
+Código: [`FondoAdministradoQueryService`](../src/main/java/co/gov/sfc/excel/FondoAdministradoQueryService.java) para el total y la concentración; [`Formato136QueryService`](../src/main/java/co/gov/sfc/excel/Formato136QueryService.java) para el desglose trimestral.
 
 <a id="q136-aportes"></a>
 ### Q136-APORTES — aportes recibidos
@@ -1504,7 +1523,7 @@ $$
 \text{Fila 28} = \frac{\text{mensual.vrFondo()}}{\text{TRM}}
 $$
 
-`mensual.vrFondo()` proviene de la query `ESTFIN_INDIV_PA`, PUC `100000`, ya expresada en millones de COP. La TRM se consulta una vez para el corte y se reutiliza.
+La macro Excel conserva su lectura histórica desde `SISTEMA TOTAL`, hoja `restot`. En la aplicación AIOS, `mensual.vrFondo()` proviene de `NEGFID_INSUMO_ENTIDAD`, con niveles `136/2/4/305` y patrimonios `1000, 5000, 6000, 7000, 8000`; `SUM(valor)/1000000` lo expresa en millones de COP. La TRM se consulta una vez para el corte y se reutiliza.
 
 #### Fila 29: Fondos administrados / PIB (%)
 
@@ -1960,7 +1979,7 @@ $$
 \text{Fila 47} = \frac{\text{Fondos Protección} + \text{Fondos Porvenir}}{\text{Fondos del sistema}}
 $$
 
-Los tres valores se consultan en `ESTFIN_INDIV_PA` para el PUC `100000`. La aplicación divide el porcentaje calculado por 100 antes de escribirlo porque la celda usa formato porcentual.
+La macro Excel conserva su cálculo histórico con los valores de `SISTEMA TOTAL`, hoja `restot`. La aplicación AIOS consulta los tres valores en `NEGFID_INSUMO_ENTIDAD`, niveles `136/2/4/305`, agrupando por AFP; divide el porcentaje calculado por 100 antes de escribirlo porque la celda usa formato porcentual.
 
 #### Fila 48: Activos en USD
 
@@ -2038,7 +2057,7 @@ La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
 
 **¿Qué representa la fila 51?**
 
-La fila 51 corresponde a ingresos por comisiones según la plantilla contable.
+La fila 51 corresponde a los ingresos por comisiones de la cuenta 411500 consultados en Teradata y convertidos a MM USD con la TRM del corte.
 
 **Interpretación económica u operativa**
 
@@ -2053,7 +2072,7 @@ $$
 **Fórmula implementada**
 
 $$
-\text{Fila 51} = \text{CUENTAS!E13}
+\text{Fila 51} = \frac{\text{saldo corte} + \text{saldo cierre anterior} - \text{saldo mismo corte anterior}}{1{,}000{,}000 \times \text{TRM}}
 $$
 
 La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
@@ -2062,7 +2081,7 @@ La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
 
 **¿Qué representa la fila 52?**
 
-La fila 52 corresponde a gastos reportados en la plantilla contable.
+La fila 52 corresponde a gastos operativos calculados desde las cuentas PUC consultadas en Teradata y convertidos a MM USD con la TRM del corte.
 
 **Interpretación económica u operativa**
 
@@ -2077,7 +2096,7 @@ $$
 **Fórmula implementada**
 
 $$
-\text{Fila 52} = \text{CUENTAS!G15}
+\text{Fila 52} = \frac{\text{flujo 510000} - \sum \text{flujos de las otras nueve cuentas}}{1{,}000{,}000 \times \text{TRM}}
 $$
 
 La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
@@ -2527,13 +2546,13 @@ Mide el costo promedio de comisión obligatoria.
 **Fórmula conceptual**
 
 $$
-\text{Comisión promedio} = \frac{\text{COL} + \text{POR} + \text{PRO} + \text{SKA}}{4} \times 100
+\text{Comisión promedio} = \frac{\text{COL} + \text{POR} + \text{PRO} + \text{SKA}}{4}
 $$
 
 **Fórmula implementada**
 
 $$
-\text{Fila 71} = \text{promedio(comisiones obligatorias)} \times 100
+\text{Fila 71} = \text{promedio(comisiones obligatorias)}
 $$
 
 La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.

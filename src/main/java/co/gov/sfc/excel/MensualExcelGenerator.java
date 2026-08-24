@@ -60,7 +60,7 @@ public class MensualExcelGenerator {
         write(sheet, row, 2, data.afiliados(), "Query Teradata PROD_DWH_CONSULTA.FORMATO491", "FORMATO491", "SUM(TOTAL_AFILIADOS_TOTAL), RENGLON=999");
                 write(sheet, row, 3, data.aportantes(), "Query Teradata PROD_DWH_CONSULTA.FORMATO491", "FORMATO491", "SUM(TOTAL_AFILIADOS_COTIZANTES), RENGLON=999");
                 write(sheet, row, 4, data.traspasosSistema(), "Query Teradata PROD_DWH_CONSULTA.S9_FORMATO_493", "S9_FORMATO_493", "Traspasos sistema 12 meses por FECHA_CORTE/UNIDAD_CAPTURA/RENGLON");
-                write(sheet, row, 5, divide(data.vrFondo(), trm(data)), "Query Teradata PROD_DWH_CONSULTA.ESTFIN_INDIV_PA", "PUC 100000", "SUM(Saldo_Sincierre_Total_Moneda_0)/1000000/TRM");
+                write(sheet, row, 5, divide(data.vrFondo(), trm(data)), "Query Teradata PROD_DWH_CONSULTA.NEGFID_INSUMO_ENTIDAD", "niveles 136/2/4/305", "SUM(valor)/1000000/TRM");
                 write(sheet, row, 6, divide(data.total1(), trm(data)), "LIMITES del nuevo.xlsm", "AIOS", "AB4");
                 write(sheet, row, 7, pct(data.dudaG()), "LIMITES del nuevo.xlsm", "AIOS", "C4");
                 write(sheet, row, 8, pct(data.dudaEf()), "LIMITES del nuevo.xlsm", "AIOS", "E4");
@@ -73,7 +73,7 @@ public class MensualExcelGenerator {
                 write(sheet, row, 15, pct(data.tmpReal1()), "Rent_Vr_Uni_Moderado.xlsm", "(primera)", "D10");
                 write(sheet, row, 16, BigDecimal.valueOf(4), "constante", "", "");
                 write(sheet, row, 17, data.consFdosAdmon(), "Query Teradata PROD_DWH_CONSULTA.FORMATO491", "FORMATO491", "Top 2 AFP por TOTAL_AFILIADOS_TOTAL / total sistema");
-                write(sheet, row, 18, data.porcVrFondo(), "Query Teradata PROD_DWH_CONSULTA.ESTFIN_INDIV_PA", "PUC 100000", "(Proteccion+Porvenir)/total sistema * 100");
+                write(sheet, row, 18, data.porcVrFondo(), "Query Teradata PROD_DWH_CONSULTA.NEGFID_INSUMO_ENTIDAD", "niveles 136/2/4/305", "(Proteccion+Porvenir)/total sistema * 100");
                 write(sheet, row, 19, trm(data), "Servicio web TRM Superfinanciera (archivo PIB_PEA_TRM_DG como contingencia)", "queryTCRM", "fecha de corte");
     }
 

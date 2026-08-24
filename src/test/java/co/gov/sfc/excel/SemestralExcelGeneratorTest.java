@@ -42,7 +42,7 @@ class SemestralExcelGeneratorTest {
 
             SemestralExcelGenerator generator = new SemestralExcelGenerator(
                     new AiosProperties(Path.of("."), Path.of("."), Path.of("."), 40, true),
-                    null, null, null, null, null);
+                    null, null, null, null, null, null);
 
             int column = generator.columnaSemestral(sheet, LocalDate.of(2025, 12, 31));
 
@@ -59,7 +59,7 @@ class SemestralExcelGeneratorTest {
         AiosProperties properties = new AiosProperties(Path.of("insumos_ejemplo"), null, null, null, null);
         Formato493QueryService formato493QueryService = mock(Formato493QueryService.class);
         when(formato493QueryService.leerFallecidosSistema(LocalDate.of(2025, 6, 30))).thenReturn(new BigDecimal("38279"));
-        SemestralExcelGenerator generator = new SemestralExcelGenerator(properties, new InsumosLocator(properties), null, formato493QueryService, mock(Formato495QueryService.class), mock(Formato136QueryService.class));
+        SemestralExcelGenerator generator = new SemestralExcelGenerator(properties, new InsumosLocator(properties), null, formato493QueryService, mock(Formato495QueryService.class), mock(Formato136QueryService.class), null);
         Method method = SemestralExcelGenerator.class.getDeclaredMethod("readFila25Trimestral493", LocalDate.class);
         method.setAccessible(true);
 
@@ -93,12 +93,29 @@ class SemestralExcelGeneratorTest {
 
             SemestralExcelGenerator generator = new SemestralExcelGenerator(
                     new AiosProperties(Path.of("."), Path.of("."), Path.of("."), 40, true),
-                    null, null, null, null, null);
+                    null, null, null, null, null, null);
             generator.normalizarEstilosSemestral(sheet);
 
             assertEquals(IndexedColors.BLACK.getIndex(), workbook.getFontAt(redCell.getCellStyle().getFontIndex()).getColor());
             assertEquals(FillPatternType.NO_FILL, green.getCellStyle().getFillPattern());
             assertEquals(FillPatternType.NO_FILL, orange.getCellStyle().getFillPattern());
+        }
+    }
+
+    @Test
+    void shouldWriteTotalAfiliadosInRow3AndNoDisponibleInRow20() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Hoja1");
+            MensualData mensual = mock(MensualData.class);
+            when(mensual.afiliados()).thenReturn(new BigDecimal("123456"));
+
+            SemestralExcelGenerator generator = new SemestralExcelGenerator(
+                    new AiosProperties(Path.of("."), Path.of("."), Path.of("."), 40, true),
+                    null, null, null, null, null, null);
+            generator.writeFilasAfiliadosDisponibilidad(sheet, 3, mensual);
+
+            assertEquals(123456d, sheet.getRow(2).getCell(2).getNumericCellValue());
+            assertEquals("No Disponible", sheet.getRow(19).getCell(2).getStringCellValue());
         }
     }
 }

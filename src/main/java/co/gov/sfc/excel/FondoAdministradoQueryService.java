@@ -42,38 +42,32 @@ public class FondoAdministradoQueryService {
                         .divide(totalMmCop, 10, RoundingMode.HALF_UP)
                         .multiply(BigDecimal.valueOf(100));
 
-        log.info("Fondo administrado desde Teradata fechaCorte={} totalMmCop={} proteccionPorvenirMmCop={} concentracionPct={}",
+        log.info("Fondo administrado desde Teradata NEGFID_INSUMO_ENTIDAD fechaCorte={} totalMmCop={} proteccionPorvenirMmCop={} concentracionPct={}",
                 fechaCorte, totalMmCop, proteccionPorvenirMmCop, concentracionProteccionPorvenirPct);
         return new FondoAdministrado(totalMmCop, concentracionProteccionPorvenirPct);
     }
 
     private String sqlFondoPorEntidad() {
         return """
-                SELECT e.Codigo_Entidad AS CODIGO_ENTIDAD,
-                       COALESCE(SUM(COALESCE(eip.Saldo_Sincierre_Total_Moneda_0, 0)), 0) / 1000000 AS VALOR_MM_COP
-                FROM PROD_DWH_CONSULTA.ESTFIN_INDIV_PA eip
-                INNER JOIN PROD_DWH_CONSULTA.ENTIDADES e
-                        ON eip.Ent_ID = e.Ent_ID
-                INNER JOIN PROD_DWH_CONSULTA.PATRIMONIOS_AUTONOMOS pa
-                        ON eip.Paau_ID = pa.Paau_ID
-                INNER JOIN PROD_DWH_CONSULTA.TIEMPO t
-                        ON eip.Tie_ID = t.Tie_ID
-                INNER JOIN PROD_DWH_CONSULTA.PUC p
-                        ON eip.Puc_ID = p.Puc_ID
-                WHERE eip.Tipo_Informe = 17
-                  AND e.Tipo_Entidad = 23
-                  AND e.Estado = 1
-                  AND pa.Tipo_Patrimonio = 6
-                  AND p.Codigo = 100000
-                  AND t.Fecha = ?
-                  AND (
-                        pa.Codigo_Patrimonio IN (1000, 5000, 6000, 7000, 8000)
-                        OR (e.Codigo_Entidad = 9 AND pa.Codigo_Patrimonio = 4)
-                  )
-                GROUP BY e.Codigo_Entidad
+                SELECT a.Codigo_Entidad AS CODIGO_ENTIDAD,
+                       COALESCE(SUM(e.valor), 0) / 1000000 AS VALOR_MM_COP
+                FROM PROD_DWH_CONSULTA.ENTIDADES a
+                INNER JOIN PROD_DWH_CONSULTA.NEGFID_INSUMO_ENTIDAD e ON e.ent_id = a.ent_id
+                INNER JOIN PROD_DWH_CONSULTA.TIEMPO b ON e.tie_id = b.tie_id
+                INNER JOIN PROD_DWH_CONSULTA.PATRIMONIOS_AUTONOMOS c ON e.paau_id = c.paau_id
+                INNER JOIN PROD_DWH_CONSULTA.NEGFID_INSUMOS d ON d.inf_id = e.inf_id
+                WHERE c.tipo_patrimonio = 6
+                  AND c.codigo_patrimonio IN (1000, 5000, 6000, 7000, 8000)
+                  AND d.nivel1 = 136
+                  AND d.nivel2 = 2
+                  AND d.nivel3 = 4
+                  AND d.nivel4 = 305
+                  AND a.tipo_entidad = 23
+                  AND e.valor <> 0
+                  AND b.fecha = ?
+                GROUP BY a.Codigo_Entidad
                 """;
     }
-
     private BigDecimal nvl(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }

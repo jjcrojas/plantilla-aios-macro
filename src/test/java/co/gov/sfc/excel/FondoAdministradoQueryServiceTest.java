@@ -47,8 +47,11 @@ class FondoAdministradoQueryServiceTest {
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class),
                 org.mockito.ArgumentMatchers.eq(Date.valueOf("2025-06-30")));
-        assertTrue(sql.getValue().contains("Saldo_Sincierre_Total_Moneda_0"));
+        assertTrue(sql.getValue().contains("NEGFID_INSUMO_ENTIDAD"));
+        assertTrue(sql.getValue().contains("d.nivel4 = 305"));
+        assertTrue(sql.getValue().contains("c.codigo_patrimonio IN (1000, 5000, 6000, 7000, 8000)"));
+        assertTrue(sql.getValue().contains("e.valor <> 0"));
         assertTrue(sql.getValue().contains("/ 1000000"));
-        assertTrue(sql.getValue().contains("t.Fecha = ?"));
+        assertTrue(sql.getValue().contains("b.fecha = ?"));
     }
 }

@@ -71,7 +71,7 @@ public class AiosGeneracionService {
 
             if (modo == ModoGeneracion.SEMESTRAL || (modo == ModoGeneracion.TODO && isSemesterMonth(fechaCorte))) {
                 var mensual = mensualDataReader.read(fechaCorte);
-                var trimestral = trimestralDataReader.read(fechaCorte, mensual);
+                var trimestral = trimestralDataReader.readForSemestral(fechaCorte, mensual);
                 var semestral = semestralExcelGenerator.generar(fechaCorte, mensual, trimestral);
                 archivos.add(semestral);
             }

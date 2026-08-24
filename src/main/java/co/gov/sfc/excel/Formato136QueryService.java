@@ -16,8 +16,6 @@ import java.util.Map;
 public class Formato136QueryService {
 
     private static final Logger log = LoggerFactory.getLogger(Formato136QueryService.class);
-    private static final BigDecimal MIL = BigDecimal.valueOf(1_000);
-
     private final JdbcTemplate jdbcTemplate;
 
     public Formato136QueryService(JdbcTemplate jdbcTemplate) {
@@ -45,17 +43,17 @@ public class Formato136QueryService {
         jdbcTemplate.query(sql, rs -> {
             String entidad = claveEntidad(rs.getInt("codigo_entidad"));
             if (entidad != null) {
-                out.merge(fondo + "_" + entidad, valorMillonesCop(rs.getBigDecimal("valor_miles")), BigDecimal::add);
+                out.merge(fondo + "_" + entidad, nvl(rs.getBigDecimal("valor_mm_cop")), BigDecimal::add);
             }
         }, codigoPatrimonio, Date.valueOf(fechaCorte));
     }
 
     private void leerFondoModerado(Map<String, BigDecimal> out, LocalDate fechaCorte) {
         String sql = sqlFondoModerado();
-        logQueryColombia("mod", fechaCorte, sql, 1000, 4, 8000);
+        logQueryColombia("mod", fechaCorte, sql, 1000, 8000);
         jdbcTemplate.query(sql, rs -> {
             String claveReporte = rs.getString("clave_reporte");
-            BigDecimal valor = valorMillonesCop(rs.getBigDecimal("valor_miles"));
+            BigDecimal valor = nvl(rs.getBigDecimal("valor_mm_cop"));
             if ("SKANDIA_ALT".equals(normalize(claveReporte))) {
                 out.merge("mod_alt", valor, BigDecimal::add);
                 return;
@@ -75,10 +73,8 @@ public class Formato136QueryService {
                 sql.replace("\n", " ").replaceAll("\\s+", " ").trim());
     }
 
-    private BigDecimal valorMillonesCop(BigDecimal valorMiles) {
-        // ESTFIN_INDIV_PA devuelve miles de COP; TrimestralDataReader divide después por la TRM.
-        // Esta segunda división por 1.000 deja el saldo en millones de COP, igual que la macro VBA.
-        return valorMiles == null ? BigDecimal.ZERO : valorMiles.divide(MIL);
+    private BigDecimal nvl(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     private String claveEntidad(int codigoEntidad) {
@@ -107,54 +103,53 @@ public class Formato136QueryService {
 
     private String sqlFondoEstandar() {
         return """
-                SELECT e.Codigo_Entidad AS codigo_entidad,
-                       'ENT_' || TRIM(CAST(e.Codigo_Entidad AS VARCHAR(20))) AS clave_reporte,
-                       SUM(eip.Saldo_Sincierre_Total_Moneda_0) / 1000 AS valor_miles
-                FROM PROD_DWH_CONSULTA.ESTFIN_INDIV_PA eip
-                INNER JOIN PROD_DWH_CONSULTA.ENTIDADES e ON eip.Ent_ID = e.Ent_ID
-                INNER JOIN PROD_DWH_CONSULTA.PATRIMONIOS_AUTONOMOS pa ON eip.Paau_ID = pa.Paau_ID
-                INNER JOIN PROD_DWH_CONSULTA.TIEMPO t ON eip.Tie_ID = t.Tie_ID
-                INNER JOIN PROD_DWH_CONSULTA.PUC p ON eip.Puc_ID = p.Puc_ID
-                WHERE eip.Tipo_Informe = 17
-                  AND e.Tipo_Entidad = 23
-                  AND e.Estado = 1
-                  AND pa.Tipo_Patrimonio = 6
-                  AND pa.Codigo_Patrimonio = ?
-                  AND p.Codigo = 100000
-                  AND t.Fecha = ?
+                SELECT a.Codigo_Entidad AS codigo_entidad,
+                       'ENT_' || TRIM(CAST(a.Codigo_Entidad AS VARCHAR(20))) AS clave_reporte,
+                       COALESCE(SUM(e.valor), 0) / 1000000 AS valor_mm_cop
+                FROM PROD_DWH_CONSULTA.ENTIDADES a
+                INNER JOIN PROD_DWH_CONSULTA.NEGFID_INSUMO_ENTIDAD e ON e.ent_id = a.ent_id
+                INNER JOIN PROD_DWH_CONSULTA.TIEMPO b ON e.tie_id = b.tie_id
+                INNER JOIN PROD_DWH_CONSULTA.PATRIMONIOS_AUTONOMOS c ON e.paau_id = c.paau_id
+                INNER JOIN PROD_DWH_CONSULTA.NEGFID_INSUMOS d ON d.inf_id = e.inf_id
+                WHERE c.tipo_patrimonio = 6
+                  AND c.codigo_patrimonio = ?
+                  AND d.nivel1 = 136
+                  AND d.nivel2 = 2
+                  AND d.nivel3 = 4
+                  AND d.nivel4 = 305
+                  AND a.tipo_entidad = 23
+                  AND e.valor <> 0
+                  AND b.fecha = ?
                 GROUP BY 1, 2
                 ORDER BY 1
                 """;
     }
-
     private String sqlFondoModerado() {
         return """
-                SELECT e.Codigo_Entidad AS codigo_entidad,
+                SELECT a.Codigo_Entidad AS codigo_entidad,
                        CASE
-                           WHEN e.Codigo_Entidad = 9
-                            AND pa.Tipo_Patrimonio = 6
-                            AND pa.Codigo_Patrimonio IN (4, 8000) THEN 'SKANDIA_ALT'
-                           ELSE 'ENT_' || TRIM(CAST(e.Codigo_Entidad AS VARCHAR(20)))
+                           WHEN a.Codigo_Entidad = 9 AND c.Codigo_Patrimonio = 8000 THEN 'SKANDIA_ALT'
+                           ELSE 'ENT_' || TRIM(CAST(a.Codigo_Entidad AS VARCHAR(20)))
                        END AS clave_reporte,
-                       SUM(eip.Saldo_Sincierre_Total_Moneda_0) / 1000 AS valor_miles
-                FROM PROD_DWH_CONSULTA.ESTFIN_INDIV_PA eip
-                INNER JOIN PROD_DWH_CONSULTA.ENTIDADES e ON eip.Ent_ID = e.Ent_ID
-                INNER JOIN PROD_DWH_CONSULTA.PATRIMONIOS_AUTONOMOS pa ON eip.Paau_ID = pa.Paau_ID
-                INNER JOIN PROD_DWH_CONSULTA.TIEMPO t ON eip.Tie_ID = t.Tie_ID
-                INNER JOIN PROD_DWH_CONSULTA.PUC p ON eip.Puc_ID = p.Puc_ID
-                WHERE eip.Tipo_Informe = 17
-                  AND e.Tipo_Entidad = 23
-                  AND e.Estado = 1
-                  AND pa.Tipo_Patrimonio = 6
-                  AND (pa.Codigo_Patrimonio = 1000
-                       OR (e.Codigo_Entidad = 9 AND pa.Codigo_Patrimonio IN (4, 8000)))
-                  AND p.Codigo = 100000
-                  AND t.Fecha = ?
+                       COALESCE(SUM(e.valor), 0) / 1000000 AS valor_mm_cop
+                FROM PROD_DWH_CONSULTA.ENTIDADES a
+                INNER JOIN PROD_DWH_CONSULTA.NEGFID_INSUMO_ENTIDAD e ON e.ent_id = a.ent_id
+                INNER JOIN PROD_DWH_CONSULTA.TIEMPO b ON e.tie_id = b.tie_id
+                INNER JOIN PROD_DWH_CONSULTA.PATRIMONIOS_AUTONOMOS c ON e.paau_id = c.paau_id
+                INNER JOIN PROD_DWH_CONSULTA.NEGFID_INSUMOS d ON d.inf_id = e.inf_id
+                WHERE c.tipo_patrimonio = 6
+                  AND c.Codigo_Patrimonio IN (1000, 8000)
+                  AND d.nivel1 = 136
+                  AND d.nivel2 = 2
+                  AND d.nivel3 = 4
+                  AND d.nivel4 = 305
+                  AND a.tipo_entidad = 23
+                  AND e.valor <> 0
+                  AND b.fecha = ?
                 GROUP BY 1, 2
                 ORDER BY 1
                 """;
     }
-
     private String sqlAportesRecibidos() {
         return """
                 SELECT COALESCE(SUM(e.valor) / 1000000, 0) AS Valor_Total
