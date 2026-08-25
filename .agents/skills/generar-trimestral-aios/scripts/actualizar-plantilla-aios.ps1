@@ -8,6 +8,8 @@ param(
 
     [string]$ExcelProcessIdFile,
 
+    [string]$MacroStateFile,
+
     [switch]$SoloValidar
 )
 
@@ -50,6 +52,19 @@ $baseMes = $null
 $cuentas = $null
 $cell = $null
 $saveChanges = $false
+
+function Set-MacroState {
+    param([Parameter(Mandatory = $true)][string]$State)
+    if (-not [string]::IsNullOrWhiteSpace($MacroStateFile)) {
+        [System.IO.File]::WriteAllText([System.IO.Path]::GetFullPath($MacroStateFile), $State)
+    }
+}
+
+function ConvertTo-SingleLine {
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return 'sin detalle' }
+    return ($Value -replace '[\r\n]+', ' ').Trim()
+}
 
 try {
     $excel = New-Object -ComObject Excel.Application
@@ -107,48 +122,58 @@ try {
         return
     }
 
-    $caratula.Range('B2').Value2 = $fecha.ToOADate()
-    $caratula.Range('B2').NumberFormat = 'dd/mm/yyyy'
-    $excel.CalculateFull()
-
-    $escapedWorkbookName = $workbook.Name.Replace("'", "''")
-    $excel.Run("'$escapedWorkbookName'!ActualizarSeriesSinPortapapeles")
-
+    Set-MacroState -State 'PREPARACION_INICIADA'
     try {
-        $excel.CalculateUntilAsyncQueriesDone()
-    } catch {
-    }
-    $excel.CalculateFullRebuild()
+        $caratula.Range('B2').Value2 = $fecha.ToOADate()
+        $caratula.Range('B2').NumberFormat = 'dd/mm/yyyy'
+        $excel.CalculateFull()
 
-    $calculationDeadline = [DateTime]::UtcNow.AddMinutes(5)
-    while ($excel.CalculationState -ne 0) {
-        if ([DateTime]::UtcNow -ge $calculationDeadline) {
-            throw 'Excel no terminó el recálculo de la plantilla dentro de cinco minutos.'
-        }
-        Start-Sleep -Milliseconds 500
-    }
+        $escapedWorkbookName = $workbook.Name.Replace("'", "''")
+        Set-MacroState -State 'MACRO_INICIADA'
+        Write-Output "MACRO_PLANTILLA_INICIADA ruta=$plantilla fecha=$FechaCorte rutina=ActualizarSeriesSinPortapapeles"
+        $excel.Run("'$escapedWorkbookName'!ActualizarSeriesSinPortapapeles")
 
-    $fechaGuardada = [DateTime]::FromOADate([double]$caratula.Range('B2').Value2)
-    if ($fechaGuardada.Date -ne $fecha.Date) {
-        throw "CARATULA!B2 no conserva la fecha solicitada. Esperado=$FechaCorte encontrado=$($fechaGuardada.ToString('yyyy-MM-dd'))"
-    }
-
-    $cuentas = $workbook.Worksheets.Item('cuentas')
-    foreach ($cellRef in @('C4', 'C6', 'G15')) {
-        $cell = $cuentas.Range($cellRef)
-        if ([string]$cell.Text -match '^#') {
-            throw "La celda cuentas!$cellRef contiene un error de Excel: $($cell.Text)"
-        }
         try {
-            [void][System.Convert]::ToDouble($cell.Value2, $culture)
+            $excel.CalculateUntilAsyncQueriesDone()
         } catch {
-            throw "La celda cuentas!$cellRef no contiene un valor numérico después de actualizar la plantilla."
         }
-    }
+        $excel.CalculateFullRebuild()
 
-    $workbook.Save()
-    $saveChanges = $true
-    Write-Output "PLANTILLA_PREPARADA_OK ruta=$plantilla fecha=$FechaCorte rutina=ActualizarSeriesSinPortapapeles registrosBaseAnual=$([int]$coincidenciasAnual) registrosBaseMes=$([int]$coincidenciasMes) basesModificadas=no"
+        $calculationDeadline = [DateTime]::UtcNow.AddMinutes(5)
+        while ($excel.CalculationState -ne 0) {
+            if ([DateTime]::UtcNow -ge $calculationDeadline) {
+                throw 'Excel no terminó el recálculo de la plantilla dentro de cinco minutos.'
+            }
+            Start-Sleep -Milliseconds 500
+        }
+
+        $fechaGuardada = [DateTime]::FromOADate([double]$caratula.Range('B2').Value2)
+        if ($fechaGuardada.Date -ne $fecha.Date) {
+            throw "CARATULA!B2 no conserva la fecha solicitada. Esperado=$FechaCorte encontrado=$($fechaGuardada.ToString('yyyy-MM-dd'))"
+        }
+
+        $cuentas = $workbook.Worksheets.Item('cuentas')
+        foreach ($cellRef in @('C4', 'C6', 'G15')) {
+            $cell = $cuentas.Range($cellRef)
+            if ([string]$cell.Text -match '^#') {
+                throw "La celda cuentas!$cellRef contiene un error de Excel: $($cell.Text)"
+            }
+            try {
+                [void][System.Convert]::ToDouble($cell.Value2, $culture)
+            } catch {
+                throw "La celda cuentas!$cellRef no contiene un valor numérico después de actualizar la plantilla."
+            }
+        }
+
+        $workbook.Save()
+        $saveChanges = $true
+        Set-MacroState -State 'COMPLETADA'
+        Write-Output "PLANTILLA_PREPARADA_OK ruta=$plantilla fecha=$FechaCorte rutina=ActualizarSeriesSinPortapapeles registrosBaseAnual=$([int]$coincidenciasAnual) registrosBaseMes=$([int]$coincidenciasMes) basesModificadas=no"
+    } catch {
+        $macroError = ConvertTo-SingleLine -Value $_.Exception.Message
+        Set-MacroState -State 'OMITIDA'
+        Write-Output "ADVERTENCIA_MACRO_PLANTILLA_OMITIDA fecha=$FechaCorte error=$macroError accion=continuar_con_aplicacion plantillaGuardada=no"
+    }
 } finally {
     if ($null -ne $workbook) {
         try { $workbook.Close($saveChanges) } catch {}

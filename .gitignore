@@ -20,3 +20,5 @@ salidas_referencia/~$*.xlsx
 target/
 plantillas/Plantilla AIOS-probable.xlsm
 plantillas/*
+/.apt_generated/
+/.apt_generated_tests/

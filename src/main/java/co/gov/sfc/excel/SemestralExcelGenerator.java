@@ -149,11 +149,10 @@ public class SemestralExcelGenerator {
                 detallesFilas.put(45, "operando fila28 fondoUsdMM=" + fondoUsdMM + "; operando deudaGubernamentalTotalUSD=" + deudaGubernamentalTotal.valor() + "; " + deudaGubernamentalTotal.detalle());
                 write(hoja, 46, col, BigDecimal.valueOf(4));
                 DatoDetalle fila47 = new DatoDetalle(
-                        safeDivide(mensual.porcVrFondo(), BigDecimal.valueOf(100)),
-                        "fuente=Query Teradata NEGFID_INSUMO_ENTIDAD; operación=(Protección+Porvenir)/total sistema.");
-                write(hoja, 47, col, fila47.valor());
+                        mensual.porcVrFondo() == null ? BigDecimal.ZERO : mensual.porcVrFondo(),
+                        "fuente=Query Teradata NEGFID_INSUMO_ENTIDAD; operación=(Protección+Porvenir)/total sistema * 100; presentación numérica sin símbolo de porcentaje.");
+                writeFila47SinSimboloPorcentaje(hoja, col, fila47.valor());
                 detallesFilas.put(47, fila47.detalle());
-                setNumberFormat(hoja, 47, col, "#,##0.00%");
                 BigDecimal activos = mensual.activosCuentas() == null ? BigDecimal.ZERO : mensual.activosCuentas();
                 BigDecimal pasivos = mensual.pasivosCuentas() == null ? BigDecimal.ZERO : mensual.pasivosCuentas();
                 BigDecimal activosUsd = safeDivide(activos, trm(mensual));
@@ -168,7 +167,7 @@ public class SemestralExcelGenerator {
                 log.info("Semestral traza filas48-50: activosCuentas(MM COP)={} pasivosCuentas(MM COP)={} trm={} -> activosUsd(MM USD)={} pasivosUsd(MM USD)={} patrimonioUsd(MM USD)={}",
                         activos, pasivos, trm(mensual), activosUsd, pasivosUsd, patrimonioUsd);
 
-                CuentasData cuentas = readCuentasData(fechaCorte);
+                BigDecimal resultadoNeto = readResultadoNeto(fechaCorte);
                 BigDecimal aportesRecibidos = readAportesRecibidos136(fechaCorte);
                 BigDecimal trm = trm(mensual);
                 BigDecimal p1 = safeDivide(mensual.vrFondo(), trm);
@@ -177,25 +176,29 @@ public class SemestralExcelGenerator {
                 write(hoja, 51, col, comisionesFila51);
                 BigDecimal gastosFila52 = comisionesSemestralQueryService.leerGastosOperativos(fechaCorte, trm);
                 write(hoja, 52, col, gastosFila52);
-                write(hoja, 53, col, cuentas.resultadoOperacion());
-                write(hoja, 54, col, cuentas.resultadoNeto());
-                write(hoja, 55, col, cuentas.admon());
-                BigDecimal fila56 = safeDivide(cuentas.cuenta511500(), trm);
-                BigDecimal fila57 = safeDivide(cuentas.cuenta511527(), trm);
-                BigDecimal fila58Base = cuentas.cuenta511500().add(cuentas.cuenta511527());
-                BigDecimal fila58 = safeDivide(fila58Base, trm);
-                BigDecimal fila59 = safeDivide(cuentas.otrosGastosOperacion(), trm);
-                BigDecimal fila60 = safeDivide(cuentas.gastoOperacion510000(), trm);
-                write(hoja, 56, col, fila56);
-                write(hoja, 57, col, fila57);
-                write(hoja, 58, col, fila58);
-                write(hoja, 59, col, fila59);
-                write(hoja, 60, col, fila60);
-                detallesFilas.put(56, "detalle fuente cuenta 511500: hoja=cuentas celda=C21 valorCOP=" + cuentas.cuenta511500() + "; TRM=" + trm + "; operación=C21/TRM.");
-                detallesFilas.put(57, "detalle fuente cuenta 511527: hoja=cuentas celda=C22 valorCOP=" + cuentas.cuenta511527() + "; TRM=" + trm + "; operación=C22/TRM.");
-                detallesFilas.put(58, "detalle fuente cuentas 511500+511527: hoja=cuentas celdas C21=" + cuentas.cuenta511500() + ", C22=" + cuentas.cuenta511527() + "; sumaCOP=" + fila58Base + "; TRM=" + trm + "; operación=(C21+C22)/TRM.");
-                detallesFilas.put(59, "detalle fuente otros gastos de operación: hoja=cuentas celdas C24,C28,C29,C31,C32,C33,C34,C35,C36,C37,C38 sumaCOP=" + cuentas.otrosGastosOperacion() + "; TRM=" + trm + "; operación=suma/TRM.");
-                detallesFilas.put(60, "detalle fuente cuenta 510000: hoja=cuentas celda=C15 valorCOP=" + cuentas.gastoOperacion510000() + "; TRM=" + trm + "; operación=C15/TRM.");
+                FilasGastosSemestrales filasGastos = calcularFilasGastosSemestrales(
+                        fechaCorte, trm, comisionesFila51, gastosFila52);
+                write(hoja, 53, col, filasGastos.fila53());
+                write(hoja, 54, col, resultadoNeto);
+                write(hoja, 55, col, filasGastos.fila55());
+                write(hoja, 56, col, filasGastos.fila56());
+                write(hoja, 57, col, filasGastos.fila57());
+                write(hoja, 58, col, filasGastos.fila58());
+                write(hoja, 59, col, filasGastos.fila59());
+                write(hoja, 60, col, filasGastos.fila60());
+                detallesFilas.put(53, "fuente=Query Teradata ESTFIN_INDIV; fila51=" + comisionesFila51
+                        + "; cuenta510000=" + filasGastos.fila60() + "; operación=fila51-cuenta510000.");
+                detallesFilas.put(55, "fuente=Query Teradata ESTFIN_INDIV; cuenta512000=" + filasGastos.cuenta512000()
+                        + "; cuenta513000=" + filasGastos.cuenta513000() + "; operación=cuenta512000+cuenta513000.");
+                detallesFilas.put(56, "fuente=Query Teradata ESTFIN_INDIV; cuenta511524=" + filasGastos.cuenta511524()
+                        + "; cuenta511527=" + filasGastos.cuenta511527() + "; operación=cuenta511524+cuenta511527.");
+                detallesFilas.put(57, "fuente=Query Teradata ESTFIN_INDIV; cuenta519015=" + filasGastos.fila57() + ".");
+                detallesFilas.put(58, "operación=fila56+fila57; fila56=" + filasGastos.fila56()
+                        + "; fila57=" + filasGastos.fila57() + ".");
+                detallesFilas.put(59, "operación=fila52-fila56-fila55-fila57; fila52=" + gastosFila52
+                        + "; fila56=" + filasGastos.fila56() + "; fila55=" + filasGastos.fila55()
+                        + "; fila57=" + filasGastos.fila57() + ".");
+                detallesFilas.put(60, "fuente=Query Teradata ESTFIN_INDIV; cuenta510000=" + filasGastos.fila60() + ".");
 
                 BigDecimal aportesUsd = safeDivide(aportesRecibidos, trm);
                 BigDecimal aportantesMiles = safeDivide(mensual.aportantesSemestral(), BigDecimal.valueOf(1000));
@@ -207,11 +210,11 @@ public class SemestralExcelGenerator {
                 BigDecimal fila63 = safeDivide(patrimonioBaseMesMMUsd, fondoUsdMM).multiply(BigDecimal.valueOf(100));
                 write(hoja, 63, col, fila63);
                 write(hoja, 64, col, safeDivide(patrimonioUsd, mensual.afiliados()).multiply(BigDecimal.valueOf(1_000_000)));
-                write(hoja, 65, col, safeDivide(cuentas.resultadoNeto(), comisionesFila51).multiply(BigDecimal.valueOf(100)));
-                write(hoja, 66, col, safeDivide(cuentas.resultadoNeto(), patrimonioUsd).multiply(BigDecimal.valueOf(100)));
+                write(hoja, 65, col, safeDivide(resultadoNeto, comisionesFila51).multiply(BigDecimal.valueOf(100)));
+                write(hoja, 66, col, safeDivide(resultadoNeto, patrimonioUsd).multiply(BigDecimal.valueOf(100)));
                 write(hoja, 67, col, safeDivide(gastosFila52, mensual.afiliados()).multiply(BigDecimal.valueOf(1_000_000)));
                 write(hoja, 68, col, safeDivide(comisionesFila51, mensual.aportantesSemestral()).multiply(BigDecimal.valueOf(1_000_000)));
-                write(hoja, 69, col, safeDivide(cuentas.admon(), fila61));
+                write(hoja, 69, col, safeDivide(filasGastos.fila55(), fila61));
                 write(hoja, 70, col, BigDecimal.valueOf(16));
                 write(hoja, 77, col, comisionesFila51);
                 // Requerimiento funcional: la fila 78 debe usar el mismo valor calculado para la fila 28.
@@ -220,9 +223,9 @@ public class SemestralExcelGenerator {
                 write(hoja, 79, col, safeDivide(comisionesFila51, fondoUsdMM));
                 write(hoja, 80, col, BigDecimal.valueOf(fechaCorte.getYear() - 1994L));
 
-                log.info("Semestral traza filas51-80: comisiones={} gastos={} resultadoOper={} resultadoNeto={} admon={} fila56(511500/TRM)={} fila57(511527/TRM)={} fila58((511500+511527)/TRM)={} fila59(otros/TRM)={} fila60(510000/TRM)={} aportesRecibidosCOP={} aportesUsd={} aportantes={} fila61={} p1={} fila63(%)={} patrimonioBaseMesMMCop={} patrimonioBaseMesMMUsd={} fondoUsdMM={}",
-                        comisionesFila51, gastosFila52, cuentas.resultadoOperacion(), cuentas.resultadoNeto(), cuentas.admon(),
-                        fila56, fila57, fila58, fila59, fila60,
+                log.info("Semestral traza filas51-80: comisiones={} gastos={} resultadoOper={} resultadoNeto={} admon={} fila56(511524+511527)={} fila57(519015)={} fila58(fila56+fila57)={} fila59(fila52-fila56-fila55-fila57)={} fila60(510000)={} aportesRecibidosCOP={} aportesUsd={} aportantes={} fila61={} p1={} fila63(%)={} patrimonioBaseMesMMCop={} patrimonioBaseMesMMUsd={} fondoUsdMM={}",
+                        comisionesFila51, gastosFila52, filasGastos.fila53(), resultadoNeto, filasGastos.fila55(),
+                        filasGastos.fila56(), filasGastos.fila57(), filasGastos.fila58(), filasGastos.fila59(), filasGastos.fila60(),
                         aportesRecibidos, aportesUsd, mensual.aportantesSemestral(), fila61, p1, fila63, patrimonioBaseMesMMCop, patrimonioBaseMesMMUsd, fondoUsdMM);
                 BigDecimal comisionPromedioPct = promedioComisionObligatoria(trimestral);
                 write(hoja, 71, col, comisionPromedioPct);
@@ -320,29 +323,29 @@ public class SemestralExcelGenerator {
         explicaciones.put(44, "valor = (LIMITES hoja AIOS celdas O4 + Q4 + S4 + U4 + W4 + Y4) * 100; ruta=" + limites + ".");
         explicaciones.put(45, "valor = fila 28 / deuda gubernamental total en USD; deuda gubernamental total proviene de PIB_PEA_TRM_DG hoja Hoja1 columna M para la fecha de corte, ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(46, "valor fijo = 4; no usa insumo externo.");
-        explicaciones.put(47, "valor = concentración de Protección y Porvenir consultada en Teradata NEGFID_INSUMO_ENTIDAD para niveles 136/2/4/305 y la fecha de corte.");
+        explicaciones.put(47, "valor = concentración porcentual de Protección y Porvenir consultada en Teradata NEGFID_INSUMO_ENTIDAD para niveles 136/2/4/305 y la fecha de corte; se escribe como número sin símbolo %.");
         explicaciones.put(48, "valor = mensual.activosCuentas() / mensual.trm(); activosCuentas desde Plantilla AIOS/CUENTAS o fuente contable, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(49, "valor = mensual.pasivosCuentas() / mensual.trm(); pasivosCuentas desde Plantilla AIOS/CUENTAS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(50, "valor = (mensual.activosCuentas() - mensual.pasivosCuentas()) / mensual.trm(); activos y pasivos desde CUENTAS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(51, "valor = query Teradata sobre ESTFIN_INDIV, cuenta 411500: (saldo corte actual + saldo cierre anterior - saldo mismo corte anterior) / 1,000,000 / TRM; la ruta de CUENTAS ya no se usa para esta fila. Plantilla=" + plantillaAios + ".");
         explicaciones.put(52, "valor = query Teradata de gastos operativos: cuenta 510000 menos cuentas 510300, 510400, 510600, 510700, 510800, 512500, 512800, 512900 y 513900; aplica saldo corte + cierre anterior - mismo corte anterior, dividido entre 1,000,000 y TRM. Plantilla=" + plantillaAios + ".");
-        explicaciones.put(53, "valor = cuentas.resultadoOperacion(); leído desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
-        explicaciones.put(54, "valor = cuentas.resultadoNeto(); leído desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
-        explicaciones.put(55, "valor = cuentas.admon(); gastos de administración desde Plantilla AIOS hoja CUENTAS, ruta=" + plantillaAios + ".");
-        explicaciones.put(56, "valor = cuenta 511500 / TRM; cuenta 511500 proviene de Plantilla AIOS-probable hoja cuentas celda C21, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(57, "valor = cuenta 511527 / TRM; cuenta 511527 proviene de Plantilla AIOS-probable hoja cuentas celda C22, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(58, "valor = (cuenta 511500 + cuenta 511527) / TRM; cuentas desde Plantilla AIOS-probable hoja cuentas celdas C21 y C22, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(59, "valor = suma de cuentas 512000, 513000, 513500, 514000, 514500, 515000, 515500, 516000, 516500, 517000 y 517200 / TRM; celdas C24,C28,C29,C31,C32,C33,C34,C35,C36,C37,C38 de Plantilla AIOS-probable hoja cuentas, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(60, "valor = cuenta 510000 / TRM; cuenta 510000 proviene de Plantilla AIOS-probable hoja cuentas celda C15, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(53, "valor = fila 51 - flujo de la cuenta 510000; ambos valores provienen de queries Teradata ESTFIN_INDIV y la cuenta 510000 se reutiliza en la fila 60.");
+        explicaciones.put(54, "valor = resultado neto leído desde Plantilla AIOS hoja CUENTAS celda E44, ruta=" + plantillaAios + ".");
+        explicaciones.put(55, "valor = flujo cuenta 512000 + flujo cuenta 513000; ambos valores provienen de queries Teradata ESTFIN_INDIV con las tres fechas y la TRM del corte.");
+        explicaciones.put(56, "valor = flujo cuenta 511524 + flujo cuenta 511527; ambos valores provienen de queries Teradata ESTFIN_INDIV con las tres fechas y la TRM del corte.");
+        explicaciones.put(57, "valor = flujo cuenta 519015; proviene de query Teradata ESTFIN_INDIV con las tres fechas y la TRM del corte.");
+        explicaciones.put(58, "valor = fila 56 + fila 57; reutiliza los valores consultados para comisión vendedores y comercialización.");
+        explicaciones.put(59, "valor = fila 52 - fila 56 - fila 55 - fila 57; reutiliza los valores calculados en esas filas.");
+        explicaciones.put(60, "valor = flujo cuenta 510000; proviene de query Teradata ESTFIN_INDIV con las tres fechas y la TRM del corte y también se reutiliza en la fila 53.");
         explicaciones.put(61, "valor = (aportesRecibidos136 / TRM) / (mensual.aportantesSemestral() / 1000) * 1000; aportesRecibidos136 desde " + queryAportes136 + ", con b.fecha entre el día 1 del mismo mes un año antes del corte y la fecha de corte; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(62, "valor = fila 52 / (aportesRecibidos136 / TRM) * 100; gastos desde query Teradata de la fila 52; plantilla=" + plantillaAios + "; aportes desde " + queryAportes136 + ".");
         explicaciones.put(63, "valor = (patrimonioBaseMesMMCop / TRM) / fila 28 * 100; patrimonio base_mes desde Plantilla AIOS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(64, "valor = patrimonioUsd / mensual.afiliados() * 1,000,000; patrimonioUsd=(activos-pasivos)/TRM desde CUENTAS ruta=" + plantillaAios + " y afiliados por query Teradata Formato491.");
-        explicaciones.put(65, "valor = cuentas.resultadoNeto() / fila 51 * 100; resultado neto desde Plantilla AIOS hoja CUENTAS y comisiones desde la query 411500; plantilla=" + plantillaAios + ".");
-        explicaciones.put(66, "valor = cuentas.resultadoNeto() / patrimonioUsd * 100; resultado neto desde CUENTAS ruta=" + plantillaAios + " y patrimonioUsd=(activos-pasivos)/TRM.");
+        explicaciones.put(65, "valor = resultadoNeto / fila 51 * 100; resultado neto desde Plantilla AIOS hoja CUENTAS y comisiones desde la query 411500; plantilla=" + plantillaAios + ".");
+        explicaciones.put(66, "valor = resultadoNeto / patrimonioUsd * 100; resultado neto desde CUENTAS ruta=" + plantillaAios + " y patrimonioUsd=(activos-pasivos)/TRM.");
         explicaciones.put(67, "valor = fila 52 / mensual.afiliados() * 1,000,000; gastos desde query Teradata de la fila 52; plantilla=" + plantillaAios + "; afiliados por query Teradata Formato491.");
         explicaciones.put(68, "valor = fila 51 / mensual.aportantesSemestral() * 1,000,000; comisiones desde la query Teradata 411500; plantilla=" + plantillaAios + "; aportantes semestrales desde query Teradata.");
-        explicaciones.put(69, "valor = cuentas.admon() / fila 61; administración desde CUENTAS ruta=" + plantillaAios + " y fila 61 calculada con " + queryAportes136 + ".");
+        explicaciones.put(69, "valor = fila 55 / fila 61; fila 55 calculada con las queries 512000 y 513000, y fila 61 calculada con " + queryAportes136 + ".");
         explicaciones.put(70, "valor fijo = 16; no usa insumo externo.");
         explicaciones.put(71, "valor = promedio(trimestral.comisionesPct col_obl, por_obl, pro_obl, ska_obl); valores obtenidos por OCR de la Carta Circular SFC correspondiente al período de corte; el log muestra el PDF, el texto OCR y las cuatro comisiones utilizadas.");
         explicaciones.put(72, "valor fijo = 0; no usa insumo externo.");
@@ -426,20 +429,20 @@ public class SemestralExcelGenerator {
             case 44 -> "valores tomados: fila44=" + num(hoja, 44, col) + ".";
             case 45 -> "valores tomados: fila28=" + num(hoja, 28, col) + "; fila45=" + num(hoja, 45, col) + ".";
             case 46 -> "valores tomados: constante=4.";
-            case 47 -> "valores tomados: fila47=" + num(hoja, 47, col) + "; fallback mensual.porcVrFondo=" + mensual.porcVrFondo() + ".";
+            case 47 -> "valores tomados: participación porcentual fila47=" + num(hoja, 47, col) + "; presentación numérica sin símbolo %; mensual.porcVrFondo=" + mensual.porcVrFondo() + ".";
             case 48 -> "valores tomados: activosCuentas=" + mensual.activosCuentas() + "; TRM=" + trm(mensual) + ".";
             case 49 -> "valores tomados: pasivosCuentas=" + mensual.pasivosCuentas() + "; TRM=" + trm(mensual) + ".";
             case 50 -> "valores tomados: activosCuentas=" + mensual.activosCuentas() + "; pasivosCuentas=" + mensual.pasivosCuentas() + "; TRM=" + trm(mensual) + ".";
             case 51 -> "valores tomados: comisiones=fila51=" + num(hoja, 51, col) + ".";
             case 52 -> "valores tomados: gastos=fila52=" + num(hoja, 52, col) + ".";
-            case 53 -> "valores tomados: resultadoOperacion=fila53=" + num(hoja, 53, col) + ".";
+            case 53 -> "valores tomados: fila51=" + num(hoja, 51, col) + "; cuenta510000=fila60=" + num(hoja, 60, col) + "; fila53=fila51-fila60=" + num(hoja, 53, col) + ".";
             case 54 -> "valores tomados: resultadoNeto=fila54=" + num(hoja, 54, col) + ".";
-            case 55 -> "valores tomados: administracion=fila55=" + num(hoja, 55, col) + ".";
-            case 56 -> "valores tomados: cuenta511500/TRM=fila56=" + num(hoja, 56, col) + "; TRM=" + trm(mensual) + ".";
-            case 57 -> "valores tomados: cuenta511527/TRM=fila57=" + num(hoja, 57, col) + "; TRM=" + trm(mensual) + ".";
-            case 58 -> "valores tomados: fila56=" + num(hoja, 56, col) + "; fila57=" + num(hoja, 57, col) + "; TRM=" + trm(mensual) + ".";
-            case 59 -> "valores tomados: suma otros gastos/TRM=fila59=" + num(hoja, 59, col) + "; TRM=" + trm(mensual) + ".";
-            case 60 -> "valores tomados: cuenta510000/TRM=fila60=" + num(hoja, 60, col) + "; TRM=" + trm(mensual) + ".";
+            case 55 -> "valores tomados: cuenta512000+cuenta513000=fila55=" + num(hoja, 55, col) + "; TRM=" + trm(mensual) + ".";
+            case 56 -> "valores tomados: cuenta511524+cuenta511527=fila56=" + num(hoja, 56, col) + "; TRM=" + trm(mensual) + ".";
+            case 57 -> "valores tomados: cuenta519015=fila57=" + num(hoja, 57, col) + "; TRM=" + trm(mensual) + ".";
+            case 58 -> "valores tomados: fila56=" + num(hoja, 56, col) + "; fila57=" + num(hoja, 57, col) + "; fila58=fila56+fila57=" + num(hoja, 58, col) + ".";
+            case 59 -> "valores tomados: fila52=" + num(hoja, 52, col) + "; fila56=" + num(hoja, 56, col) + "; fila55=" + num(hoja, 55, col) + "; fila57=" + num(hoja, 57, col) + "; fila59=fila52-fila56-fila55-fila57=" + num(hoja, 59, col) + ".";
+            case 60 -> "valores tomados: cuenta510000 consultada en Teradata=fila60=" + num(hoja, 60, col) + "; TRM=" + trm(mensual) + ".";
             case 61 -> "valores tomados: aportantesSemestral=" + mensual.aportantesSemestral() + "; TRM=" + trm(mensual) + "; fila61=" + num(hoja, 61, col) + ".";
             case 62 -> "valores tomados: gastos=fila52=" + num(hoja, 52, col) + "; fila62=" + num(hoja, 62, col) + ".";
             case 63 -> "valores tomados: fila28=" + num(hoja, 28, col) + "; fila63=" + num(hoja, 63, col) + "; TRM=" + trm(mensual) + ".";
@@ -448,7 +451,7 @@ public class SemestralExcelGenerator {
             case 66 -> "valores tomados: resultadoNeto=fila54=" + num(hoja, 54, col) + "; patrimonioUsd=fila50=" + num(hoja, 50, col) + ".";
             case 67 -> "valores tomados: gastos=fila52=" + num(hoja, 52, col) + "; afiliados=" + mensual.afiliados() + ".";
             case 68 -> "valores tomados: comisiones=fila51=" + num(hoja, 51, col) + "; aportantesSemestral=" + mensual.aportantesSemestral() + ".";
-            case 69 -> "valores tomados: administracion=fila55=" + num(hoja, 55, col) + "; fila61=" + num(hoja, 61, col) + ".";
+            case 69 -> "valores tomados: gastos de administración consultados=fila55=" + num(hoja, 55, col) + "; fila61=" + num(hoja, 61, col) + ".";
             case 70 -> "valores tomados: constante=16.";
             case 71 -> "valores tomados: col_obl=" + trimestral.comisionesPct().getOrDefault("col_obl", BigDecimal.ZERO) + "; por_obl=" + trimestral.comisionesPct().getOrDefault("por_obl", BigDecimal.ZERO) + "; pro_obl=" + trimestral.comisionesPct().getOrDefault("pro_obl", BigDecimal.ZERO) + "; ska_obl=" + trimestral.comisionesPct().getOrDefault("ska_obl", BigDecimal.ZERO) + ".";
             case 72 -> "valores tomados: constante=0.";
@@ -799,35 +802,39 @@ public class SemestralExcelGenerator {
         return (value == null ? BigDecimal.ZERO : value).multiply(BigDecimal.valueOf(100));
     }
 
-    private CuentasData readCuentasData(LocalDate fechaCorte) {
+    FilasGastosSemestrales calcularFilasGastosSemestrales(
+            LocalDate fechaCorte,
+            BigDecimal trm,
+            BigDecimal fila51,
+            BigDecimal fila52
+    ) {
+        BigDecimal cuenta510000 = comisionesSemestralQueryService.leerCuenta(fechaCorte, trm, 510000);
+        BigDecimal cuenta512000 = comisionesSemestralQueryService.leerCuenta(fechaCorte, trm, 512000);
+        BigDecimal cuenta513000 = comisionesSemestralQueryService.leerCuenta(fechaCorte, trm, 513000);
+        BigDecimal cuenta511524 = comisionesSemestralQueryService.leerCuenta(fechaCorte, trm, 511524);
+        BigDecimal cuenta511527 = comisionesSemestralQueryService.leerCuenta(fechaCorte, trm, 511527);
+        BigDecimal cuenta519015 = comisionesSemestralQueryService.leerCuenta(fechaCorte, trm, 519015);
+
+        BigDecimal fila53 = fila51.subtract(cuenta510000);
+        BigDecimal fila55 = cuenta512000.add(cuenta513000);
+        BigDecimal fila56 = cuenta511524.add(cuenta511527);
+        BigDecimal fila57 = cuenta519015;
+        BigDecimal fila58 = fila56.add(fila57);
+        BigDecimal fila59 = fila52.subtract(fila56).subtract(fila55).subtract(fila57);
+
+        return new FilasGastosSemestrales(
+                fila53, fila55, fila56, fila57, fila58, fila59, cuenta510000,
+                cuenta512000, cuenta513000, cuenta511524, cuenta511527);
+    }
+
+    private BigDecimal readResultadoNeto(LocalDate fechaCorte) {
         Path plantilla = findPlantillaAiosFile(fechaCorte);
         try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
             Sheet cuentas = getSheetIgnoreCase(wb, "CUENTAS");
-            if (cuentas == null) return CuentasData.ZERO;
-            return new CuentasData(
-                    num(cuentas, "E13"),
-                    num(cuentas, "G15"),
-                    num(cuentas, "E41"),
-                    num(cuentas, "E44"),
-                    num(cuentas, "H24"),
-                    num(cuentas, "C21"),
-                    num(cuentas, "C22"),
-                    num(cuentas, "C24")
-                            .add(num(cuentas, "C28"))
-                            .add(num(cuentas, "C29"))
-                            .add(num(cuentas, "C31"))
-                            .add(num(cuentas, "C32"))
-                            .add(num(cuentas, "C33"))
-                            .add(num(cuentas, "C34"))
-                            .add(num(cuentas, "C35"))
-                            .add(num(cuentas, "C36"))
-                            .add(num(cuentas, "C37"))
-                            .add(num(cuentas, "C38")),
-                    num(cuentas, "C15")
-            );
+            return cuentas == null ? BigDecimal.ZERO : num(cuentas, "E44");
         } catch (Exception e) {
-            log.warn("No fue posible leer CUENTAS para semestral: {}", e.getMessage());
-            return CuentasData.ZERO;
+            log.warn("No fue posible leer el resultado neto desde CUENTAS para semestral: {}", e.getMessage());
+            return BigDecimal.ZERO;
         }
     }
 
@@ -1365,22 +1372,19 @@ public class SemestralExcelGenerator {
 
     private record PensionadosPorEntidad(BigDecimal invalidez, BigDecimal vejez, BigDecimal sobrevivencia) {}
 
-    private record CuentasData(
-            BigDecimal comisiones,
-            BigDecimal gastos,
-            BigDecimal resultadoOperacion,
-            BigDecimal resultadoNeto,
-            BigDecimal admon,
-            BigDecimal cuenta511500,
-            BigDecimal cuenta511527,
-            BigDecimal otrosGastosOperacion,
-            BigDecimal gastoOperacion510000
-    ) {
-        static final CuentasData ZERO = new CuentasData(
-                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO
-        );
-    }
+    record FilasGastosSemestrales(
+            BigDecimal fila53,
+            BigDecimal fila55,
+            BigDecimal fila56,
+            BigDecimal fila57,
+            BigDecimal fila58,
+            BigDecimal fila59,
+            BigDecimal fila60,
+            BigDecimal cuenta512000,
+            BigDecimal cuenta513000,
+            BigDecimal cuenta511524,
+            BigDecimal cuenta511527
+    ) {}
 
     private record RentPair(BigDecimal nominal, BigDecimal real) {}
 
@@ -1401,6 +1405,11 @@ public class SemestralExcelGenerator {
     void writeFilasAfiliadosDisponibilidad(Sheet sheet, int column, MensualData mensual) {
         write(sheet, 3, column, mensual.afiliados());
         write(sheet, 20, column, "No Disponible");
+    }
+
+    void writeFila47SinSimboloPorcentaje(Sheet sheet, int column, BigDecimal participacionPct) {
+        write(sheet, 47, column, participacionPct);
+        setNumberFormat(sheet, 47, column, "#,##0.00");
     }
 
     private void write(Sheet sheet, int row1Based, int col1Based, BigDecimal value) {

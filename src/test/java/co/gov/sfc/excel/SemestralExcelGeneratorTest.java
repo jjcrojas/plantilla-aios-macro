@@ -21,6 +21,7 @@ import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SemestralExcelGeneratorTest {
@@ -117,5 +118,54 @@ class SemestralExcelGeneratorTest {
             assertEquals(123456d, sheet.getRow(2).getCell(2).getNumericCellValue());
             assertEquals("No Disponible", sheet.getRow(19).getCell(2).getStringCellValue());
         }
+    }
+
+    @Test
+    void shouldWriteRow47AsNumericPercentageWithoutPercentSymbol() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Hoja1");
+            SemestralExcelGenerator generator = new SemestralExcelGenerator(
+                    new AiosProperties(Path.of("."), Path.of("."), Path.of("."), 40, true),
+                    null, null, null, null, null, null);
+
+            generator.writeFila47SinSimboloPorcentaje(sheet, 3, new BigDecimal("70.25"));
+
+            Cell cell = sheet.getRow(46).getCell(2);
+            assertEquals(70.25d, cell.getNumericCellValue());
+            assertEquals("#,##0.00", cell.getCellStyle().getDataFormatString());
+        }
+    }
+
+    @Test
+    void shouldCalculateRows53And55Through60FromQueriedAccountsAndDependentRows() {
+        LocalDate fechaCorte = LocalDate.of(2025, 6, 30);
+        BigDecimal trm = new BigDecimal("4069.67");
+        ComisionesSemestralQueryService queryService = mock(ComisionesSemestralQueryService.class);
+        when(queryService.leerCuenta(fechaCorte, trm, 510000)).thenReturn(new BigDecimal("250"));
+        when(queryService.leerCuenta(fechaCorte, trm, 512000)).thenReturn(new BigDecimal("100"));
+        when(queryService.leerCuenta(fechaCorte, trm, 513000)).thenReturn(new BigDecimal("50"));
+        when(queryService.leerCuenta(fechaCorte, trm, 511524)).thenReturn(new BigDecimal("60"));
+        when(queryService.leerCuenta(fechaCorte, trm, 511527)).thenReturn(new BigDecimal("40"));
+        when(queryService.leerCuenta(fechaCorte, trm, 519015)).thenReturn(new BigDecimal("30"));
+        SemestralExcelGenerator generator = new SemestralExcelGenerator(
+                new AiosProperties(Path.of("."), Path.of("."), Path.of("."), 40, true),
+                null, null, null, null, null, queryService);
+
+        SemestralExcelGenerator.FilasGastosSemestrales filas = generator.calcularFilasGastosSemestrales(
+                fechaCorte, trm, new BigDecimal("1000"), new BigDecimal("700"));
+
+        assertEquals(new BigDecimal("750"), filas.fila53());
+        assertEquals(new BigDecimal("150"), filas.fila55());
+        assertEquals(new BigDecimal("100"), filas.fila56());
+        assertEquals(new BigDecimal("30"), filas.fila57());
+        assertEquals(new BigDecimal("130"), filas.fila58());
+        assertEquals(new BigDecimal("420"), filas.fila59());
+        assertEquals(new BigDecimal("250"), filas.fila60());
+        verify(queryService).leerCuenta(fechaCorte, trm, 510000);
+        verify(queryService).leerCuenta(fechaCorte, trm, 512000);
+        verify(queryService).leerCuenta(fechaCorte, trm, 513000);
+        verify(queryService).leerCuenta(fechaCorte, trm, 511524);
+        verify(queryService).leerCuenta(fechaCorte, trm, 511527);
+        verify(queryService).leerCuenta(fechaCorte, trm, 519015);
     }
 }

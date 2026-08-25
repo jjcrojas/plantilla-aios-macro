@@ -195,7 +195,7 @@ El archivo semestral reúne indicadores de cobertura, demografía, pensionados, 
 | 44. Inversión en moneda extranjera | `O4 + Q4 + S4 + U4 + W4 + Y4` | `LIMITES del nuevo.xlsm`, hoja `AIOS`. | Ratio/porcentaje | — | — |
 | 45. Fondos / deuda gubernamental | `(vr_fondo / TRM) / deuda_gubernamental_USD` | Fondos del sistema y `PIB_PEA_TRM_DG`, serie de deuda gubernamental. | Porcentaje mediante formato Excel | [Q136-FONDOS](#q136-fondos) | Fondos desde Teradata; deuda continúa en archivo. |
 | 46. Número de administradoras | `4` | Constante: Colfondos, Porvenir, Protección y Skandia. | Número | — | — |
-| 47. Participación de las dos mayores | `(fondos Protección + fondos Porvenir) / total fondos * 100` | Macro Excel (sin cambios): `SISTEMA TOTAL`, `restot`. Aplicación AIOS: valores agrupados por AFP desde `NEGFID_INSUMO_ENTIDAD`, niveles `136/2/4/305`. | Porcentaje | [Q136-FONDOS](#q136-fondos) | Calcula la participación conjunta de Protección y Porvenir con la nueva fuente. |
+| 47. Participación de las dos mayores | `(fondos Protección + fondos Porvenir) / total fondos * 100` | Macro Excel: `SISTEMA TOTAL`, `restot`. Aplicación AIOS: valores agrupados por AFP desde `NEGFID_INSUMO_ENTIDAD`, niveles `136/2/4/305`. | Valor porcentual numérico, sin símbolo `%` | [Q136-FONDOS](#q136-fondos) | Calcula la participación conjunta y escribe, por ejemplo, `70.25` en lugar de `70.25%`. |
 
 ### 4.4 Matriz de trazabilidad semestral: balance, gastos y eficiencia
 
@@ -206,14 +206,14 @@ El archivo semestral reúne indicadores de cobertura, demografía, pensionados, 
 | 50. Patrimonio neto | `(CUENTAS!C6 - CUENTAS!C4) / TRM` | Mismo libro, activo `C6` y pasivo `C4`. | USD | — | — |
 | 51. Ingresos por comisiones | `(saldo 411500 corte + saldo 411500 cierre anterior - saldo 411500 mismo corte anterior) / 1,000,000 / TRM` | Query Teradata `ESTFIN_INDIV`, cuenta 411500, Tipo_Informe=0. | MM USD | `ESTFIN_INDIV` | Consulta parametrizada con las tres fechas y la TRM del corte. |
 | 52. Gastos operativos | `(510000 - (510300+510400+510600+510700+510800+512500+512800+512900+513900))`, aplicando `saldo corte + cierre anterior - mismo corte anterior`, luego `/1,000,000/TRM` | Query Teradata `ESTFIN_INDIV`, Tipo_Informe=0. | MM USD | `ESTFIN_INDIV` | Fechas y TRM parametrizadas según el corte. |
-| 53. Resultado operativo | Macro: `comisiones - gastos`; aplicación: valor contable de resultado operativo. | Macro usa filas 51–52; aplicación lee `CUENTAS!E41`. | Unidad contable de la plantilla | — | — |
+| 53. Resultado operativo | `fila 51 - flujo cuenta 510000` | Fila 51 y query Teradata `ESTFIN_INDIV`, cuenta 510000, con las tres fechas y TRM del corte. | MM USD | `ESTFIN_INDIV` | Reutiliza el mismo valor de la cuenta 510000 escrito en la fila 60. |
 | 54. Resultado neto | `CUENTAS!E44` | `Plantilla AIOS-probable.xlsm`, `CUENTAS!E44`. | Unidad contable de la plantilla | — | — |
-| 55. Gastos de administración | `CUENTAS!H24` | Mismo libro, `CUENTAS!H24`. | Unidad contable de la plantilla | — | — |
-| 56. Comisión vendedores | `cuenta 511500 / TRM` | `Plantilla AIOS-probable.xlsm`, hoja `cuentas`, celda `C21`. | USD | — | — |
-| 57. Comercialización | `cuenta 511527 / TRM` | Mismo libro, `cuentas!C22`. | USD | — | — |
-| 58. Total comercialización | `(C21 + C22) / TRM` | Mismo libro, `cuentas!C21:C22`. | USD | — | — |
-| 59. Otros gastos | `(C24+C28+C29+C31+C32+C33+C34+C35+C36+C37+C38) / TRM` | `Plantilla AIOS-probable.xlsm`, hoja `cuentas`; cuentas 512000, 513000, 513500, 514000, 514500, 515000, 515500, 516000, 516500, 517000 y 517200. | USD | — | — |
-| 60. Total gastos | `cuenta 510000 / TRM` | Mismo libro, `cuentas!C15`. | USD | — | — |
+| 55. Gastos de administración | `flujo cuenta 512000 + flujo cuenta 513000` | Query Teradata `ESTFIN_INDIV`, cuentas 512000 y 513000. | MM USD | `ESTFIN_INDIV` | Cada flujo aplica saldo del corte + cierre anterior − mismo corte anterior, dividido por 1,000,000 y TRM. |
+| 56. Comisión vendedores | `flujo cuenta 511524 + flujo cuenta 511527` | Query Teradata `ESTFIN_INDIV`, cuentas 511524 y 511527. | MM USD | `ESTFIN_INDIV` | Suma los dos resultados ya convertidos a MM USD. |
+| 57. Comercialización | `flujo cuenta 519015` | Query Teradata `ESTFIN_INDIV`, cuenta 519015. | MM USD | `ESTFIN_INDIV` | Usa las tres fechas y la TRM del corte. |
+| 58. Total comercialización | `fila 56 + fila 57` | Valores calculados para las filas 56 y 57. | MM USD | `ESTFIN_INDIV` | Conserva la dependencia entre filas con las nuevas fuentes. |
+| 59. Otros gastos | `fila 52 - fila 56 - fila 55 - fila 57` | Valores calculados para las filas 52, 56, 55 y 57. | MM USD | `ESTFIN_INDIV` | Conserva la operación entre filas, ahora alimentada por queries. |
+| 60. Total gastos | `flujo cuenta 510000` | Query Teradata `ESTFIN_INDIV`, cuenta 510000. | MM USD | `ESTFIN_INDIV` | Reutiliza la cuenta consultada para calcular la fila 53. |
 | 61. Recaudación anual por aportante | `(FORMATO OBL!E6 / TRM) / (aportantes/1000) * 1000` | Macro: `Formato_136_Meses.xlsm`, hoja `FORMATO OBL`, fechas en `B6:B7`, resultado `E6`. | USD por mil aportantes | [Q136-APORTES](#q136-aportes) | Suma aportes recibidos del Formato 136 entre 2024-06-01 y 2025-06-30; sustituye la lectura de `E6`. |
 | 62. Gastos / recaudación | `gastos / (aportes_recibidos / TRM) * 100` | Gastos de fila 52 y aportes que en la macro provienen de `FORMATO OBL!E6`. | Porcentaje | [Q136-APORTES](#q136-aportes) | Reutiliza los aportes recibidos consultados. |
 | 63. Patrimonio / fondos | `(patrimonio base mes / TRM) / fila 28 * 100` | `Plantilla AIOS-probable.xlsm`, `base mes`, patrimonio del período; fila 28. | Porcentaje | — | — |
@@ -222,7 +222,7 @@ El archivo semestral reúne indicadores de cobertura, demografía, pensionados, 
 | 66. Utilidad / patrimonio | `resultado_neto / patrimonio_USD * 100` | `CUENTAS!E44` y fila 50. | Porcentaje | — | — |
 | 67. Gastos por afiliado | `gastos / afiliados * 1,000,000` | `CUENTAS!G15` y afiliados. | Valor por afiliado | [Q491-TOTALES](#q491-totales) | El denominador proviene del total de afiliados. |
 | 68. Comisiones por aportante | `comisiones / aportantes * 1,000,000` | `CUENTAS!E13` y aportantes. | Valor por aportante | [Q491-TOTALES](#q491-totales) | El denominador proviene del total de aportantes. |
-| 69. Comisión / recaudación neta | `gastos_administración / fila 61` | `CUENTAS!H24` y fila 61. | Ratio | [Q136-APORTES](#q136-aportes) | La recaudación normalizada usa aportes del Formato 136. |
+| 69. Comisión / recaudación neta | `fila 55 / fila 61` | Gastos de administración consultados en Teradata y fila 61. | Ratio | [Q136-APORTES](#q136-aportes) | Reutiliza la nueva fila 55 y la recaudación normalizada del Formato 136. |
 
 ### 4.5 Matriz de trazabilidad semestral: aportes, comisiones y rentabilidad
 
@@ -1957,7 +1957,7 @@ $$
 
 La aplicación escribe `4`: Colfondos, Porvenir, Protección y Skandia.
 
-#### Fila 47: Participación Protección + Porvenir (%)
+#### Fila 47: Participación Protección + Porvenir sin símbolo de porcentaje
 
 **¿Qué representa la fila 47?**
 
@@ -1976,10 +1976,10 @@ $$
 **Fórmula implementada**
 
 $$
-\text{Fila 47} = \frac{\text{Fondos Protección} + \text{Fondos Porvenir}}{\text{Fondos del sistema}}
+\text{Fila 47} = \frac{\text{Fondos Protección} + \text{Fondos Porvenir}}{\text{Fondos del sistema}} \times 100
 $$
 
-La macro Excel conserva su cálculo histórico con los valores de `SISTEMA TOTAL`, hoja `restot`. La aplicación AIOS consulta los tres valores en `NEGFID_INSUMO_ENTIDAD`, niveles `136/2/4/305`, agrupando por AFP; divide el porcentaje calculado por 100 antes de escribirlo porque la celda usa formato porcentual.
+La macro Excel conserva su cálculo histórico con los valores de `SISTEMA TOTAL`, hoja `restot`. La aplicación AIOS consulta los tres valores en `NEGFID_INSUMO_ENTIDAD`, niveles `136/2/4/305`, agrupando por AFP. Escribe el valor porcentual directamente con formato numérico `#,##0.00`, sin símbolo `%`.
 
 #### Fila 48: Activos en USD
 
@@ -2120,10 +2120,10 @@ $$
 **Fórmula implementada**
 
 $$
-\text{Fila 53} = \text{CUENTAS!E41}
+\text{Fila 53} = \text{Fila 51} - \text{flujo cuenta 510000}
 $$
 
-La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+El flujo de la cuenta 510000 proviene de `ESTFIN_INDIV` y aplica saldo del corte + saldo del cierre anterior − saldo del mismo corte del año anterior, dividido por 1,000,000 y por la TRM. Ese mismo resultado se reutiliza en la fila 60.
 
 #### Fila 54: Resultado neto
 
@@ -2168,16 +2168,16 @@ $$
 **Fórmula implementada**
 
 $$
-\text{Fila 55} = \text{CUENTAS!H24}
+\text{Fila 55} = \text{flujo cuenta 512000} + \text{flujo cuenta 513000}
 $$
 
-La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+Ambos flujos se consultan en `ESTFIN_INDIV` con las tres fechas del semestre y se convierten a MM USD con la TRM del corte.
 
-#### Fila 56: Cuenta 511500 en USD
+#### Fila 56: Comisión vendedores
 
 **¿Qué representa la fila 56?**
 
-La fila 56 corresponde a cuenta 511500 convertida a dólares.
+La fila 56 corresponde a la suma de las cuentas 511524 y 511527 convertidas a MM USD.
 
 **Interpretación económica u operativa**
 
@@ -2186,22 +2186,22 @@ Permite analizar este rubro específico en moneda comparable.
 **Fórmula conceptual**
 
 $$
-\text{Cuenta 511500 en USD} = \frac{\text{Cuenta 511500 en COP}}{\text{TRM}}
+\text{Comisión vendedores} = \text{flujo 511524} + \text{flujo 511527}
 $$
 
 **Fórmula implementada**
 
 $$
-\text{Fila 56} = \frac{\text{CUENTAS!C21}}{\text{TRM}}
+\text{Fila 56} = \text{Query 511524} + \text{Query 511527}
 $$
 
-La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+Cada query aplica saldo del corte + cierre anterior − mismo corte anterior, dividido por 1,000,000 y por la TRM.
 
-#### Fila 57: Cuenta 511527 en USD
+#### Fila 57: Comercialización
 
 **¿Qué representa la fila 57?**
 
-La fila 57 corresponde a cuenta 511527 convertida a dólares.
+La fila 57 corresponde al flujo de la cuenta 519015 convertido a MM USD.
 
 **Interpretación económica u operativa**
 
@@ -2210,22 +2210,22 @@ Permite analizar afiliaciones a fondos de pensiones en moneda comparable.
 **Fórmula conceptual**
 
 $$
-\text{Cuenta 511527 en USD} = \frac{\text{Cuenta 511527 en COP}}{\text{TRM}}
+\text{Comercialización} = \text{flujo cuenta 519015}
 $$
 
 **Fórmula implementada**
 
 $$
-\text{Fila 57} = \frac{\text{CUENTAS!C22}}{\text{TRM}}
+\text{Fila 57} = \text{Query 519015}
 $$
 
-La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+La cuenta se consulta en `ESTFIN_INDIV` con las tres fechas y la TRM del corte.
 
-#### Fila 58: Cuentas 511500 + 511527 en USD
+#### Fila 58: Total comercialización
 
 **¿Qué representa la fila 58?**
 
-La fila 58 corresponde a suma de las cuentas 511500 y 511527 convertida a dólares.
+La fila 58 conserva la dependencia entre valores ya calculados: suma la comisión de vendedores y la comercialización.
 
 **Interpretación económica u operativa**
 
@@ -2234,22 +2234,22 @@ Resume los rubros de comisión y afiliación solicitados para el análisis.
 **Fórmula conceptual**
 
 $$
-\text{Cuentas 511500 y 511527 en USD} = \frac{\text{Cuenta 511500} + \text{Cuenta 511527}}{\text{TRM}}
+\text{Total comercialización} = \text{Fila 56} + \text{Fila 57}
 $$
 
 **Fórmula implementada**
 
 $$
-\text{Fila 58} = \frac{\text{CUENTAS!C21} + \text{CUENTAS!C22}}{\text{TRM}}
+\text{Fila 58} = \text{Fila 56} + \text{Fila 57}
 $$
 
-La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+Las filas 56 y 57 ya están expresadas en MM USD, por lo que no se aplica una segunda conversión.
 
 #### Fila 59: Otros gastos operacionales en USD
 
 **¿Qué representa la fila 59?**
 
-La fila 59 corresponde a suma de cuentas seleccionadas de gastos operacionales convertida a dólares.
+La fila 59 corresponde al remanente de gastos después de descontar los rubros calculados en las filas 56, 55 y 57.
 
 **Interpretación económica u operativa**
 
@@ -2258,16 +2258,16 @@ Mide la carga de gastos operacionales distintos de los rubros principales.
 **Fórmula conceptual**
 
 $$
-\text{Otros gastos operacionales en USD} = \frac{\text{Suma de cuentas de gastos seleccionadas}}{\text{TRM}}
+\text{Otros gastos} = \text{Gastos operativos} - \text{Comisión vendedores} - \text{Gastos de administración} - \text{Comercialización}
 $$
 
 **Fórmula implementada**
 
 $$
-\text{Fila 59} = \frac{C24+C28+C29+C31+C32+C33+C34+C35+C36+C37+C38}{\text{TRM}}
+\text{Fila 59} = \text{Fila 52} - \text{Fila 56} - \text{Fila 55} - \text{Fila 57}
 $$
 
-La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+Todos los operandos se reutilizan de los valores ya escritos en el informe y están expresados en MM USD.
 
 #### Fila 60: Gasto de operación 510000 en USD
 
@@ -2282,16 +2282,16 @@ Mide el gasto operacional agregado en moneda comparable.
 **Fórmula conceptual**
 
 $$
-\text{Gasto operación 510000 en USD} = \frac{\text{Cuenta 510000}}{\text{TRM}}
+\text{Gasto operación 510000 en USD} = \text{flujo cuenta 510000}
 $$
 
 **Fórmula implementada**
 
 $$
-\text{Fila 60} = \frac{\text{CUENTAS!C15}}{\text{TRM}}
+\text{Fila 60} = \text{Query 510000}
 $$
 
-La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
+La cuenta se consulta en `ESTFIN_INDIV` con las tres fechas y la TRM del corte; el resultado también participa en la fila 53.
 
 #### Fila 61: Aportes recibidos por aportante
 
@@ -2336,7 +2336,7 @@ $$
 **Fórmula implementada**
 
 $$
-\text{Fila 62} = \frac{\text{cuentas.gastos}}{\text{aportesRecibidos}/\text{TRM}} \times 100
+\text{Fila 62} = \frac{\text{Fila 52}}{\text{aportesRecibidos}/\text{TRM}} \times 100
 $$
 
 La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.

@@ -1,4 +1,4 @@
 interface:
   display_name: "Generar semestral AIOS"
-  short_description: "Prepara la plantilla y genera el semestral"
-  default_prompt: "Usa $generar-semestral-aios para preparar la plantilla AIOS y generar el boletín semestral del período indicado."
+  short_description: "Genera el semestral con contingencia de macro"
+  default_prompt: "Usa $generar-semestral-aios para validar la plantilla AIOS, intentar su macro y generar el boletín semestral del período indicado; si la macro falla después de las validaciones previas, continúa con Java y reporta la advertencia."

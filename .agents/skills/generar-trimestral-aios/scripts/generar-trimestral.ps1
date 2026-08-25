@@ -76,6 +76,23 @@ function Quote-ProcessArgument {
     return '"' + $Value.Replace('"', '\"') + '"'
 }
 
+function Get-MacroState {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return '' }
+    return (Get-Content -LiteralPath $Path -Raw).Trim()
+}
+
+function Stop-MacroExcelProcess {
+    param([string]$PidFile)
+    if (-not (Test-Path -LiteralPath $PidFile -PathType Leaf)) { return }
+    $excelPidText = (Get-Content -LiteralPath $PidFile -Raw).Trim()
+    [int]$excelPid = 0
+    if ([int]::TryParse($excelPidText, [ref]$excelPid)) {
+        Stop-Process -Id $excelPid -Force -ErrorAction SilentlyContinue
+    }
+    Remove-Item -LiteralPath $PidFile -Force -ErrorAction SilentlyContinue
+}
+
 function Stop-TemporaryApplication {
     param(
         [System.Diagnostics.Process]$MavenProcess,
@@ -177,8 +194,10 @@ $backupPath = Join-Path $backupDir ("Plantilla AIOS-probable.before-{0}-{1}.xlsm
 Copy-Item -LiteralPath $plantilla -Destination $backupPath -ErrorAction Stop
 
 $excelPidFile = Join-Path $outputPath '.excel-process.pid'
+$macroStateFile = Join-Path $outputPath '.macro-state'
 $macroStdout = Join-Path $outputPath 'actualizacion-plantilla.stdout.log'
 $macroStderr = Join-Path $outputPath 'actualizacion-plantilla.stderr.log'
+Remove-Item -LiteralPath $excelPidFile, $macroStateFile -Force -ErrorAction SilentlyContinue
 $powershell = (Get-Command 'powershell.exe' -ErrorAction Stop).Source
 $workerArguments = @(
     '-NoProfile',
@@ -186,7 +205,8 @@ $workerArguments = @(
     '-File', (Quote-ProcessArgument -Value $updateScript),
     '-PlantillaPath', (Quote-ProcessArgument -Value $plantilla),
     '-FechaCorte', $FechaCorte,
-    '-ExcelProcessIdFile', (Quote-ProcessArgument -Value $excelPidFile)
+    '-ExcelProcessIdFile', (Quote-ProcessArgument -Value $excelPidFile),
+    '-MacroStateFile', (Quote-ProcessArgument -Value $macroStateFile)
 )
 
 $macroProcess = Start-Process -FilePath $powershell `
@@ -197,32 +217,52 @@ $macroProcess = Start-Process -FilePath $powershell `
     -PassThru
 
 $macroDeadline = [DateTime]::UtcNow.AddMinutes($MacroTimeoutMinutes)
+$macroTimedOut = $false
 while (-not $macroProcess.HasExited) {
     if ([DateTime]::UtcNow -ge $macroDeadline) {
         Stop-Process -Id $macroProcess.Id -Force -ErrorAction SilentlyContinue
-        if (Test-Path -LiteralPath $excelPidFile) {
-            $excelPidText = (Get-Content -LiteralPath $excelPidFile -Raw).Trim()
-            [int]$excelPid = 0
-            if ([int]::TryParse($excelPidText, [ref]$excelPid)) {
-                Stop-Process -Id $excelPid -Force -ErrorAction SilentlyContinue
-            }
-            Remove-Item -LiteralPath $excelPidFile -Force -ErrorAction SilentlyContinue
-        }
-        throw "La preparación y validación de la plantilla superó el límite de $MacroTimeoutMinutes minutos. Revise $macroStderr"
+        [void]$macroProcess.WaitForExit(5000)
+        Stop-MacroExcelProcess -PidFile $excelPidFile
+        $macroTimedOut = $true
+        break
     }
     Start-Sleep -Seconds 2
 }
 
-if ($macroProcess.ExitCode -ne 0) {
-    $macroError = if (Test-Path -LiteralPath $macroStderr) { Get-Content -LiteralPath $macroStderr -Raw } else { '' }
-    Remove-Item -LiteralPath $excelPidFile -Force -ErrorAction SilentlyContinue
-    throw "Falló la preparación o validación de Plantilla AIOS-probable.xlsm. No se generó el trimestral. $macroError"
-}
 $macroResult = if (Test-Path -LiteralPath $macroStdout) { Get-Content -LiteralPath $macroStdout -Raw } else { '' }
-if ($macroResult -notmatch 'PLANTILLA_PREPARADA_OK') {
+$macroError = if (Test-Path -LiteralPath $macroStderr) { Get-Content -LiteralPath $macroStderr -Raw } else { '' }
+$macroState = Get-MacroState -Path $macroStateFile
+$recoverableStates = @('PREPARACION_INICIADA', 'MACRO_INICIADA', 'OMITIDA')
+$macroPreparationStatus = 'actualizada'
+$macroWarning = ''
+
+if ($macroTimedOut) {
+    if ($recoverableStates -notcontains $macroState) {
+        Remove-Item -LiteralPath $macroStateFile -Force -ErrorAction SilentlyContinue
+        throw "La validación previa de la plantilla superó el límite de $MacroTimeoutMinutes minutos antes de iniciar la macro. Revise $macroStderr"
+    }
+    $macroPreparationStatus = 'omitida'
+    $macroWarning = "ADVERTENCIA_MACRO_PLANTILLA_OMITIDA fecha=$FechaCorte motivo=tiempo_limite minutos=$MacroTimeoutMinutes accion=continuar_con_aplicacion stdout=$macroStdout stderr=$macroStderr"
+} elseif ($macroProcess.ExitCode -ne 0) {
+    if ($recoverableStates -notcontains $macroState) {
+        Remove-Item -LiteralPath $excelPidFile, $macroStateFile -Force -ErrorAction SilentlyContinue
+        throw "Falló la validación previa de Plantilla AIOS-probable.xlsm antes de iniciar la macro. No se generó el trimestral. $macroError"
+    }
+    Stop-MacroExcelProcess -PidFile $excelPidFile
+    $macroPreparationStatus = 'omitida'
+    $macroWarning = "ADVERTENCIA_MACRO_PLANTILLA_OMITIDA fecha=$FechaCorte motivo=proceso_finalizado_con_error accion=continuar_con_aplicacion stdout=$macroStdout stderr=$macroStderr"
+} elseif ($macroResult -match 'PLANTILLA_PREPARADA_OK' -or $macroState -eq 'COMPLETADA') {
+    $macroPreparationStatus = 'actualizada'
+} elseif ($macroResult -match 'ADVERTENCIA_MACRO_PLANTILLA_OMITIDA' -or $macroState -eq 'OMITIDA' -or ($recoverableStates -contains $macroState)) {
+    $macroPreparationStatus = 'omitida'
+    $macroWarningReason = if ($macroResult -match 'ADVERTENCIA_MACRO_PLANTILLA_OMITIDA' -or $macroState -eq 'OMITIDA') { 'error_en_macro_o_validacion_posterior' } else { 'preparacion_no_confirmada' }
+    $macroWarning = "ADVERTENCIA_MACRO_PLANTILLA_OMITIDA fecha=$FechaCorte motivo=$macroWarningReason accion=continuar_con_aplicacion stdout=$macroStdout stderr=$macroStderr"
+} else {
     Remove-Item -LiteralPath $excelPidFile -Force -ErrorAction SilentlyContinue
-    throw "La preparación de la plantilla terminó sin confirmación verificable. Revise $macroStdout"
+    Remove-Item -LiteralPath $macroStateFile -Force -ErrorAction SilentlyContinue
+    throw "La validación previa de la plantilla terminó sin confirmación verificable. Revise $macroStdout y $macroStderr"
 }
+Remove-Item -LiteralPath $excelPidFile, $macroStateFile -Force -ErrorAction SilentlyContinue
 
 $mavenProcess = $null
 $port = Get-FreeLocalPort -StartPort $PreferredPort
@@ -261,9 +301,14 @@ try {
         throw "La generación trimestral de $FechaCorte produjo un archivo vacío."
     }
     $periodLabel = Test-TrimestralWorkbook -Path $file.FullName -Cutoff $fecha
-    Write-Output $macroResult.Trim()
+    if (-not [string]::IsNullOrWhiteSpace($macroResult)) {
+        Write-Output $macroResult.Trim()
+    }
+    if (-not [string]::IsNullOrWhiteSpace($macroWarning)) {
+        Write-Output $macroWarning
+    }
     Write-Output "RESPALDO_PLANTILLA ruta=$backupPath"
-    Write-Output "TRIMESTRAL_GENERADO_OK fecha=$FechaCorte periodo=$periodLabel bytes=$($file.Length) ruta=$($file.FullName)"
+    Write-Output "TRIMESTRAL_GENERADO_OK fecha=$FechaCorte periodo=$periodLabel preparacionPlantilla=$macroPreparationStatus bytes=$($file.Length) ruta=$($file.FullName)"
     $file.FullName
 } finally {
     if ($null -ne $mavenProcess -and -not $KeepApplicationRunning) {
@@ -271,5 +316,8 @@ try {
     }
     if (Test-Path -LiteralPath $excelPidFile) {
         Remove-Item -LiteralPath $excelPidFile -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path -LiteralPath $macroStateFile) {
+        Remove-Item -LiteralPath $macroStateFile -Force -ErrorAction SilentlyContinue
     }
 }

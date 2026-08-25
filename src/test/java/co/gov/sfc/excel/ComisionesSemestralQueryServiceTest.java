@@ -24,7 +24,8 @@ class ComisionesSemestralQueryServiceTest {
                 org.mockito.ArgumentMatchers.anyString(), eq(BigDecimal.class),
                 eq(Date.valueOf("2025-06-30")), eq(Date.valueOf("2024-12-31")), eq(Date.valueOf("2024-06-30")),
                 eq(new BigDecimal("4069.67")),
-                eq(Date.valueOf("2025-06-30")), eq(Date.valueOf("2024-12-31")), eq(Date.valueOf("2024-06-30"))))
+                eq(Date.valueOf("2025-06-30")), eq(Date.valueOf("2024-12-31")), eq(Date.valueOf("2024-06-30")),
+                eq(411500)))
                 .thenReturn(new BigDecimal("123.456"));
         ComisionesSemestralQueryService service = new ComisionesSemestralQueryService(jdbcTemplate);
 
@@ -36,11 +37,34 @@ class ComisionesSemestralQueryServiceTest {
                 sql.capture(), eq(BigDecimal.class),
                 eq(Date.valueOf("2025-06-30")), eq(Date.valueOf("2024-12-31")), eq(Date.valueOf("2024-06-30")),
                 eq(new BigDecimal("4069.67")),
-                eq(Date.valueOf("2025-06-30")), eq(Date.valueOf("2024-12-31")), eq(Date.valueOf("2024-06-30")));
+                eq(Date.valueOf("2025-06-30")), eq(Date.valueOf("2024-12-31")), eq(Date.valueOf("2024-06-30")),
+                eq(411500));
         assertTrue(sql.getValue().contains("PROD_DWH_CONSULTA.ESTFIN_INDIV"));
         assertTrue(sql.getValue().contains("ei.Tipo_Informe = 0"));
-        assertTrue(sql.getValue().contains("p.Codigo = 411500"));
+        assertTrue(sql.getValue().contains("p.Codigo = ?"));
         assertTrue(sql.getValue().contains("/ 1000000 / ?"));
+    }
+
+    @Test
+    void shouldCalculateAnyRequestedAccountUsingTheSameSemesterFlowFormula() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        when(jdbcTemplate.queryForObject(
+                org.mockito.ArgumentMatchers.anyString(), eq(BigDecimal.class),
+                eq(Date.valueOf("2025-06-30")), eq(Date.valueOf("2024-12-31")), eq(Date.valueOf("2024-06-30")),
+                eq(new BigDecimal("4069.67")),
+                eq(Date.valueOf("2025-06-30")), eq(Date.valueOf("2024-12-31")), eq(Date.valueOf("2024-06-30")),
+                eq(519015)))
+                .thenReturn(new BigDecimal("98.765"));
+        ComisionesSemestralQueryService service = new ComisionesSemestralQueryService(jdbcTemplate);
+
+        BigDecimal result = service.leerCuenta(
+                LocalDate.of(2025, 6, 30), new BigDecimal("4069.67"), 519015);
+
+        assertEquals(new BigDecimal("98.765"), result);
+        String sql = service.sqlCuenta();
+        assertTrue(sql.contains("p.Codigo = ?"));
+        assertTrue(sql.contains("t.Fecha IN (?, ?, ?)"));
+        assertTrue(sql.contains("/ 1000000 / ?"));
     }
 
     @Test
@@ -65,4 +89,5 @@ class ComisionesSemestralQueryServiceTest {
         assertTrue(sql.contains("THEN -("));
         assertTrue(sql.contains("ei.Tipo_Informe = 0"));
         assertTrue(sql.contains("/ 1000000 / ?"));
-    }}
+    }
+}

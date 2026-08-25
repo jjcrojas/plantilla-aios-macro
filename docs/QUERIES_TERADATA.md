@@ -1186,3 +1186,34 @@ La aplicación ordena estas entidades por `AFILIADOS`, suma las dos mayores y ca
 ```text
 concentracion_afiliados = afiliados_top_2_afp / afiliados_total_sistema * 100
 ```
+
+## Flujos contables semestrales desde `ESTFIN_INDIV`
+
+Las filas 51, 53 y 55–60 del informe semestral usan el flujo de una cuenta PUC para el período. La aplicación parametriza la cuenta, las fechas y la TRM:
+
+```sql
+SELECT COALESCE(SUM(
+           (CASE WHEN t.Fecha = ? THEN ei.Saldo_Sincierre_Total_Moneda_0 ELSE 0 END)
+         + (CASE WHEN t.Fecha = ? THEN ei.Saldo_Sincierre_Total_Moneda_0 ELSE 0 END)
+         - (CASE WHEN t.Fecha = ? THEN ei.Saldo_Sincierre_Total_Moneda_0 ELSE 0 END)
+       ), 0) / 1000000 / ? AS RESULTADO
+FROM PROD_DWH_CONSULTA.ESTFIN_INDIV ei
+INNER JOIN PROD_DWH_CONSULTA.ENTIDADES e ON ei.Ent_ID = e.Ent_ID
+INNER JOIN PROD_DWH_CONSULTA.TIEMPO t ON ei.Tie_ID = t.Tie_ID
+INNER JOIN PROD_DWH_CONSULTA.PUC p ON ei.Puc_ID = p.Puc_ID
+WHERE e.Tipo_Entidad = 23
+  AND ei.Tipo_Informe = 0
+  AND t.Fecha IN (?, ?, ?)
+  AND p.Codigo = ?;
+```
+
+El orden de fechas es: fecha de corte, 31 de diciembre del año anterior y mismo corte del año anterior. El resultado ya queda expresado en MM USD. La aplicación consulta las cuentas y conserva estas dependencias:
+
+- Fila 51: cuenta 411500.
+- Fila 53: fila 51 menos cuenta 510000.
+- Fila 55: cuenta 512000 más cuenta 513000.
+- Fila 56: cuenta 511524 más cuenta 511527.
+- Fila 57: cuenta 519015.
+- Fila 58: fila 56 más fila 57.
+- Fila 59: fila 52 menos fila 56, menos fila 55 y menos fila 57.
+- Fila 60: cuenta 510000, reutilizada también en la fila 53.

@@ -1,4 +1,4 @@
 interface:
   display_name: "Generar trimestral AIOS"
-  short_description: "Valida la plantilla y genera el trimestral"
-  default_prompt: "Usa $generar-trimestral-aios para validar la plantilla AIOS ya preparada y generar el boletín trimestral del período indicado."
+  short_description: "Genera el trimestral con contingencia de macro"
+  default_prompt: "Usa $generar-trimestral-aios para validar la plantilla AIOS, intentar su macro y generar el boletín trimestral del período indicado; si la macro falla después de las validaciones previas, continúa con Java y reporta la advertencia."
