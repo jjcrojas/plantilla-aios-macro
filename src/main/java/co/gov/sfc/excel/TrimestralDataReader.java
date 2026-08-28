@@ -8,12 +8,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -29,14 +26,16 @@ public class TrimestralDataReader {
     private final Formato491QueryService formato491QueryService;
     private final Formato493QueryService formato493QueryService;
     private final Formato136QueryService formato136QueryService;
+    private final GastosTrimestralQueryService gastosTrimestralQueryService;
     private final ComisionesSfcService comisionesSfcService;
 
-    public TrimestralDataReader(MensualDataReader mensualDataReader, InsumosLocator locator, Formato491QueryService formato491QueryService, Formato493QueryService formato493QueryService, Formato136QueryService formato136QueryService, ComisionesSfcService comisionesSfcService) {
+    public TrimestralDataReader(MensualDataReader mensualDataReader, InsumosLocator locator, Formato491QueryService formato491QueryService, Formato493QueryService formato493QueryService, Formato136QueryService formato136QueryService, GastosTrimestralQueryService gastosTrimestralQueryService, ComisionesSfcService comisionesSfcService) {
         this.mensualDataReader = mensualDataReader;
         this.locator = locator;
         this.formato491QueryService = formato491QueryService;
         this.formato493QueryService = formato493QueryService;
         this.formato136QueryService = formato136QueryService;
+        this.gastosTrimestralQueryService = gastosTrimestralQueryService;
         this.comisionesSfcService = comisionesSfcService;
     }
 
@@ -84,109 +83,7 @@ public class TrimestralDataReader {
     }
 
     private Map<String, BigDecimal> readGastosUsd(LocalDate fechaCorte, BigDecimal trm) {
-        Map<String, BigDecimal> out = new HashMap<>();
-        try {
-            Path plantilla = findPlantillaAiosFile(fechaCorte);
-            log.info("Gastos trimestrales: leyendo plantilla {}", plantilla.toAbsolutePath());
-            try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
-                Sheet baseAnual = getSheetIgnoreCase(wb, "base anual");
-                if (baseAnual == null) {
-                    log.warn("No se encontró la hoja 'base anual' en {}", plantilla.getFileName());
-                    return out;
-                }
-                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-                LocalDate fechaBase = fechaBusquedaGastos(fechaCorte);
-                int serialFecha = (int) Math.round(DateUtil.getExcelDate(java.sql.Date.valueOf(fechaBase)));
-                log.info("Gastos trimestrales: fechaCorte={}, fechaBaseBusqueda={}, serialExcel={}, TRM={}", fechaCorte, fechaBase, serialFecha, trm);
-
-                putGastoUsd(out, "prot", "proteccion", baseAnual, evaluator, serialFecha, trm);
-                putGastoUsd(out, "porv", "porvenir", baseAnual, evaluator, serialFecha, trm);
-                putGastoUsd(out, "sk", "skandia", baseAnual, evaluator, serialFecha, trm);
-                putGastoUsd(out, "colf", "colfondos", baseAnual, evaluator, serialFecha, trm);
-            }
-        } catch (Exception e) {
-            log.warn("No se pudo leer gastos trimestrales: {}", e.getMessage());
-        }
-        return out;
-    }
-
-    private LocalDate fechaBusquedaGastos(LocalDate fechaCorte) {
-        return fechaCorte.withDayOfMonth(1);
-    }
-
-    private Path findPlantillaAiosFile(LocalDate fechaCorte) {
-        try {
-            return locator.findRequired("Plantilla AIOS-probable", fechaCorte);
-        } catch (Exception ignore1) {
-            try {
-                return locator.findRequired("Plantilla_AIOS", fechaCorte);
-            } catch (Exception ignore2) {
-            Path repoPath = Path.of("plantillas", "Plantilla AIOS-probable.xlsm");
-            if (Files.isRegularFile(repoPath)) return repoPath;
-            Path localPath = Path.of("Plantilla AIOS-probable.xlsm");
-            if (Files.isRegularFile(localPath)) return localPath;
-            throw new IllegalStateException("No se encontró Plantilla AIOS-probable.xlsm para lectura de gastos.");
-            }
-        }
-    }
-
-    private void putGastoUsd(Map<String, BigDecimal> out, String key, String administradora, Sheet baseAnual, FormulaEvaluator evaluator, int serialFecha, BigDecimal trm) {
-        BigDecimal gastoMillonesCop = gastoNetoCop(baseAnual, evaluator, administradora, serialFecha);
-        BigDecimal gastoUsd = safeDivide(gastoMillonesCop, trm);
-        out.put(key, gastoUsd);
-        log.info("Gastos {}: neto_MCOP={} -> USD={}", administradora, gastoMillonesCop, gastoUsd);
-    }
-
-    private BigDecimal gastoNetoCop(Sheet baseAnual, FormulaEvaluator evaluator, String administradora, int serialFecha) {
-        Set<String> cuentasDescuento = new HashSet<>(Arrays.asList(
-                "510300", "510400", "510600", "510700", "510800", "512500", "512800", "512900", "513900"
-        ));
-        Set<String> cuentasObjetivo = new HashSet<>(cuentasDescuento);
-        cuentasObjetivo.add("510000");
-
-        DataFormatter fmt = new DataFormatter();
-        Map<String, BigDecimal> valores = new HashMap<>();
-
-        for (int r = 1; r <= baseAnual.getLastRowNum(); r++) {
-            Row row = baseAnual.getRow(r);
-            if (row == null) continue;
-            String adminFila = normalize(fmt.formatCellValue(row.getCell(2), evaluator)); // col C
-            int serialFila = excelSerial(row.getCell(1), evaluator); // col B
-            String cuenta = normalize(fmt.formatCellValue(row.getCell(3), evaluator)).replace(".0", ""); // col D
-            if (!normalize(administradora).equals(adminFila) || serialFila != serialFecha) continue;
-            if (!cuentasObjetivo.contains(cuenta) || valores.containsKey(cuenta)) continue;
-            valores.put(cuenta, num(row.getCell(6), null)); // columna G
-            if (valores.size() == cuentasObjetivo.size()) break;
-        }
-
-        BigDecimal gasto = valores.getOrDefault("510000", BigDecimal.ZERO);
-        BigDecimal descuentos = BigDecimal.ZERO;
-        for (String c : cuentasDescuento) descuentos = descuentos.add(valores.getOrDefault(c, BigDecimal.ZERO));
-        gasto = gasto.subtract(descuentos);
-
-        if (!valores.containsKey("510000")) {
-            log.warn("Gastos {}: no se encontró cuenta 510000 para serial {}.", administradora, serialFecha);
-        }
-        log.info("Gastos {} serial {}: 510000={}, descuentos={}, cuentas_encontradas={}", administradora, serialFecha, valores.getOrDefault("510000", BigDecimal.ZERO), descuentos, valores.keySet());
-        return gasto.divide(BigDecimal.valueOf(1_000_000), 8, java.math.RoundingMode.HALF_UP);
-    }
-
-    private int excelSerial(Cell c, FormulaEvaluator eval) {
-        if (c == null) return Integer.MIN_VALUE;
-        try {
-            if (c.getCellType() == CellType.NUMERIC) {
-                return (int) Math.round(c.getNumericCellValue());
-            }
-            if (c.getCellType() == CellType.FORMULA && eval != null) {
-                CellValue cv = eval.evaluate(c);
-                if (cv != null && cv.getCellType() == CellType.NUMERIC) return (int) Math.round(cv.getNumberValue());
-            }
-            String txt = new DataFormatter().formatCellValue(c, eval).trim();
-            if (txt.isBlank()) return Integer.MIN_VALUE;
-            return (int) Math.round(Double.parseDouble(txt.replace(",", ".")));
-        } catch (Exception e) {
-            return Integer.MIN_VALUE;
-        }
+        return gastosTrimestralQueryService.leerGastosUsd(fechaCorte, trm);
     }
 
     private Map<String, BigDecimal> readComisiones(LocalDate fechaCorte) {
@@ -372,12 +269,6 @@ public class TrimestralDataReader {
         Cell cell = row.getCell(cr.getCol());
         if (cell == null) cell = row.createCell(cr.getCol());
         return cell;
-    }
-
-    private String normalize(String value) {
-        if (value == null) return "";
-        String n = Normalizer.normalize(value, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
-        return n.toLowerCase(Locale.ROOT).trim();
     }
 
 }

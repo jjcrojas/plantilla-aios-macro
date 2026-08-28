@@ -26,41 +26,35 @@ public class TrimestralExcelGenerator {
     }
 
     public Path generar(LocalDate fechaCorte, TrimestralData data) {
-        return generarDesdePlantilla(fechaCorte, data, "Boletin_AIOS TRIMESTRAL.xlsx", "Boletin_AIOS TRIMESTRAL.xlsx");
+        return generar(List.of(new PeriodoTrimestral(fechaCorte, data)));
+    }
+
+    public Path generar(List<PeriodoTrimestral> periodos) {
+        return generarDesdePlantilla(periodos, "Boletin_AIOS TRIMESTRAL.xlsx", "Boletin_AIOS TRIMESTRAL.xlsx");
     }
 
     public Path generarSemestral(LocalDate fechaCorte, TrimestralData data) {
-        return generarDesdePlantilla(fechaCorte, data, "Boletin_AIOS SEMESTRAL.xlsx", "Boletin_AIOS SEMESTRAL.xlsx");
+        return generarDesdePlantilla(List.of(new PeriodoTrimestral(fechaCorte, data)),
+                "Boletin_AIOS SEMESTRAL.xlsx", "Boletin_AIOS SEMESTRAL.xlsx");
     }
 
-    private Path generarDesdePlantilla(LocalDate fechaCorte, TrimestralData data, String plantillaNombre, String salidaNombre) {
+    private Path generarDesdePlantilla(List<PeriodoTrimestral> periodos, String plantillaNombre, String salidaNombre) {
+        if (periodos == null || periodos.isEmpty()) {
+            throw new IllegalArgumentException("Debe suministrar al menos un período trimestral");
+        }
         Path base = properties.salidasReferenciaDir().resolve(plantillaNombre);
         if (!Files.isRegularFile(base) && "Boletin_AIOS SEMESTRAL.xlsx".equals(plantillaNombre)) {
             base = properties.salidasReferenciaDir().resolve("Boletin_AIOS TRIMESTRAL.xlsx");
         }
         Path outDir = Path.of("target", "aios-output");
-        Path out = outDir.resolve(salidaNombre);
 
         try {
             Files.createDirectories(outDir);
+            Path out = Files.createTempDirectory(outDir, "trimestral-").resolve(salidaNombre);
             try (InputStream in = Files.newInputStream(base); Workbook wb = WorkbookFactory.create(in)) {
-                int filaAf = findOrAppendRow(wb.getSheet("afiliados"), fechaCorte, data.etiquetaFecha());
-                int filaAport = findOrAppendRow(wb.getSheet("aportantes"), fechaCorte, data.etiquetaFecha());
-                int filaCol = findOrAppendRow(wb.getSheet("colombia"), fechaCorte, data.etiquetaFecha());
-                int filaTrasp = findOrAppendRow(wb.getSheet("traspasos"), fechaCorte, data.etiquetaFecha());
-                int filaGast = findOrAppendRow(wb.getSheet("gastos"), fechaCorte, data.etiquetaFecha());
-                int filaProm = findOrAppendRow(wb.getSheet("promotores"), fechaCorte, data.etiquetaFecha());
-                int filaRent = findOrAppendRow(wb.getSheet("rentabilidad"), fechaCorte, data.etiquetaFecha());
-                int filaCom = findOrAppendRow(wb.getSheet("comisiones"), fechaCorte, data.etiquetaFecha());
-
-                writeAfiliados(wb.getSheet("afiliados"), filaAf, data.afiliados());
-                writeAportantes(wb.getSheet("aportantes"), filaAport, data.aportantes());
-                writeColombia(wb.getSheet("colombia"), filaCol, data.colombiaUsd());
-                writeTraspasos(wb.getSheet("traspasos"), filaTrasp, data.traspasos());
-                writeGastos(wb.getSheet("gastos"), filaGast, data.gastosUsd());
-                writePromotores(wb.getSheet("promotores"), filaProm);
-                writeRentabilidad(wb.getSheet("rentabilidad"), filaRent, data.rentNominalPct(), data.rentRealPct());
-                writeComisiones(wb.getSheet("comisiones"), filaCom, data.comisionesPct());
+                periodos.stream()
+                        .sorted(Comparator.comparing(PeriodoTrimestral::fechaCorte))
+                        .forEach(periodo -> escribirPeriodo(wb, periodo));
 
                 try (var os = Files.newOutputStream(out)) {
                     wb.write(os);
@@ -70,6 +64,28 @@ public class TrimestralExcelGenerator {
         } catch (Exception e) {
             throw new IllegalStateException("No fue posible generar boletín " + salidaNombre, e);
         }
+    }
+
+    private void escribirPeriodo(Workbook wb, PeriodoTrimestral periodo) {
+        LocalDate fechaCorte = periodo.fechaCorte();
+        TrimestralData data = periodo.data();
+        int filaAf = findOrAppendRow(wb.getSheet("afiliados"), fechaCorte, data.etiquetaFecha());
+        int filaAport = findOrAppendRow(wb.getSheet("aportantes"), fechaCorte, data.etiquetaFecha());
+        int filaCol = findOrAppendRow(wb.getSheet("colombia"), fechaCorte, data.etiquetaFecha());
+        int filaTrasp = findOrAppendRow(wb.getSheet("traspasos"), fechaCorte, data.etiquetaFecha());
+        int filaGast = findOrAppendRow(wb.getSheet("gastos"), fechaCorte, data.etiquetaFecha());
+        int filaProm = findOrAppendRow(wb.getSheet("promotores"), fechaCorte, data.etiquetaFecha());
+        int filaRent = findOrAppendRow(wb.getSheet("rentabilidad"), fechaCorte, data.etiquetaFecha());
+        int filaCom = findOrAppendRow(wb.getSheet("comisiones"), fechaCorte, data.etiquetaFecha());
+
+        writeAfiliados(wb.getSheet("afiliados"), filaAf, data.afiliados());
+        writeAportantes(wb.getSheet("aportantes"), filaAport, data.aportantes());
+        writeColombia(wb.getSheet("colombia"), filaCol, data.colombiaUsd());
+        writeTraspasos(wb.getSheet("traspasos"), filaTrasp, data.traspasos());
+        writeGastos(wb.getSheet("gastos"), filaGast, data.gastosUsd());
+        writePromotores(wb.getSheet("promotores"), filaProm);
+        writeRentabilidad(wb.getSheet("rentabilidad"), filaRent, data.rentNominalPct(), data.rentRealPct());
+        writeComisiones(wb.getSheet("comisiones"), filaCom, data.comisionesPct());
     }
 
     private void writeAfiliados(Sheet s, int r, Map<String, BigDecimal> a) {
@@ -271,6 +287,7 @@ public class TrimestralExcelGenerator {
     private record CellSnapshot(CellType type, Object value, CellStyle style) { }
     private record RowSnapshot(short height, Map<Integer, CellSnapshot> cells) { }
     private record PeriodRowSnapshot(int rowIndex, LocalDate period, RowSnapshot row) { }
+    public record PeriodoTrimestral(LocalDate fechaCorte, TrimestralData data) { }
 
     private void copyPreviousRowFormat(Sheet sheet, int targetRowIndex) {
         if (targetRowIndex <= 0) return;

@@ -71,20 +71,29 @@ function ConvertTo-SingleLine {
 }
 
 try {
-    $excel = New-Object -ComObject Excel.Application
-    $excel.Visible = $false
-    $excel.DisplayAlerts = $false
-    $excel.AskToUpdateLinks = $false
-    $excel.EnableEvents = $true
-    $excel.AutomationSecurity = if ($SoloValidar) { 3 } else { 1 }
+    try {
+        $excel = New-Object -ComObject Excel.Application
+        $excel.Visible = $false
+        $excel.DisplayAlerts = $false
+        $excel.AskToUpdateLinks = $false
+        $excel.EnableEvents = $true
+        $excel.AutomationSecurity = if ($SoloValidar) { 3 } else { 1 }
 
-    if (-not [string]::IsNullOrWhiteSpace($ExcelProcessIdFile)) {
-        [uint32]$excelPid = 0
-        [void][AiosExcelNative]::GetWindowThreadProcessId([IntPtr]$excel.Hwnd, [ref]$excelPid)
-        [System.IO.File]::WriteAllText([System.IO.Path]::GetFullPath($ExcelProcessIdFile), [string]$excelPid)
+        if (-not [string]::IsNullOrWhiteSpace($ExcelProcessIdFile)) {
+            [uint32]$excelPid = 0
+            [void][AiosExcelNative]::GetWindowThreadProcessId([IntPtr]$excel.Hwnd, [ref]$excelPid)
+            [System.IO.File]::WriteAllText([System.IO.Path]::GetFullPath($ExcelProcessIdFile), [string]$excelPid)
+        }
+
+        $workbook = $excel.Workbooks.Open($plantilla, 3, [bool]$SoloValidar)
+    } catch {
+        if ($SoloValidar) { throw }
+        $excelError = ConvertTo-SingleLine -Value $_.Exception.Message
+        Set-MacroState -State 'OMITIDA'
+        Write-Output "ADVERTENCIA_MACRO_PLANTILLA_OMITIDA fecha=$FechaCorte fase=automatizacion_excel error=$excelError accion=continuar_con_aplicacion plantillaGuardada=no"
+        return
     }
 
-    $workbook = $excel.Workbooks.Open($plantilla, 3, [bool]$SoloValidar)
     if (-not $SoloValidar -and $workbook.ReadOnly) {
         throw 'Excel abrió la plantilla como solo lectura. Cierre cualquier ventana que tenga abierto Plantilla AIOS-probable.xlsm y vuelva a intentar.'
     }

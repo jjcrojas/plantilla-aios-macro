@@ -11,460 +11,213 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
-import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 public class RentabilidadService {
 
     private static final Logger log = LoggerFactory.getLogger(RentabilidadService.class);
 
-    private static final List<String> HOJAS_NAV = List.of(
-            "CO_Vr_Uni", "OM_Vr_Uni", "PRO_Vr_Uni", "PO_Vr_Uni",
-            "Colfondos", "OldMutual", "Protección", "Porvenir"
-    );
+    /**
+     * Calcula las rentabilidades con las mismas fuentes del libro original:
+     * Consolidado!E para el NAV sintético e IPC_D!B para el índice diario.
+     */
+    public RentabilidadResultado calcularRentabilidad(
+            Path rentModeradoFile,
+            LocalDate fechaCorte,
+            int horizonteAnios
+    ) {
+        if (horizonteAnios <= 0) {
+            throw new IllegalArgumentException("El horizonte debe ser mayor que cero: " + horizonteAnios);
+        }
+        LocalDate fechaInicio = fechaCorte.minusYears(horizonteAnios);
+        RentabilidadSeries series = readRentabilidadSeries(rentModeradoFile, fechaCorte);
+        return calcular(fechaInicio, fechaCorte, horizonteAnios, series.nav(), series.ipcDiario());
+    }
 
+    /**
+     * Conserva compatibilidad con llamadas anteriores. Valores_Fondo_Moder ya no participa
+     * en el cálculo porque su promedio por AFP no equivale al NAV sintético de Consolidado!E.
+     */
     public RentabilidadResultado calcularRentabilidad(
             Path valoresFondoModerFile,
             Path rentModeradoFile,
             LocalDate fechaCorte,
             int horizonteAnios
     ) {
-        LocalDate fechaInicio = fechaCorte.minusYears(horizonteAnios);
-        NavSeries navSeries = readNavPromedio(valoresFondoModerFile, fechaInicio, fechaCorte);
-        if (navSeries.values().floorEntry(fechaInicio) == null) {
-            NavSeries navConsolidado = readNavFromRentConsolidado(rentModeradoFile, fechaCorte);
-            if (!navConsolidado.values().isEmpty()) {
-                navSeries.values().putAll(navConsolidado.values());
-                navSeries.sourceByDate().putAll(navConsolidado.sourceByDate());
-                navSeries.contributorsByDate().putAll(navConsolidado.contributorsByDate());
-                navSeries.contributionDetailsByDate().putAll(navConsolidado.contributionDetailsByDate());
-                log.warn("NAV histórico incompleto en Valores_Fondo_Moder para inicio={}; se complementa con Consolidado de Rent_Vr_Uni_Moderado.", fechaInicio);
-            }
-        }
-        IpcSeries ipcSeries = readIpcSeries(rentModeradoFile);
-        return calcular(fechaInicio, fechaCorte, navSeries, ipcSeries);
+        log.debug("Se omite Valores_Fondo_Moder={} para rentabilidades; fuente NAV obligatoria={}/Consolidado!E.",
+                valoresFondoModerFile, rentModeradoFile.toAbsolutePath());
+        return calcularRentabilidad(rentModeradoFile, fechaCorte, horizonteAnios);
     }
 
     private RentabilidadResultado calcular(
             LocalDate fechaInicio,
             LocalDate fechaFin,
+            int horizonteAnios,
             NavSeries navSeries,
-            IpcSeries ipcSeries
+            IpcDailySeries ipcSeries
     ) {
-        NavigableMap<LocalDate, BigDecimal> nav = navSeries.values();
-        NavigableMap<YearMonth, BigDecimal> ipc = ipcSeries.values();
-        var navIniEntry = nearestStartValue(nav, fechaInicio);
-        var navFinEntry = nav.floorEntry(fechaFin);
-        if (navIniEntry == null || navFinEntry == null) {
-            throw new IllegalStateException("No hay NAV suficiente para calcular horizonte. "
-                    + "inicio=" + fechaInicio + " fin=" + fechaFin
-                    + " navIni=" + (navIniEntry == null ? "null" : navIniEntry.getKey())
-                    + " navFin=" + (navFinEntry == null ? "null" : navFinEntry.getKey()));
-        }
-        BigDecimal navIni = navIniEntry.getValue();
-        BigDecimal navFin = navFinEntry.getValue();
+        NavObservation navIni = requireNav(navSeries, fechaInicio, "inicial");
+        NavObservation navFin = requireNav(navSeries, fechaFin, "final");
+        IpcObservation ipcIni = requireIpc(ipcSeries, fechaInicio, "inicial");
+        IpcObservation ipcFin = requireIpc(ipcSeries, fechaFin, "final");
 
-        long dias = Math.max(1, ChronoUnit.DAYS.between(fechaInicio, fechaFin));
-        double navFactor = navFin.divide(navIni, 16, RoundingMode.HALF_UP).doubleValue();
+        validarPositivo(navIni.value(), "NAV inicial", fechaInicio);
+        validarPositivo(navFin.value(), "NAV final", fechaFin);
+        validarPositivo(ipcIni.value(), "IPC inicial", fechaInicio);
+        validarPositivo(ipcFin.value(), "IPC final", fechaFin);
+
+        long dias = ChronoUnit.DAYS.between(fechaInicio, fechaFin);
+        if (dias <= 0) {
+            throw new IllegalStateException("Rango inválido para rentabilidad: " + fechaInicio + " a " + fechaFin);
+        }
+
+        double navFactor = navFin.value().divide(navIni.value(), 16, RoundingMode.HALF_UP).doubleValue();
+        double ipcFactor = ipcFin.value().divide(ipcIni.value(), 16, RoundingMode.HALF_UP).doubleValue();
         double exponenteAnualizacion = 365d / (double) dias;
         BigDecimal nominal = BigDecimal.valueOf(Math.pow(navFactor, exponenteAnualizacion) - 1d);
+        BigDecimal real = BigDecimal.valueOf(Math.pow(navFactor / ipcFactor, exponenteAnualizacion) - 1d);
 
-        var ipcIniEntry = ipc.floorEntry(YearMonth.from(fechaInicio));
-        var ipcFinEntry = ipc.floorEntry(YearMonth.from(fechaFin));
-        if (ipcIniEntry == null || ipcFinEntry == null) {
-            throw new IllegalStateException("No hay IPC suficiente para calcular horizonte. "
-                    + "inicio=" + fechaInicio + " fin=" + fechaFin
-                    + " ipcIni=" + (ipcIniEntry == null ? "null" : ipcIniEntry.getKey())
-                    + " ipcFin=" + (ipcFinEntry == null ? "null" : ipcFinEntry.getKey()));
-        }
-        BigDecimal ipcIni = ipcIniEntry.getValue();
-        BigDecimal ipcFin = ipcFinEntry.getValue();
-        validarCrecimientoIpc(ipcIni, ipcFin, fechaInicio, fechaFin);
-        double ipcFactor = ipcFin.divide(ipcIni, 16, RoundingMode.HALF_UP).doubleValue();
-        BigDecimal inflacionPeriodo = BigDecimal.valueOf(ipcFactor - 1d);
-        BigDecimal inflacion = BigDecimal.valueOf(Math.pow(ipcFactor, exponenteAnualizacion) - 1d);
-        BigDecimal real = nominal.add(BigDecimal.ONE)
-                .divide(inflacion.add(BigDecimal.ONE), 16, RoundingMode.HALF_UP)
-                .subtract(BigDecimal.ONE);
+        log.info("Rentabilidad auditoría horizonte={} años: fechaInicioSolicitada={} fechaInicioUsada={} "
+                        + "NAV_inicial={} ubicaciónNAVInicial={} IPC_inicial={} ubicaciónIPCInicial={} | "
+                        + "fechaFinSolicitada={} fechaFinUsada={} NAV_final={} ubicaciónNAVFinal={} "
+                        + "IPC_final={} ubicaciónIPCFinal={}",
+                horizonteAnios,
+                fechaInicio, navIni.date(), navIni.value(), formatNavObservation(navIni),
+                ipcIni.value(), formatIpcObservation(ipcIni),
+                fechaFin, navFin.date(), navFin.value(), formatNavObservation(navFin),
+                ipcFin.value(), formatIpcObservation(ipcFin));
+        log.info("Rentabilidad resultado horizonte={} años: dias={} exponenteAnualizacion={} "
+                        + "factorNAV={} factorIPC={} nominal={} real={} fuentes=Consolidado!E+IPC_D!B",
+                horizonteAnios, dias, exponenteAnualizacion, navFactor, ipcFactor, nominal, real);
 
-        String navIniSrc = navSeries.sourceByDate().getOrDefault(navIniEntry.getKey(), "desconocido");
-        String navFinSrc = navSeries.sourceByDate().getOrDefault(navFinEntry.getKey(), "desconocido");
-        Integer navIniCount = navSeries.contributorsByDate().getOrDefault(navIniEntry.getKey(), 0);
-        Integer navFinCount = navSeries.contributorsByDate().getOrDefault(navFinEntry.getKey(), 0);
-        String ipcSource = "sheet=" + ipcSeries.sheetName() + (ipcSeries.convertedFromRates() ? " (tasas->índice)" : " (índice directo)");
-        IpcObservation ipcIniObservation = ipcSeries.observationsByMonth().get(ipcIniEntry.getKey());
-        IpcObservation ipcFinObservation = ipcSeries.observationsByMonth().get(ipcFinEntry.getKey());
-        log.info("Rentabilidad auditoría NAV: fechaInicioSolicitada={} fechaInicioUsada={} NAV_inicial_promedio={} cantidadAportes={} aportes={} | fechaFinSolicitada={} fechaFinUsada={} NAV_final_promedio={} cantidadAportes={} aportes={}",
-                fechaInicio, navIniEntry.getKey(), navIni, navIniCount,
-                formatNavContributions(navSeries.contributionDetailsByDate().get(navIniEntry.getKey())),
-                fechaFin, navFinEntry.getKey(), navFin, navFinCount,
-                formatNavContributions(navSeries.contributionDetailsByDate().get(navFinEntry.getKey())));
-        log.info("Rentabilidad auditoría IPC: mesInicioSolicitado={} mesInicioUsado={} IPC_inicial={} ubicación={} | mesFinSolicitado={} mesFinUsado={} IPC_final={} ubicación={}",
-                YearMonth.from(fechaInicio), ipcIniEntry.getKey(), ipcIni, formatIpcObservation(ipcIniObservation),
-                YearMonth.from(fechaFin), ipcFinEntry.getKey(), ipcFin, formatIpcObservation(ipcFinObservation));
-        log.info("Rentabilidad detalle operandos: fechaInicio={} fechaFin={} dias={} exponenteAnualizacion=365/dias={} | NAV_ini_fecha={} NAV_ini_valor={} NAV_ini_fuente={} NAV_ini_fondos={} | NAV_fin_fecha={} NAV_fin_valor={} NAV_fin_fuente={} NAV_fin_fondos={} | navFactor=NAV_fin/NAV_ini={} | IPC_ini_mes={} IPC_ini_valor={} IPC_ini_fuente={} | IPC_fin_mes={} IPC_fin_valor={} IPC_fin_fuente={} | ipcFactor=(IPC_fin/IPC_ini)={} | inflacion_periodo=(IPC_fin/IPC_ini)-1={} | inflacion_anual=(ipcFactor^exponente)-1={} | nominal_anual=(navFactor^exponente)-1={} | real=((1+nominal_anual)/(1+inflacion_anual))-1={}",
-                fechaInicio, fechaFin, dias,
-                exponenteAnualizacion,
-                navIniEntry.getKey(), navIni, navIniSrc, navIniCount,
-                navFinEntry.getKey(), navFin, navFinSrc, navFinCount,
-                navFactor,
-                ipcIniEntry.getKey(), ipcIni, ipcSource,
-                ipcFinEntry.getKey(), ipcFin, ipcSource,
-                ipcFactor, inflacionPeriodo, inflacion, nominal, real);
         return new RentabilidadResultado(fechaInicio, fechaFin, nominal, real);
     }
 
-    private NavSeries readNavPromedio(Path file, LocalDate fechaInicio, LocalDate fechaFin) {
-        Map<LocalDate, List<BigDecimal>> porFecha = new TreeMap<>();
-        Map<LocalDate, String> sourceByDate = new TreeMap<>();
-        Map<LocalDate, Integer> contributorsByDate = new TreeMap<>();
-        Map<LocalDate, List<NavContribution>> contributionDetailsByDate = new TreeMap<>();
-        List<Path> navFiles = findNavHistoryFiles(file);
-        int fondosEsperados = 0;
-        try {
-            for (Path navFile : navFiles) {
-                try (Workbook wb = WorkbookFactory.create(navFile.toFile(), null, true)) {
-                    List<String> hojasNav = detectHojasNav(wb);
-                    fondosEsperados = Math.max(fondosEsperados, hojasNav.size());
-                    for (String nombre : hojasNav) {
-                        Sheet s = wb.getSheet(nombre);
-                        if (s == null) continue;
-                        int last = s.getLastRowNum() + 1;
-                        for (int r = 2; r <= last; r++) {
-                            Row row = s.getRow(r - 1);
-                            if (row == null) continue;
-                            LocalDate fecha = cellAsDate(row.getCell(0));
-                            BigDecimal nav = cellAsNumber(row.getCell(14)); // columna O
-                            if (fecha == null || nav.signum() <= 0) continue;
-                            if (fecha.isAfter(fechaFin)) continue;
-                            porFecha.computeIfAbsent(fecha, k -> new ArrayList<>()).add(nav);
-                            NavContribution contribution = new NavContribution(
-                                    navFile.toAbsolutePath().toString(), nombre, "A" + r, "O" + r, nav);
-                            contributionDetailsByDate.computeIfAbsent(fecha, k -> new ArrayList<>()).add(contribution);
-                        }
-                    }
-                }
+    private RentabilidadSeries readRentabilidadSeries(Path rentModeradoFile, LocalDate fechaFin) {
+        try (Workbook wb = WorkbookFactory.create(rentModeradoFile.toFile(), null, true)) {
+            NavSeries nav = readNavFromRentConsolidado(wb, rentModeradoFile, fechaFin);
+            IpcDailySeries ipc = readIpcDiario(wb, rentModeradoFile, fechaFin);
+            if (nav.values().isEmpty()) {
+                throw new IllegalStateException("No hay valores válidos en Consolidado!E");
             }
-        } catch (Exception e) {
-            throw new IllegalStateException("No fue posible leer NAV histórico desde " + file.toAbsolutePath() + ": " + e.getMessage(), e);
-        }
-        try {
-            NavigableMap<LocalDate, BigDecimal> serie = new TreeMap<>();
-            int coberturaParcial = 0;
-            for (var e : porFecha.entrySet()) {
-                BigDecimal sum = e.getValue().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal avg = sum.divide(BigDecimal.valueOf(e.getValue().size()), 16, RoundingMode.HALF_UP);
-                serie.put(e.getKey(), avg);
-                contributorsByDate.put(e.getKey(), e.getValue().size());
-                sourceByDate.put(e.getKey(), contributionDetailsByDate.getOrDefault(e.getKey(), List.of()).stream()
-                        .map(c -> c.sheet() + "!" + c.valueCell())
-                        .collect(Collectors.joining(",")));
-                if (e.getValue().size() < fondosEsperados) {
-                    coberturaParcial++;
-                }
+            if (ipc.values().isEmpty()) {
+                throw new IllegalStateException("No hay valores válidos en IPC_D!B");
             }
-            log.info("Serie NAV promedio cargada: file={} fechas={} desde={} hasta={} fondosEsperados={} fechasCoberturaParcial={}",
-                    file.toAbsolutePath(), serie.size(),
-                    serie.isEmpty() ? null : serie.firstKey(),
-                    serie.isEmpty() ? null : serie.lastKey(),
-                    fondosEsperados,
-                    coberturaParcial);
-            if (serie.isEmpty()) {
-                throw new IllegalStateException("No hay NAV en el rango solicitado [" + fechaInicio + ", " + fechaFin + "] en " + file.toAbsolutePath());
-            }
-            return new NavSeries(serie, sourceByDate, contributorsByDate, contributionDetailsByDate);
+            log.info("Fuentes de rentabilidad cargadas: file={} NAV=Consolidado!E puntos={} desde={} hasta={} "
+                            + "IPC=IPC_D!B puntos={} desde={} hasta={}",
+                    rentModeradoFile.toAbsolutePath(),
+                    nav.values().size(), nav.values().firstKey(), nav.values().lastKey(),
+                    ipc.values().size(), ipc.values().firstKey(), ipc.values().lastKey());
+            return new RentabilidadSeries(nav, ipc);
         } catch (IllegalStateException e) {
             throw e;
-        }
-    }
-
-    private List<String> detectHojasNav(Workbook wb) {
-        List<String> exactas = HOJAS_NAV.stream().filter(n -> wb.getSheet(n) != null).toList();
-        if (!exactas.isEmpty()) return exactas;
-        List<String> porPatron = new ArrayList<>();
-        for (int i = 0; i < wb.getNumberOfSheets(); i++) {
-            String name = wb.getSheetAt(i).getSheetName();
-            String n = name.toLowerCase(Locale.ROOT);
-            if (n.contains("vr_uni") || n.contains("colfondos") || n.contains("oldmutual")
-                    || n.contains("prote") || n.contains("porvenir")) {
-                porPatron.add(name);
-            }
-        }
-        if (!porPatron.isEmpty()) return porPatron;
-        return List.of(wb.getSheetAt(0).getSheetName());
-    }
-
-    private IpcSeries readIpcSeries(Path rentModeradoFile) {
-        try (Workbook wb = WorkbookFactory.create(rentModeradoFile.toFile(), null, true)) {
-            IpcSeries ipcBrSeries = null;
-            Sheet ipcBr = getSheetIgnoreCase(wb, "IPC_BR");
-            if (ipcBr != null) {
-                MonthlySeries serieLeida = readDateValueSheetByMonth(ipcBr, rentModeradoFile, 1, 2);
-                NavigableMap<YearMonth, BigDecimal> serie = serieLeida.values();
-                if (!serie.isEmpty()) {
-                    ipcBrSeries = new IpcSeries(serie, ipcBr.getSheetName(), false, serieLeida.observationsByMonth());
-                    log.info("Serie IPC_BR cargada: file={} fechas={} desde={} hasta={}",
-                            rentModeradoFile.toAbsolutePath(),
-                            serie.size(),
-                            serie.firstKey(),
-                            serie.lastKey());
-                }
-            }
-
-            IpcSeries ipcSeries = null;
-            Sheet ipc = getSheetIgnoreCase(wb, "IPC");
-            if (ipc != null) {
-                MonthlySeries tasasLeidas = readDateValueSheetByMonth(ipc, rentModeradoFile, 1, 2);
-                NavigableMap<YearMonth, BigDecimal> tasas = tasasLeidas.values();
-                if (!tasas.isEmpty()) {
-                    if (isIndexSeries(tasas)) {
-                        log.info("Serie IPC cargada como índice directo: file={} fechas={}", rentModeradoFile.toAbsolutePath(), tasas.size());
-                        ipcSeries = new IpcSeries(tasas, ipc.getSheetName(), false, tasasLeidas.observationsByMonth());
-                    } else {
-                        BigDecimal indice = BigDecimal.valueOf(100);
-                        NavigableMap<YearMonth, BigDecimal> indices = new TreeMap<>();
-                        Map<YearMonth, IpcObservation> observations = new TreeMap<>();
-                        for (var e : tasas.entrySet().stream().sorted(Map.Entry.comparingByKey()).collect(Collectors.toList())) {
-                            indice = indice.multiply(BigDecimal.ONE.add(e.getValue())).setScale(16, RoundingMode.HALF_UP);
-                            indices.put(e.getKey(), indice);
-                            IpcObservation raw = tasasLeidas.observationsByMonth().get(e.getKey());
-                            observations.put(e.getKey(), raw == null
-                                    ? new IpcObservation(rentModeradoFile.toAbsolutePath().toString(), ipc.getSheetName(), "?", "?", e.getValue(), indice)
-                                    : new IpcObservation(raw.file(), raw.sheet(), raw.dateCell(), raw.valueCell(), raw.rawValue(), indice));
-                        }
-                        log.info("Serie IPC (tasas->índice) cargada: file={} fechas={}", rentModeradoFile.toAbsolutePath(), indices.size());
-                        ipcSeries = new IpcSeries(indices, ipc.getSheetName(), true, observations);
-                    }
-                }
-            }
-
-            // Selección defensiva: IPC_BR tiene prioridad solo si trae historia suficiente.
-            if (ipcBrSeries != null && ipcBrSeries.values().size() >= 24) {
-                return ipcBrSeries;
-            }
-            if (ipcBrSeries != null && ipcSeries != null) {
-                log.warn("IPC_BR tiene cobertura corta ({} puntos); se usa IPC con mayor cobertura ({} puntos).",
-                        ipcBrSeries.values().size(), ipcSeries.values().size());
-                return ipcSeries;
-            }
-            if (ipcBrSeries != null) {
-                return ipcBrSeries;
-            }
-            if (ipcSeries != null) {
-                return ipcSeries;
-            }
         } catch (Exception e) {
-            log.warn("No fue posible leer IPC desde {}: {}", rentModeradoFile.toAbsolutePath(), e.getMessage());
+            throw new IllegalStateException("No fue posible leer rentabilidades desde "
+                    + rentModeradoFile.toAbsolutePath() + ": " + e.getMessage(), e);
         }
-        return new IpcSeries(new TreeMap<>(), "N/A", false, new TreeMap<>());
     }
 
-    private NavigableMap<LocalDate, BigDecimal> readDateValueSheet(Sheet sheet, int dateCol1Based, int valueCol1Based) {
-        NavigableMap<LocalDate, BigDecimal> data = new TreeMap<>(Comparator.naturalOrder());
+    private NavSeries readNavFromRentConsolidado(Workbook wb, Path file, LocalDate fechaFin) {
+        Sheet sheet = getSheetIgnoreCase(wb, "Consolidado");
+        if (sheet == null) {
+            throw new IllegalStateException("No existe la hoja Consolidado en " + file.toAbsolutePath());
+        }
+        NavigableMap<LocalDate, BigDecimal> values = new TreeMap<>();
+        Map<LocalDate, NavObservation> observations = new TreeMap<>();
+        int last = sheet.getLastRowNum() + 1;
+        for (int r = 14; r <= last; r++) {
+            Row row = sheet.getRow(r - 1);
+            if (row == null) continue;
+            LocalDate fecha = cellAsDate(row.getCell(0));
+            BigDecimal nav = cellAsNumber(row.getCell(4));
+            if (fecha == null || nav.signum() <= 0 || fecha.isAfter(fechaFin)) continue;
+            values.put(fecha, nav);
+            observations.put(fecha, new NavObservation(
+                    fecha, file.toAbsolutePath().toString(), sheet.getSheetName(), "A" + r, "E" + r, nav));
+        }
+        return new NavSeries(values, observations);
+    }
+
+    private IpcDailySeries readIpcDiario(Workbook wb, Path file, LocalDate fechaFin) {
+        Sheet sheet = getSheetIgnoreCase(wb, "IPC_D");
+        if (sheet == null) {
+            throw new IllegalStateException("No existe la hoja IPC_D en " + file.toAbsolutePath());
+        }
+        NavigableMap<LocalDate, BigDecimal> values = new TreeMap<>();
+        Map<LocalDate, IpcObservation> observations = new TreeMap<>();
         int last = sheet.getLastRowNum() + 1;
         for (int r = 2; r <= last; r++) {
             Row row = sheet.getRow(r - 1);
             if (row == null) continue;
-            LocalDate fecha = cellAsDate(row.getCell(dateCol1Based - 1));
-            BigDecimal valor = cellAsNumber(row.getCell(valueCol1Based - 1));
-            if (fecha == null || valor.signum() <= 0) continue;
-            data.put(fecha, valor);
+            LocalDate fecha = cellAsDate(row.getCell(0));
+            BigDecimal ipc = cellAsNumber(row.getCell(1));
+            if (fecha == null || ipc.signum() <= 0 || fecha.isAfter(fechaFin)) continue;
+            values.put(fecha, ipc);
+            observations.put(fecha, new IpcObservation(
+                    fecha, file.toAbsolutePath().toString(), sheet.getSheetName(), "A" + r, "B" + r, ipc));
         }
-        return data;
+        return new IpcDailySeries(values, observations);
     }
 
-    private BigDecimal floorValue(NavigableMap<LocalDate, BigDecimal> serie, LocalDate fecha) {
-        if (serie == null || serie.isEmpty()) return BigDecimal.ZERO;
-        var exacta = serie.get(fecha);
-        if (exacta != null) return exacta;
-        var floor = serie.floorEntry(fecha);
-        return floor == null ? BigDecimal.ZERO : floor.getValue();
-    }
-
-    private Map.Entry<LocalDate, BigDecimal> nearestStartValue(NavigableMap<LocalDate, BigDecimal> serie, LocalDate fechaInicio) {
-        if (serie == null || serie.isEmpty()) return null;
-        return serie.floorEntry(fechaInicio);
-    }
-
-    private boolean isIndexSeries(NavigableMap<YearMonth, BigDecimal> serie) {
-        if (serie.isEmpty()) return false;
-        List<BigDecimal> sample = new ArrayList<>(serie.values());
-        Collections.sort(sample);
-        BigDecimal median = sample.get(sample.size() / 2);
-        // Regla simple: un IPC índice suele estar muy por encima de 1; una tasa mensual suele estar < 1.
-        return median.compareTo(BigDecimal.valueOf(2)) > 0;
-    }
-
-    private MonthlySeries readDateValueSheetByMonth(Sheet sheet, Path file, int dateCol1Based, int valueCol1Based) {
-        NavigableMap<YearMonth, BigDecimal> data = new TreeMap<>(Comparator.naturalOrder());
-        Map<YearMonth, IpcObservation> observations = new TreeMap<>();
-        int last = sheet.getLastRowNum() + 1;
-        for (int r = 2; r <= last; r++) {
-            Row row = sheet.getRow(r - 1);
-            if (row == null) continue;
-            LocalDate fecha = cellAsDate(row.getCell(dateCol1Based - 1));
-            BigDecimal valor = cellAsNumber(row.getCell(valueCol1Based - 1));
-            if (fecha == null || valor.signum() <= 0) continue;
-            YearMonth month = YearMonth.from(fecha);
-            data.put(month, valor);
-            observations.put(month, new IpcObservation(file.toAbsolutePath().toString(), sheet.getSheetName(),
-                    columnName(dateCol1Based) + r, columnName(valueCol1Based) + r, valor, valor));
+    private NavObservation requireNav(NavSeries series, LocalDate date, String extremo) {
+        NavObservation observation = series.observations().get(date);
+        if (observation == null) {
+            throw new IllegalStateException("No existe NAV " + extremo + " para la fecha exacta " + date
+                    + " en Consolidado!E; cobertura=" + coverage(series.values()));
         }
-        return new MonthlySeries(data, observations);
+        return observation;
     }
 
-    private List<Path> findNavHistoryFiles(Path oneFile) {
-        Path historico = findAncestor(oneFile, "Historico_Rent_minima");
-        if (historico == null || !Files.isDirectory(historico)) {
-            return List.of(oneFile);
+    private IpcObservation requireIpc(IpcDailySeries series, LocalDate date, String extremo) {
+        IpcObservation observation = series.observations().get(date);
+        if (observation == null) {
+            throw new IllegalStateException("No existe IPC diario " + extremo + " para la fecha exacta " + date
+                    + " en IPC_D!B; cobertura=" + coverage(series.values()));
         }
-        try (Stream<Path> stream = Files.walk(historico, 4)) {
-            List<Path> files = stream
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).contains("valores_fondo_moder"))
-                    .sorted()
-                    .collect(Collectors.toList());
-            return files.isEmpty() ? List.of(oneFile) : files;
-        } catch (Exception e) {
-            return List.of(oneFile);
+        return observation;
+    }
+
+    private String coverage(NavigableMap<LocalDate, BigDecimal> values) {
+        return values.isEmpty() ? "vacía" : values.firstKey() + " a " + values.lastKey();
+    }
+
+    private void validarPositivo(BigDecimal value, String nombre, LocalDate fecha) {
+        if (value == null || value.signum() <= 0) {
+            throw new IllegalStateException(nombre + " inválido para " + fecha + ": " + value);
         }
     }
 
-    private Path findAncestor(Path start, String folderName) {
-        Path p = start;
-        while (p != null) {
-            Path name = p.getFileName();
-            if (name != null && name.toString().equalsIgnoreCase(folderName)) {
-                return p;
-            }
-            p = p.getParent();
-        }
-        return null;
-    }
-
-    private void validarCrecimientoIpc(BigDecimal ipcIni, BigDecimal ipcFin, LocalDate fechaInicio, LocalDate fechaFin) {
-        if (ipcIni.signum() <= 0 || ipcFin.signum() <= 0) {
-            throw new IllegalStateException("IPC inválido (<=0): ini=" + ipcIni + " fin=" + ipcFin);
-        }
-        if (ipcFin.compareTo(ipcIni.multiply(BigDecimal.valueOf(5))) > 0) {
-            throw new IllegalStateException("IPC inválido: crecimiento irreal " + ipcIni + " -> " + ipcFin
-                    + " para rango " + fechaInicio + " a " + fechaFin);
-        }
-    }
-
-    private NavSeries readNavFromRentConsolidado(Path rentModeradoFile, LocalDate fechaFin) {
-        NavigableMap<LocalDate, BigDecimal> data = new TreeMap<>();
-        Map<LocalDate, String> sourceByDate = new TreeMap<>();
-        Map<LocalDate, Integer> contributorsByDate = new TreeMap<>();
-        Map<LocalDate, List<NavContribution>> contributionDetailsByDate = new TreeMap<>();
-        try (Workbook wb = WorkbookFactory.create(rentModeradoFile.toFile(), null, true)) {
-            Sheet s = getSheetIgnoreCase(wb, "Consolidado");
-            if (s == null) return new NavSeries(data, sourceByDate, contributorsByDate, contributionDetailsByDate);
-            int last = s.getLastRowNum() + 1;
-            for (int r = 14; r <= last; r++) { // estructura histórica conocida en consolidado
-                Row row = s.getRow(r - 1);
-                if (row == null) continue;
-                LocalDate fecha = cellAsDate(row.getCell(0)); // col A
-                BigDecimal nav = cellAsNumber(row.getCell(4)); // col E (NAV nominal usado por macro/tabla)
-                if (fecha == null || nav.signum() <= 0) continue;
-                if (fecha.isAfter(fechaFin)) continue;
-                data.put(fecha, nav);
-                sourceByDate.put(fecha, rentModeradoFile.getFileName() + "/Consolidado!E");
-                contributorsByDate.put(fecha, 1);
-                contributionDetailsByDate.put(fecha, List.of(new NavContribution(
-                        rentModeradoFile.toAbsolutePath().toString(), "Consolidado", "A" + r, "E" + r, nav)));
-            }
-            log.info("Serie NAV desde Consolidado cargada: file={} fechas={} desde={} hasta={}",
-                    rentModeradoFile.toAbsolutePath(),
-                    data.size(),
-                    data.isEmpty() ? null : data.firstKey(),
-                    data.isEmpty() ? null : data.lastKey());
-            return new NavSeries(data, sourceByDate, contributorsByDate, contributionDetailsByDate);
-        } catch (Exception e) {
-            log.warn("No fue posible complementar NAV desde Consolidado en {}: {}", rentModeradoFile.toAbsolutePath(), e.getMessage());
-            return new NavSeries(data, sourceByDate, contributorsByDate, contributionDetailsByDate);
-        }
-    }
-
-    private record NavSeries(
-            NavigableMap<LocalDate, BigDecimal> values,
-            Map<LocalDate, String> sourceByDate,
-            Map<LocalDate, Integer> contributorsByDate,
-            Map<LocalDate, List<NavContribution>> contributionDetailsByDate
-    ) {}
-
-    private record IpcSeries(
-            NavigableMap<YearMonth, BigDecimal> values,
-            String sheetName,
-            boolean convertedFromRates,
-            Map<YearMonth, IpcObservation> observationsByMonth
-    ) {}
-
-    private record NavContribution(String file, String sheet, String dateCell, String valueCell, BigDecimal value) {}
-
-    private record IpcObservation(String file, String sheet, String dateCell, String valueCell,
-                                  BigDecimal rawValue, BigDecimal indexValue) {}
-
-    private record MonthlySeries(NavigableMap<YearMonth, BigDecimal> values,
-                                 Map<YearMonth, IpcObservation> observationsByMonth) {}
-
-    private String formatNavContributions(List<NavContribution> contributions) {
-        if (contributions == null || contributions.isEmpty()) return "sin detalle";
-        return contributions.stream()
-                .map(c -> "{archivo=" + c.file() + ", hoja=" + c.sheet() + ", fecha=" + c.dateCell()
-                        + ", NAV=" + c.valueCell() + ", valor=" + c.value() + "}")
-                .collect(Collectors.joining("; "));
+    private String formatNavObservation(NavObservation observation) {
+        return "{archivo=" + observation.file() + ", hoja=" + observation.sheet()
+                + ", fecha=" + observation.dateCell() + ", NAV=" + observation.valueCell()
+                + ", valor=" + observation.value() + "}";
     }
 
     private String formatIpcObservation(IpcObservation observation) {
-        if (observation == null) return "sin detalle";
         return "{archivo=" + observation.file() + ", hoja=" + observation.sheet()
-                + ", fecha=" + observation.dateCell() + ", valor=" + observation.valueCell()
-                + ", valorCrudo=" + observation.rawValue() + ", índiceUsado=" + observation.indexValue() + "}";
+                + ", fecha=" + observation.dateCell() + ", IPC=" + observation.valueCell()
+                + ", valor=" + observation.value() + "}";
     }
 
-    private String columnName(int column1Based) {
-        int value = column1Based;
-        StringBuilder name = new StringBuilder();
-        while (value > 0) {
-            value--;
-            name.insert(0, (char) ('A' + (value % 26)));
-            value /= 26;
-        }
-        return name.toString();
-    }
-
-    private LocalDate cellAsDate(Cell c) {
-        if (c == null) return null;
+    private LocalDate cellAsDate(Cell cell) {
+        if (cell == null) return null;
         try {
-            return switch (c.getCellType()) {
-                case NUMERIC -> c.getDateCellValue().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+            return switch (cell.getCellType()) {
+                case NUMERIC -> cell.getDateCellValue().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
                 case STRING -> {
-                    String s = c.getStringCellValue();
-                    if (s == null || s.isBlank()) yield null;
-                    yield LocalDate.parse(s.trim());
+                    String value = cell.getStringCellValue();
+                    yield value == null || value.isBlank() ? null : LocalDate.parse(value.trim());
                 }
-                case FORMULA -> {
-                    if (c.getCachedFormulaResultType() == org.apache.poi.ss.usermodel.CellType.NUMERIC) {
-                        yield c.getDateCellValue().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-                    }
-                    yield null;
-                }
+                case FORMULA -> cell.getCachedFormulaResultType() == org.apache.poi.ss.usermodel.CellType.NUMERIC
+                        ? cell.getDateCellValue().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+                        : null;
                 default -> null;
             };
         } catch (Exception ignore) {
@@ -472,15 +225,15 @@ public class RentabilidadService {
         }
     }
 
-    private BigDecimal cellAsNumber(Cell c) {
-        if (c == null) return BigDecimal.ZERO;
+    private BigDecimal cellAsNumber(Cell cell) {
+        if (cell == null) return BigDecimal.ZERO;
         try {
-            return switch (c.getCellType()) {
-                case NUMERIC -> BigDecimal.valueOf(c.getNumericCellValue());
-                case FORMULA -> c.getCachedFormulaResultType() == org.apache.poi.ss.usermodel.CellType.NUMERIC
-                        ? BigDecimal.valueOf(c.getNumericCellValue())
+            return switch (cell.getCellType()) {
+                case NUMERIC -> BigDecimal.valueOf(cell.getNumericCellValue());
+                case FORMULA -> cell.getCachedFormulaResultType() == org.apache.poi.ss.usermodel.CellType.NUMERIC
+                        ? BigDecimal.valueOf(cell.getNumericCellValue())
                         : BigDecimal.ZERO;
-                case STRING -> parseDecimal(c.getStringCellValue());
+                case STRING -> parseDecimal(cell.getStringCellValue());
                 default -> BigDecimal.ZERO;
             };
         } catch (Exception ignore) {
@@ -489,12 +242,10 @@ public class RentabilidadService {
     }
 
     private BigDecimal parseDecimal(String value) {
-        if (value == null) return BigDecimal.ZERO;
-        String v = value.trim();
-        if (v.isEmpty()) return BigDecimal.ZERO;
+        if (value == null || value.isBlank()) return BigDecimal.ZERO;
         try {
-            return new BigDecimal(v.replace(",", ""));
-        } catch (Exception e) {
+            return new BigDecimal(value.trim().replace(",", ""));
+        } catch (Exception ignore) {
             return BigDecimal.ZERO;
         }
     }
@@ -502,12 +253,40 @@ public class RentabilidadService {
     private Sheet getSheetIgnoreCase(Workbook wb, String name) {
         for (int i = 0; i < wb.getNumberOfSheets(); i++) {
             Sheet sheet = wb.getSheetAt(i);
-            if (sheet.getSheetName().equalsIgnoreCase(name)) {
-                return sheet;
-            }
+            if (sheet.getSheetName().equalsIgnoreCase(name)) return sheet;
         }
         return null;
     }
+
+    private record RentabilidadSeries(NavSeries nav, IpcDailySeries ipcDiario) {}
+
+    private record NavSeries(
+            NavigableMap<LocalDate, BigDecimal> values,
+            Map<LocalDate, NavObservation> observations
+    ) {}
+
+    private record IpcDailySeries(
+            NavigableMap<LocalDate, BigDecimal> values,
+            Map<LocalDate, IpcObservation> observations
+    ) {}
+
+    private record NavObservation(
+            LocalDate date,
+            String file,
+            String sheet,
+            String dateCell,
+            String valueCell,
+            BigDecimal value
+    ) {}
+
+    private record IpcObservation(
+            LocalDate date,
+            String file,
+            String sheet,
+            String dateCell,
+            String valueCell,
+            BigDecimal value
+    ) {}
 
     public record RentabilidadResultado(
             LocalDate fechaInicio,

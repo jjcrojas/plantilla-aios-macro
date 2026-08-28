@@ -23,7 +23,7 @@ public class Formato136QueryService {
     }
 
     public BigDecimal leerAportesRecibidos(LocalDate fechaCorte) {
-        LocalDate fechaInicio = fechaCorte.minusYears(1).withDayOfMonth(1);
+        LocalDate fechaInicio = fechaCorte.minusYears(1).plusDays(1);
         return scalar("aportes_recibidos", sqlAportesRecibidos(), Date.valueOf(fechaInicio), Date.valueOf(fechaCorte));
     }
 
@@ -152,23 +152,18 @@ public class Formato136QueryService {
     }
     private String sqlAportesRecibidos() {
         return """
-                SELECT COALESCE(SUM(e.valor) / 1000000, 0) AS Valor_Total
-                FROM prod_dwh_consulta.entidades a,
-                     prod_dwh_consulta.tiempo b,
-                     prod_dwh_consulta.patrimonios_autonomos c,
-                     prod_dwh_consulta.negfid_insumos d,
-                     prod_dwh_consulta.negfid_insumo_entidad e
-                WHERE d.inf_id = e.inf_id
-                  AND e.ent_id = a.ent_id
-                  AND e.tie_id = b.tie_id
-                  AND e.paau_id = c.paau_id
-                  AND c.tipo_patrimonio = 6
-                  AND c.codigo_patrimonio = 1000
+                SELECT COALESCE(SUM(e.valor), 0) AS valor_total
+                FROM prod_dwh_consulta.entidades a
+                INNER JOIN prod_dwh_consulta.negfid_insumo_entidad e ON e.ent_id = a.ent_id
+                INNER JOIN prod_dwh_consulta.tiempo b ON e.tie_id = b.tie_id
+                INNER JOIN prod_dwh_consulta.patrimonios_autonomos c ON e.paau_id = c.paau_id
+                INNER JOIN prod_dwh_consulta.negfid_insumos d ON d.inf_id = e.inf_id
+                WHERE a.tipo_entidad = 23
+                  AND c.codigo_patrimonio IN (1000, 8000)
                   AND d.nivel1 = 136
                   AND d.nivel2 = 2
                   AND d.nivel3 = 4
                   AND d.nivel4 = 10
-                  AND a.tipo_entidad = 23
                   AND e.valor <> 0
                   AND b.fecha BETWEEN ? AND ?
                 """;

@@ -24,16 +24,16 @@ class Formato136QueryServiceTest {
     @Test
     void shouldReadAportesRecibidosFromTeradataForCutoffWindow() {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-        when(jdbcTemplate.queryForObject(contains("d.nivel1 = 136"), eq(BigDecimal.class),
-                eq(Date.valueOf("2024-06-01")), eq(Date.valueOf("2025-06-30"))))
-                .thenReturn(new BigDecimal("123.45"));
+        when(jdbcTemplate.queryForObject(contains("c.codigo_patrimonio IN (1000, 8000)"), eq(BigDecimal.class),
+                eq(Date.valueOf("2024-07-01")), eq(Date.valueOf("2025-06-30"))))
+                .thenReturn(new BigDecimal("123450000000"));
 
         Formato136QueryService service = new Formato136QueryService(jdbcTemplate);
         BigDecimal value = service.leerAportesRecibidos(LocalDate.of(2025, 6, 30));
 
-        assertEquals(new BigDecimal("123.45"), value);
-        verify(jdbcTemplate).queryForObject(contains("SUM(e.valor) / 1000000"), eq(BigDecimal.class),
-                eq(Date.valueOf("2024-06-01")), eq(Date.valueOf("2025-06-30")));
+        assertEquals(new BigDecimal("123450000000"), value);
+        verify(jdbcTemplate).queryForObject(contains("SUM(e.valor)"), eq(BigDecimal.class),
+                eq(Date.valueOf("2024-07-01")), eq(Date.valueOf("2025-06-30")));
     }
 
     @Test

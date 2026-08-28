@@ -121,6 +121,30 @@ class SemestralExcelGeneratorTest {
     }
 
     @Test
+    void shouldKeepJuneAndDecemberInChronologicalColumns() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Hoja1");
+            sheet.createRow(0);
+            sheet.createRow(1);
+            sheet.createRow(2).createCell(1).setCellValue(1);
+
+            SemestralExcelGenerator generator = new SemestralExcelGenerator(
+                    new AiosProperties(Path.of("."), Path.of("."), Path.of("."), 40, true),
+                    null, null, null, null, null, null);
+
+            int junio = generator.columnaSemestral(sheet, LocalDate.of(2025, 6, 30));
+            int diciembre = generator.columnaSemestral(sheet, LocalDate.of(2025, 12, 31));
+
+            assertEquals(3, junio);
+            assertEquals(4, diciembre);
+            assertEquals("junio", sheet.getRow(0).getCell(2).getStringCellValue());
+            assertEquals("diciembre", sheet.getRow(0).getCell(3).getStringCellValue());
+            assertEquals(2025, (int) sheet.getRow(1).getCell(2).getNumericCellValue());
+            assertEquals(2025, (int) sheet.getRow(1).getCell(3).getNumericCellValue());
+        }
+    }
+
+    @Test
     void shouldWriteRow47AsNumericPercentageWithoutPercentSymbol() throws Exception {
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("Hoja1");
@@ -137,11 +161,42 @@ class SemestralExcelGeneratorTest {
     }
 
     @Test
-    void shouldCalculateRows53And55Through60FromQueriedAccountsAndDependentRows() {
+    void shouldWriteRow27AsNumericPercentageWithoutPercentSymbol() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Hoja1");
+            SemestralExcelGenerator generator = new SemestralExcelGenerator(
+                    new AiosProperties(Path.of("."), Path.of("."), Path.of("."), 40, true),
+                    null, null, null, null, null, null);
+
+            generator.writeFila27SinSimboloPorcentaje(sheet, 3, new BigDecimal("0.62"));
+
+            Cell cell = sheet.getRow(26).getCell(2);
+            assertEquals(0.62d, cell.getNumericCellValue());
+            assertEquals("#,##0.00", cell.getCellStyle().getDataFormatString());
+        }
+    }
+
+    @Test
+    void shouldWriteRow26WithoutDecimals() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Hoja1");
+            SemestralExcelGenerator generator = new SemestralExcelGenerator(
+                    new AiosProperties(Path.of("."), Path.of("."), Path.of("."), 40, true),
+                    null, null, null, null, null, null);
+
+            generator.writeFila26SinDecimales(sheet, 3, new BigDecimal("123456"));
+
+            Cell cell = sheet.getRow(25).getCell(2);
+            assertEquals(123456d, cell.getNumericCellValue());
+            assertEquals("#,##0", cell.getCellStyle().getDataFormatString());
+        }
+    }
+
+    @Test
+    void shouldCalculateRow60AsTheSumOfRows55_56_57And59() {
         LocalDate fechaCorte = LocalDate.of(2025, 6, 30);
         BigDecimal trm = new BigDecimal("4069.67");
         ComisionesSemestralQueryService queryService = mock(ComisionesSemestralQueryService.class);
-        when(queryService.leerCuenta(fechaCorte, trm, 510000)).thenReturn(new BigDecimal("250"));
         when(queryService.leerCuenta(fechaCorte, trm, 512000)).thenReturn(new BigDecimal("100"));
         when(queryService.leerCuenta(fechaCorte, trm, 513000)).thenReturn(new BigDecimal("50"));
         when(queryService.leerCuenta(fechaCorte, trm, 511524)).thenReturn(new BigDecimal("60"));
@@ -154,18 +209,37 @@ class SemestralExcelGeneratorTest {
         SemestralExcelGenerator.FilasGastosSemestrales filas = generator.calcularFilasGastosSemestrales(
                 fechaCorte, trm, new BigDecimal("1000"), new BigDecimal("700"));
 
-        assertEquals(new BigDecimal("750"), filas.fila53());
+        assertEquals(new BigDecimal("300"), filas.fila53());
         assertEquals(new BigDecimal("150"), filas.fila55());
         assertEquals(new BigDecimal("100"), filas.fila56());
         assertEquals(new BigDecimal("30"), filas.fila57());
         assertEquals(new BigDecimal("130"), filas.fila58());
         assertEquals(new BigDecimal("420"), filas.fila59());
-        assertEquals(new BigDecimal("250"), filas.fila60());
-        verify(queryService).leerCuenta(fechaCorte, trm, 510000);
+        assertEquals(new BigDecimal("700"), filas.fila60());
         verify(queryService).leerCuenta(fechaCorte, trm, 512000);
         verify(queryService).leerCuenta(fechaCorte, trm, 513000);
         verify(queryService).leerCuenta(fechaCorte, trm, 511524);
         verify(queryService).leerCuenta(fechaCorte, trm, 511527);
         verify(queryService).leerCuenta(fechaCorte, trm, 519015);
+    }
+
+    @Test
+    void shouldCalculateRows61_65And66FromTheReferencedRows() {
+        SemestralExcelGenerator generator = new SemestralExcelGenerator(
+                new AiosProperties(Path.of("."), Path.of("."), Path.of("."), 40, true),
+                null, null, null, null, null, null);
+
+        SemestralExcelGenerator.IndicadoresFinancierosSemestrales indicadores =
+                generator.calcularIndicadoresFinancierosSemestrales(
+                        new BigDecimal("42000000000000"),
+                        new BigDecimal("7500000"),
+                        new BigDecimal("4000"),
+                        new BigDecimal("150"),
+                        new BigDecimal("750"),
+                        new BigDecimal("1500"));
+
+        assertEquals(new BigDecimal("1400.00000000"), indicadores.fila61());
+        assertEquals(new BigDecimal("20.00000000"), indicadores.fila65());
+        assertEquals(new BigDecimal("10.00000000"), indicadores.fila66());
     }
 }

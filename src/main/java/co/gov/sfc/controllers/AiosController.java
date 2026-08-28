@@ -62,6 +62,22 @@ public class AiosController {
                 .body(new FileSystemResource(archivo));
     }
 
+    @PostMapping("/generar-rango")
+    public ResponseEntity<FileSystemResource> generarRango(
+            @RequestParam LocalDate desde,
+            @RequestParam LocalDate hasta,
+            @RequestParam ModoGeneracion modo
+    ) {
+        log.info("Solicitud generar rango AIOS recibida: desde={}, hasta={}, modo={}", desde, hasta, modo);
+        var resultado = generacionService.generarRango(desde, hasta, modo);
+        var archivo = resultado.archivosGenerados().getFirst();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + archivo.getFileName() + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(new FileSystemResource(archivo));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<String> handleException(Exception ex) {
         return ResponseEntity.internalServerError()

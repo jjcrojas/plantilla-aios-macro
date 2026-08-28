@@ -4,8 +4,8 @@ param(
     [string]$Desde,
     [string]$Hasta,
     [string]$OutputDir,
-    [string]$BaseUrl = 'http://localhost:8084',
     [string]$MavenRepository,
+    [int]$PreferredPort = 18083,
     [switch]$KeepApplicationRunning
 )
 
@@ -62,33 +62,64 @@ function Test-AiosApplication {
     }
 }
 
-$startedProcess = $null
-try {
-    if (-not (Test-AiosApplication -Url $BaseUrl)) {
-        $maven = Get-Command 'mvn.cmd' -ErrorAction SilentlyContinue
-        if ($null -eq $maven) {
-            $maven = Get-Command 'mvn' -ErrorAction Stop
+function Get-FreeLocalPort {
+    param([int]$StartPort)
+    foreach ($candidate in $StartPort..($StartPort + 100)) {
+        $listener = $null
+        try {
+            $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $candidate)
+            $listener.Start()
+            return $candidate
+        } catch {
+        } finally {
+            if ($null -ne $listener) {
+                try { $listener.Stop() } catch {}
+            }
         }
-        $stdoutLog = Join-Path $outputPath 'spring-boot.stdout.log'
-        $stderrLog = Join-Path $outputPath 'spring-boot.stderr.log'
-        $startedProcess = Start-Process -FilePath $maven.Source `
-            -ArgumentList "-Dmaven.repo.local=$mavenRepositoryPath", '-DskipTests', 'spring-boot:run' `
-            -WorkingDirectory $projectPath `
-            -WindowStyle Hidden `
-            -RedirectStandardOutput $stdoutLog `
-            -RedirectStandardError $stderrLog `
-            -PassThru
+    }
+    throw "No se encontró un puerto libre entre $StartPort y $($StartPort + 100)."
+}
 
-        $deadline = [DateTime]::UtcNow.AddMinutes(3)
-        while (-not (Test-AiosApplication -Url $BaseUrl)) {
-            if ($startedProcess.HasExited) {
-                throw "La aplicación terminó antes de estar disponible. Revise $stderrLog"
-            }
-            if ([DateTime]::UtcNow -ge $deadline) {
-                throw "La aplicación no respondió antes del tiempo límite. Revise $stdoutLog y $stderrLog"
-            }
-            Start-Sleep -Seconds 2
+function Stop-TemporaryApplication {
+    param([System.Diagnostics.Process]$MavenProcess, [int]$Port)
+    try {
+        foreach ($listener in @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)) {
+            Stop-Process -Id $listener.OwningProcess -Force -ErrorAction SilentlyContinue
         }
+    } catch {
+    }
+    if ($null -ne $MavenProcess -and -not $MavenProcess.HasExited) {
+        Stop-Process -Id $MavenProcess.Id -Force -ErrorAction SilentlyContinue
+    }
+}
+
+$startedProcess = $null
+$port = Get-FreeLocalPort -StartPort $PreferredPort
+$BaseUrl = "http://localhost:$port"
+try {
+    $maven = Get-Command 'mvn.cmd' -ErrorAction SilentlyContinue
+    if ($null -eq $maven) {
+        $maven = Get-Command 'mvn' -ErrorAction Stop
+    }
+    $stdoutLog = Join-Path $outputPath 'spring-boot.stdout.log'
+    $stderrLog = Join-Path $outputPath 'spring-boot.stderr.log'
+    $startedProcess = Start-Process -FilePath $maven.Source `
+        -ArgumentList "-Dmaven.repo.local=$mavenRepositoryPath", '-DskipTests', 'spring-boot:run', "-Dspring-boot.run.arguments=--server.port=$port" `
+        -WorkingDirectory $projectPath `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $stdoutLog `
+        -RedirectStandardError $stderrLog `
+        -PassThru
+
+    $deadline = [DateTime]::UtcNow.AddMinutes(3)
+    while (-not (Test-AiosApplication -Url $BaseUrl)) {
+        if ($startedProcess.HasExited) {
+            throw "La aplicación terminó antes de estar disponible. Revise $stderrLog"
+        }
+        if ([DateTime]::UtcNow -ge $deadline) {
+            throw "La aplicación no respondió antes del tiempo límite. Revise $stdoutLog y $stderrLog"
+        }
+        Start-Sleep -Seconds 2
     }
 
     $firstDay = [DateTime]::new($startPeriod.Year, $startPeriod.Month, 1)
@@ -106,8 +137,8 @@ try {
     }
     Write-Output "Generado $Desde a $Hasta -> $($file.FullName)"
 } finally {
-    if ($null -ne $startedProcess -and -not $KeepApplicationRunning -and -not $startedProcess.HasExited) {
-        Stop-Process -Id $startedProcess.Id -Force
+    if ($null -ne $startedProcess -and -not $KeepApplicationRunning) {
+        Stop-TemporaryApplication -MavenProcess $startedProcess -Port $port
     }
 }
 

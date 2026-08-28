@@ -8,9 +8,9 @@ description: Ejecuta la aplicación Spring Boot plantilla-aios-macro para genera
 Ejecutar `scripts/generar-mensuales.ps1` desde PowerShell. El script debe:
 
 1. Verificar que el proyecto contiene `pom.xml`.
-2. Reutilizar la aplicación si ya responde en `http://localhost:8084` o iniciarla con Maven.
+2. Iniciar una instancia temporal de la aplicación en un puerto libre, sin reutilizar servicios existentes.
 3. Invocar una vez `POST /aios/generar-mensuales` con las fechas inicial y final del rango.
-4. Guardar la respuesta como `Boletin_AIOS MENSUAL.xlsx`; el libro debe contener una fila por cada período.
+4. Guardar la respuesta como `Boletin_AIOS MENSUAL.xlsx`; el libro debe contener una fila por cada período solicitado, en orden cronológico. Normalizar septiembre como `sep-AA`, aunque la plantilla contenga `sept-AA` fuera de orden.
 5. Confirmar que el archivo existe y tiene contenido.
 6. Detener al finalizar solamente la instancia que el script haya iniciado, salvo que se solicite conservarla.
 

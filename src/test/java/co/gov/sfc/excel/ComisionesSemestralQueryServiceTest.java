@@ -68,6 +68,30 @@ class ComisionesSemestralQueryServiceTest {
     }
 
     @Test
+    void shouldCalculateSemestralRow54FromAccount590000() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        when(jdbcTemplate.queryForObject(
+                org.mockito.ArgumentMatchers.anyString(), eq(BigDecimal.class),
+                eq(Date.valueOf("2025-06-30")), eq(Date.valueOf("2024-12-31")), eq(Date.valueOf("2024-06-30")),
+                eq(new BigDecimal("4069.67")),
+                eq(Date.valueOf("2025-06-30")), eq(Date.valueOf("2024-12-31")), eq(Date.valueOf("2024-06-30")),
+                eq(590000)))
+                .thenReturn(new BigDecimal("147.25"));
+        ComisionesSemestralQueryService service = new ComisionesSemestralQueryService(jdbcTemplate);
+
+        BigDecimal result = service.leer590000(
+                LocalDate.of(2025, 6, 30), new BigDecimal("4069.67"));
+
+        assertEquals(new BigDecimal("147.25"), result);
+        verify(jdbcTemplate).queryForObject(
+                org.mockito.ArgumentMatchers.anyString(), eq(BigDecimal.class),
+                eq(Date.valueOf("2025-06-30")), eq(Date.valueOf("2024-12-31")), eq(Date.valueOf("2024-06-30")),
+                eq(new BigDecimal("4069.67")),
+                eq(Date.valueOf("2025-06-30")), eq(Date.valueOf("2024-12-31")), eq(Date.valueOf("2024-06-30")),
+                eq(590000));
+    }
+
+    @Test
     void shouldCalculateOperatingExpensesForJuneUsingSignedAccountsDatesAndTrm() {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
         when(jdbcTemplate.queryForObject(

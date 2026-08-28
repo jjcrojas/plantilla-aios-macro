@@ -25,6 +25,7 @@ class TrimestralDataReaderTest {
         Formato491QueryService formato491QueryService = mock(Formato491QueryService.class);
         Formato493QueryService formato493QueryService = mock(Formato493QueryService.class);
         Formato136QueryService formato136QueryService = mock(Formato136QueryService.class);
+        GastosTrimestralQueryService gastosTrimestralQueryService = mock(GastosTrimestralQueryService.class);
         ComisionesSfcService comisionesSfcService = mock(ComisionesSfcService.class);
 
         LocalDate fecha = LocalDate.of(2025, 6, 30);
@@ -55,8 +56,9 @@ class TrimestralDataReaderTest {
         when(formato493QueryService.leerTraspasosPorEntidad(fecha)).thenReturn(Map.of(
                 "colf", BigDecimal.ZERO, "porv", BigDecimal.ZERO, "prot", BigDecimal.ZERO, "sk", BigDecimal.ZERO));
         when(formato136QueryService.leerColombiaPorFondoEntidad(fecha)).thenReturn(Map.of());
+        when(gastosTrimestralQueryService.leerGastosUsd(fecha, BigDecimal.valueOf(4000))).thenReturn(Map.of());
 
-        TrimestralDataReader reader = new TrimestralDataReader(mensualDataReader, locator, formato491QueryService, formato493QueryService, formato136QueryService, comisionesSfcService);
+        TrimestralDataReader reader = new TrimestralDataReader(mensualDataReader, locator, formato491QueryService, formato493QueryService, formato136QueryService, gastosTrimestralQueryService, comisionesSfcService);
         TrimestralData data = reader.read(fecha);
 
         assertTrue(data.traspasos().getOrDefault("colf", BigDecimal.ZERO).signum() >= 0);
@@ -74,7 +76,7 @@ class TrimestralDataReaderTest {
                 "por_obl", new BigDecimal("0.47"), "por_seg", new BigDecimal("2.53"),
                 "pro_obl", new BigDecimal("0.47"), "pro_seg", new BigDecimal("2.53"),
                 "ska_obl", new BigDecimal("2.05"), "ska_seg", new BigDecimal("0.95")));
-        TrimestralDataReader reader = new TrimestralDataReader(null, null, null, null, null, comisionesSfcService);
+        TrimestralDataReader reader = new TrimestralDataReader(null, null, null, null, null, null, comisionesSfcService);
         Method method = TrimestralDataReader.class.getDeclaredMethod("readComisionesOcrRequerido", LocalDate.class);
         method.setAccessible(true);
 

@@ -1,4 +1,4 @@
 interface:
   display_name: "Generar semestral AIOS"
-  short_description: "Genera el semestral con contingencia de macro"
-  default_prompt: "Usa $generar-semestral-aios para validar la plantilla AIOS, intentar su macro y generar el boletín semestral del período indicado; si la macro falla después de las validaciones previas, continúa con Java y reporta la advertencia."
+  short_description: "Consolida cortes semestrales en un libro"
+  default_prompt: "Usa $generar-semestral-aios para generar en un único libro los cortes semestrales del período o rango que te indique, aplicando la contingencia de Excel cuando corresponda."

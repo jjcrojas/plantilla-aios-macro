@@ -9,13 +9,53 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.math.BigDecimal;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class MensualExcelGeneratorTest {
+
+    @TempDir
+    Path tempDir;
+
+    @Test
+    void shouldGenerateRequestedPeriodsInOrderUsingRealTemplate() throws Exception {
+        Path projectDir = Path.of("").toAbsolutePath();
+        AiosProperties properties = new AiosProperties(
+                projectDir.resolve("insumos"),
+                projectDir.resolve("plantillas"),
+                projectDir.resolve("salidas_referencia"),
+                40,
+                false
+        );
+        MensualExcelGenerator generator = new MensualExcelGenerator(properties, new CeldaLogger(), tempDir);
+
+        Path output = generator.generar(List.of(
+                monthlyData("dic-25"),
+                monthlyData("jun-25"),
+                monthlyData("nov-25"),
+                monthlyData("jul-25"),
+                monthlyData("oct-25"),
+                monthlyData("sep-25"),
+                monthlyData("ago-25")
+        ));
+
+        assertFalse(Files.notExists(output));
+        assertEquals(tempDir, output.getParent().getParent());
+        try (Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(output.toFile())) {
+            Sheet sheet = workbook.getSheet("HOJA1");
+            assertEquals(List.of("jun-25", "jul-25", "ago-25", "sep-25", "oct-25", "nov-25", "dic-25"),
+                    java.util.stream.IntStream.rangeClosed(24, 30)
+                            .mapToObj(row -> sheet.getRow(row).getCell(0).getStringCellValue())
+                            .toList());
+        }
+    }
 
     @Test
     void shouldCreateMissingMonthlyPeriodAfterLastExistingPeriod() throws Exception {
@@ -77,5 +117,38 @@ class MensualExcelGeneratorTest {
             assertFalse(workbook.getFontAt(formatted.getCell(6).getCellStyle().getFontIndex()).getBold());
             assertEquals(BorderStyle.THIN, formatted.getCell(6).getCellStyle().getBorderBottom());
         }
+    }
+
+    @Test
+    void shouldSortExistingMonthlyPeriodsAndNormalizeSeptemberLabel() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("HOJA1");
+            sheet.createRow(4).createCell(0).setCellValue("jun-25");
+            sheet.createRow(5).createCell(0).setCellValue("dic-25");
+            sheet.createRow(6).createCell(0).setCellValue("sept-25");
+
+            AiosProperties properties = new AiosProperties(Path.of("."), Path.of("."), Path.of("."), 40, false);
+            MensualExcelGenerator generator = new MensualExcelGenerator(properties, new CeldaLogger());
+
+            int row = generator.findOrCreateDateRow(sheet, "sep-25");
+
+            assertEquals(6, row);
+            assertEquals("jun-25", sheet.getRow(4).getCell(0).getStringCellValue());
+            assertEquals("sep-25", sheet.getRow(5).getCell(0).getStringCellValue());
+            assertEquals("dic-25", sheet.getRow(6).getCell(0).getStringCellValue());
+        }
+    }
+
+    private MensualData monthlyData(String period) {
+        BigDecimal one = BigDecimal.ONE;
+        return new MensualData(period,
+                one, one, one, one, one, one,
+                one, one, one, one, one, one, one,
+                one, one, one, one, one, one,
+                one, one, one, one, one, one,
+                one, one, one, one, one, one,
+                one, one, one, one, one, one,
+                one, one, one, one, one,
+                one);
     }
 }

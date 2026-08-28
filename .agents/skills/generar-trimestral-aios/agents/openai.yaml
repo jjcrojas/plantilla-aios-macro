@@ -1,4 +1,4 @@
 interface:
   display_name: "Generar trimestral AIOS"
-  short_description: "Genera el trimestral con contingencia de macro"
-  default_prompt: "Usa $generar-trimestral-aios para validar la plantilla AIOS, intentar su macro y generar el boletín trimestral del período indicado; si la macro falla después de las validaciones previas, continúa con Java y reporta la advertencia."
+  short_description: "Consolida cortes trimestrales en un libro"
+  default_prompt: "Usa $generar-trimestral-aios para generar en un único libro los cortes trimestrales del período o rango que te indique, aplicando la contingencia de Excel cuando corresponda."

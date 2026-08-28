@@ -10,11 +10,16 @@ param(
     [int]$PreferredPort = 18085,
     [int]$MacroTimeoutMinutes = 30,
     [switch]$KeepApplicationRunning,
-    [switch]$SoloValidar
+    [switch]$SoloValidar,
+    [switch]$SoloPreparar
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+if ($SoloValidar -and $SoloPreparar) {
+    throw 'SoloValidar y SoloPreparar no pueden usarse al mismo tiempo.'
+}
 
 $culture = [System.Globalization.CultureInfo]::InvariantCulture
 $styles = [System.Globalization.DateTimeStyles]::None
@@ -264,6 +269,18 @@ if ($macroTimedOut) {
     throw "La validación previa de la plantilla terminó sin confirmación verificable. Revise $macroStdout y $macroStderr"
 }
 Remove-Item -LiteralPath $excelPidFile, $macroStateFile -Force -ErrorAction SilentlyContinue
+
+if ($SoloPreparar) {
+    if (-not [string]::IsNullOrWhiteSpace($macroResult)) {
+        Write-Output $macroResult.Trim()
+    }
+    if (-not [string]::IsNullOrWhiteSpace($macroWarning)) {
+        Write-Output $macroWarning
+    }
+    Write-Output "RESPALDO_PLANTILLA ruta=$backupPath"
+    Write-Output "PREPARACION_SEMESTRAL_OK fecha=$FechaCorte preparacionPlantilla=$macroPreparationStatus"
+    return
+}
 
 $mavenProcess = $null
 $port = Get-FreeLocalPort -StartPort $PreferredPort

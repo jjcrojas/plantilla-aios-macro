@@ -23,6 +23,10 @@ public class ComisionesSemestralQueryService {
         return leerCuenta(fechaCorte, trm, 411500);
     }
 
+    public BigDecimal leer590000(LocalDate fechaCorte, BigDecimal trm) {
+        return leerCuenta(fechaCorte, trm, 590000);
+    }
+
     public BigDecimal leerCuenta(LocalDate fechaCorte, BigDecimal trm, int codigoCuenta) {
         if (trm == null || trm.signum() == 0) {
             throw new IllegalArgumentException("La TRM debe ser distinta de cero para consultar la cuenta " + codigoCuenta);
