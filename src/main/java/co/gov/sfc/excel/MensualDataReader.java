@@ -34,13 +34,19 @@ public class MensualDataReader {
     private final Formato493QueryService formato493QueryService;
     private final Formato495QueryService formato495QueryService;
     private final TrmService trmService;
+    private final SeriesEconomicasService seriesEconomicasService;
+    private final BalanceContableQueryService balanceContableQueryService;
+    private final RentabilidadService rentabilidadService;
 
     public MensualDataReader(InsumosLocator locator, AiosProperties properties,
                              Formato491QueryService formato491QueryService,
                              FondoAdministradoQueryService fondoAdministradoQueryService,
                              Formato493QueryService formato493QueryService,
                              Formato495QueryService formato495QueryService,
-                             TrmService trmService) {
+                             TrmService trmService,
+                             SeriesEconomicasService seriesEconomicasService,
+                             BalanceContableQueryService balanceContableQueryService,
+                             RentabilidadService rentabilidadService) {
         this.locator = locator;
         this.properties = properties;
         this.formato491QueryService = formato491QueryService;
@@ -48,6 +54,9 @@ public class MensualDataReader {
         this.formato493QueryService = formato493QueryService;
         this.formato495QueryService = formato495QueryService;
         this.trmService = trmService;
+        this.seriesEconomicasService = seriesEconomicasService;
+        this.balanceContableQueryService = balanceContableQueryService;
+        this.rentabilidadService = rentabilidadService;
         // Evitar asignaciones gigantes en POI que pueden terminar en OOM con archivos grandes.
         // 100 MB es suficiente para los insumos actuales y más conservador en memoria.
         IOUtils.setByteArrayMaxOverride(100_000_000);
@@ -91,30 +100,14 @@ public class MensualDataReader {
         log.info("Consulta Teradata Formato 491 completada para fechaCorte={}", fechaCorte);
         log.info("Consulta Teradata Formato 493 completada para fechaCorte={}", fechaCorte);
 
-        BigDecimal tmpReal1;
-        BigDecimal tmpNominal1;
         var rentFile = locator.findRequired("Rent_Vr_Uni_Moderado", fechaCorte);
-        try {
-            RentResult rent = readRentabilidadDesdeXml(rentFile, fechaCorte);
-            tmpNominal1 = rent.nominal();
-            tmpReal1 = rent.real();
-            log.info("Rentabilidad moderado (stream xml) con fechaCorte={}: D11(nominal)={}, D10(real)={}",
-                    fechaCorte, tmpNominal1, tmpReal1);
-        } catch (Exception fastError) {
-            log.warn("Lectura streaming de rentabilidad falló (se intenta fallback POI): {}", fastError.getMessage());
-            try (Workbook wb = WorkbookFactory.create(rentFile.toFile(), null, true)) {
-                Sheet consolidado = getSheetIgnoreCase(wb, "Consolidado");
-                if (consolidado == null) consolidado = wb.getSheetAt(0);
-                LocalDate fechaInicial = fechaCorte.minusYears(1);
-                setDate(consolidado, "D5", fechaCorte);
-                setDate(consolidado, "D4", fechaInicial);
-                tmpNominal1 = readRentabilidadNominal(consolidado, fechaInicial, fechaCorte);
-                tmpReal1 = readRentabilidadReal(consolidado, fechaCorte);
-            } catch (Exception fallbackError) {
-                throw new IllegalStateException("Error leyendo rentabilidad moderado", fallbackError);
-            }
-        }
-        log.info("Lectura rentabilidad completada para fechaCorte={}", fechaCorte);
+        var rentabilidadUnAnio = rentabilidadService.calcularRentabilidad(rentFile, fechaCorte, 1);
+        BigDecimal tmpNominal1 = rentabilidadUnAnio.rentabilidadNominal();
+        BigDecimal tmpReal1 = rentabilidadUnAnio.rentabilidadReal();
+        log.info("Rentabilidad mensual 1 año calculada en Java con Consolidado!E e IPC_D!B: "
+                        + "fechaInicio={} fechaFin={} nominal={} real={} archivo={}",
+                rentabilidadUnAnio.fechaInicio(), rentabilidadUnAnio.fechaFin(),
+                tmpNominal1, tmpReal1, rentFile.toAbsolutePath());
 
         var fondoAdministrado = fondoAdministradoQueryService.leer(fechaCorte);
         BigDecimal vrFondo = fondoAdministrado.totalMmCop();
@@ -179,11 +172,14 @@ public class MensualDataReader {
 
         BigDecimal afiliados = afiliadosQuery;
         BigDecimal trm = trmService.obtener(fechaCorte);
-        BigDecimal pea = readFromFormatoPlantilla(fechaCorte, "V11");
-        BigDecimal deudaG = readFromFormatoPlantilla(fechaCorte, "V16");
-        BigDecimal activosCuentas = readFromPlantillaSheet(fechaCorte, "CUENTAS", "C6");
-        BigDecimal pasivosCuentas = readFromPlantillaSheet(fechaCorte, "CUENTAS", "C4");
-        BigDecimal pibSemestral = readPibSemestral(fechaCorte);
+        SeriesEconomicasService.SeriesEconomicas seriesEconomicas = seriesEconomicasService.leer(fechaCorte);
+        BalanceContableQueryService.BalanceContable balanceContable = balanceContableQueryService.leer(fechaCorte);
+        BigDecimal pea = seriesEconomicas.pea();
+        BigDecimal deudaG = seriesEconomicas.deudaGubernamental();
+        BigDecimal activosCuentas = balanceContable.activoMmCop();
+        BigDecimal pasivosCuentas = balanceContable.pasivoMmCop();
+        BigDecimal patrimonioCuentas = balanceContable.patrimonioMmCop();
+        BigDecimal pibSemestral = seriesEconomicas.pibSemestral();
         Formato495QueryService.PensionadosResumen pensionados = formato495QueryService.leerResumen(fechaCorte);
         totalPen = pensionados.total();
         totalInv = pensionados.invalidez();
@@ -236,188 +232,11 @@ public class MensualDataReader {
                 fondoSistemaJ14,
                 deudaGobB4,
                 activosCuentas,
-                pasivosCuentas
+                pasivosCuentas,
+                patrimonioCuentas,
+                balanceContable.numeroAdministradorasVigentes()
         );
     }
-
-    private PensionadosData readPensionados495(LocalDate fechaCorte) {
-        BigDecimal totalPen = BigDecimal.ZERO;
-        BigDecimal totalInv = BigDecimal.ZERO;
-        BigDecimal totalVej = BigDecimal.ZERO;
-        BigDecimal totalSob = BigDecimal.ZERO;
-        try {
-            var file495 = findPensionados495File(fechaCorte);
-            log.info("495: archivo seleccionado={} para fechaCorte={}", file495.toAbsolutePath(), fechaCorte);
-            try (Workbook wb = WorkbookFactory.create(file495.toFile(), null, true)) {
-                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-                Sheet porEntidad = getSheetIgnoreCase(wb, "por entidad");
-                if (porEntidad == null) porEntidad = findSheetContainsIgnoreCase(wb, "por entidad");
-                if (porEntidad != null) {
-                    setDate(porEntidad, "C6", fechaCorte);
-                    evaluator.clearAllCachedResultValues();
-                    totalPen = num(porEntidad, "BJ67", evaluator);
-                    totalVej = num(porEntidad, "BH66", evaluator);
-                    totalInv = num(porEntidad, "BI66", evaluator);
-                    totalSob = num(porEntidad, "BJ66", evaluator);
-                    log.info("495: por entidad -> totalPen(BJ67)={}, totalVej(BH66)={}, totalInv(BI66)={}, totalSob(BJ66)={}",
-                            totalPen, totalVej, totalInv, totalSob);
-                }
-                Sheet totalPensionados = getSheetIgnoreCase(wb, "Total pensionados");
-                if (totalPensionados == null) totalPensionados = findSheetContainsIgnoreCase(wb, "total pensionados");
-                if (totalPensionados != null) {
-                    setDate(totalPensionados, "B4", fechaCorte);
-                    evaluator.clearAllCachedResultValues();
-                    BigDecimal totalDesdeSerie = readTotalPensionadosSerie(totalPensionados, fechaCorte);
-                    log.info("495: total pensionados serie -> parámetro B4={} valor encontrado columna I={}", fechaCorte, totalDesdeSerie);
-                    if (totalDesdeSerie.signum() != 0) {
-                        totalPen = totalDesdeSerie;
-                    } else if (totalPen.signum() == 0) {
-                        totalPen = num(totalPensionados, "B4", evaluator);
-                        log.info("495: fallback B4 en Total pensionados -> {}", totalPen);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.warn("No se pudo leer Formato 495 para total de pensionados: {}", e.getMessage());
-        }
-        log.info("495: resultado final -> totalPen={}, totalInv={}, totalVej={}, totalSob={}", totalPen, totalInv, totalVej, totalSob);
-        return new PensionadosData(totalPen, totalInv, totalVej, totalSob);
-    }
-
-    private Path findPensionados495File(LocalDate fechaCorte) {
-        Path principal = properties.insumosDir()
-                .resolve("Formato 495")
-                .resolve("Series_Formato-495 PENSIONADOS.xlsm");
-        if (Files.isRegularFile(principal)) {
-            return principal;
-        }
-        try {
-            Path p = locator.findRequired("Series_Formato-495 PENSIONADOS", fechaCorte);
-            if (p.getFileName().toString().toLowerCase().contains("495")) return p;
-        } catch (Exception ignored) {
-        }
-        Path local = Path.of("insumos_ejemplo", "Series_Formato-495 PENSIONADOS.xlsm");
-        if (Files.isRegularFile(local)) return local;
-        throw new IllegalStateException("No se encontró archivo de pensionados 495 en Formato 495 ni en fallback local");
-    }
-
-    private BigDecimal readTotalPensionadosSerie(Sheet totalPensionados, LocalDate fechaCorte) {
-        BigDecimal mejor = BigDecimal.ZERO;
-        LocalDate mejorFecha = LocalDate.MIN;
-        for (int r = 0; r <= totalPensionados.getLastRowNum(); r++) {
-            Row row = totalPensionados.getRow(r);
-            if (row == null) continue;
-            LocalDate fechaFila = cellAsDate(row.getCell(1)); // columna B
-            if (fechaFila == null) continue;
-            BigDecimal valor = parseNumber(row.getCell(8), new DataFormatter()); // columna I
-            if (valor.signum() == 0) continue;
-            if (fechaFila.equals(fechaCorte)) {
-                log.info("495 serie: match exacto en fila {} fecha={} valor(I)={}", r + 1, fechaFila, valor);
-                return valor;
-            }
-            if (fechaFila.getYear() == fechaCorte.getYear() && fechaFila.getMonth() == fechaCorte.getMonth()) {
-                log.info("495 serie: match mismo mes/año en fila {} fecha={} valor(I)={}", r + 1, fechaFila, valor);
-                return valor;
-            }
-            if (!fechaFila.isAfter(fechaCorte) && fechaFila.isAfter(mejorFecha)) {
-                mejorFecha = fechaFila;
-                mejor = valor;
-            }
-        }
-        if (mejor.signum() != 0) {
-            log.info("495 serie: usando mejor fecha anterior {} con valor(I)={}", mejorFecha, mejor);
-        } else {
-            log.warn("495 serie: no se encontró valor en columna I para fecha {}", fechaCorte);
-        }
-        return mejor;
-    }
-
-    private Sheet findSheetContainsIgnoreCase(Workbook wb, String fragment) {
-        for (int i = 0; i < wb.getNumberOfSheets(); i++) {
-            Sheet sheet = wb.getSheetAt(i);
-            if (sheet.getSheetName().toLowerCase().contains(fragment.toLowerCase())) {
-                return sheet;
-            }
-        }
-        return null;
-    }
-
-    private BigDecimal readFromFormatoPlantilla(LocalDate fechaCorte, String cellRef) {
-        try {
-            Path plantilla = Path.of("plantillas", "Plantilla AIOS-probable.xlsm");
-            if (!Files.isRegularFile(plantilla)) {
-                plantilla = locator.findRequired("Plantilla AIOS-probable", fechaCorte);
-            }
-            try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
-                Sheet formato = getSheetIgnoreCase(wb, "formato");
-                if (formato == null) return BigDecimal.ZERO;
-                return num(formato, cellRef, null);
-            }
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
-    }
-
-    private BigDecimal readFromPlantillaSheet(LocalDate fechaCorte, String sheetName, String cellRef) {
-        try {
-            Path plantilla = Path.of("plantillas", "Plantilla AIOS-probable.xlsm");
-            if (!Files.isRegularFile(plantilla)) {
-                plantilla = locator.findRequired("Plantilla AIOS-probable", fechaCorte);
-            }
-            try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
-                Sheet sheet = getSheetIgnoreCase(wb, sheetName);
-                if (sheet == null) return BigDecimal.ZERO;
-                return num(sheet, cellRef, null);
-            }
-        } catch (Exception e) {
-            log.warn("No fue posible leer {}!{} en plantilla: {}", sheetName, cellRef, e.getMessage());
-            return BigDecimal.ZERO;
-        }
-    }
-
-    private BigDecimal readPibSemestral(LocalDate fechaCorte) {
-        try {
-            var seriesFile = locator.findRequired("PIB_PEA_TRM_DG", fechaCorte);
-            try (Workbook wb = WorkbookFactory.create(seriesFile.toFile(), null, true)) {
-                Sheet sheet = getSheetIgnoreCase(wb, "Indicadores");
-                if (sheet == null) return BigDecimal.ZERO;
-                BigDecimal mejor = BigDecimal.ZERO;
-                LocalDate mejorFecha = LocalDate.MIN;
-                for (Row row : sheet) {
-                    LocalDate fecha = cellAsDate(row.getCell(2)); // columna C (Último día hábil)
-                    if (fecha == null) {
-                        fecha = cellAsDate(row.getCell(1)); // fallback columna B
-                    }
-                    if (fecha == null) continue;
-                    BigDecimal pib = num(sheet, row.getRowNum() + 1, 6, null); // columna F
-                    if (pib.signum() == 0) continue;
-                    if (fecha.equals(fechaCorte)) {
-                        log.info("PIB semestral exacto: fecha={} fila={} valor={}", fechaCorte, row.getRowNum() + 1, pib);
-                        return pib;
-                    }
-                    if (fecha.getYear() == fechaCorte.getYear() && fecha.getMonth() == fechaCorte.getMonth()) {
-                        log.info("PIB semestral match mes/año: fechaFila={} fechaCorte={} fila={} valor={}",
-                                fecha, fechaCorte, row.getRowNum() + 1, pib);
-                        return pib;
-                    }
-                    if (!fecha.isAfter(fechaCorte) && fecha.isAfter(mejorFecha)) {
-                        mejorFecha = fecha;
-                        mejor = pib;
-                    }
-                }
-                if (mejor.signum() != 0) {
-                    log.info("PIB semestral fallback por fecha anterior: fechaFila={} fechaCorte={} valor={}", mejorFecha, fechaCorte, mejor);
-                }
-                return mejor;
-            }
-        } catch (Exception e) {
-            log.warn("No se pudo leer PIB semestral desde PIB_PEA_TRM_DG: {}", e.getMessage());
-            return BigDecimal.ZERO;
-        }
-    }
-
-    private record PensionadosData(BigDecimal totalPen, BigDecimal totalInv, BigDecimal totalVej, BigDecimal totalSob) {}
-
 
 
     private Sheet getSheetIgnoreCase(Workbook wb, String name) {
@@ -428,155 +247,6 @@ public class MensualDataReader {
             }
         }
         return null;
-    }
-
-    private BigDecimal readRentabilidadNominal(Sheet consolidado, LocalDate fechaInicial, LocalDate fechaFinal) {
-        BigDecimal valorInicial = lookupByDate(consolidado, 5, fechaInicial, true);
-        BigDecimal valorFinal = lookupByDate(consolidado, 5, fechaFinal, true);
-        if (valorInicial == null || valorFinal == null || valorInicial.signum() == 0) {
-            return BigDecimal.ZERO;
-        }
-        double dias = Math.max(1d, fechaFinal.toEpochDay() - fechaInicial.toEpochDay());
-        double nominal = Math.pow(valorFinal.doubleValue() / valorInicial.doubleValue(), 365d / dias) - 1d;
-        return BigDecimal.valueOf(nominal);
-    }
-
-    private BigDecimal lookupByDate(Sheet sheet, int valueCol1Based, LocalDate target, boolean allowPrevious) {
-        double objetivo = DateUtil.getExcelDate(java.sql.Date.valueOf(target));
-        BigDecimal exacta = null;
-        BigDecimal anterior = null;
-        double fechaAnterior = Double.NEGATIVE_INFINITY;
-        int last = sheet.getLastRowNum() + 1;
-        for (int r = 14; r <= last; r++) {
-            BigDecimal fecha = num(sheet, r, 1, null);
-            if (fecha.signum() == 0) continue;
-            double excelDate = fecha.doubleValue();
-            BigDecimal valor = num(sheet, r, valueCol1Based, null);
-            if (Math.abs(excelDate - objetivo) < 0.00001d && valor.signum() != 0) {
-                exacta = valor;
-                break;
-            }
-            if (allowPrevious && excelDate <= objetivo && excelDate > fechaAnterior && valor.signum() != 0) {
-                fechaAnterior = excelDate;
-                anterior = valor;
-            }
-        }
-        return exacta != null ? exacta : anterior;
-    }
-
-    private BigDecimal readRentabilidadReal(Sheet consolidado, LocalDate fechaCorte) {
-        // En macro VBA D10 equivale a BUSCARV(fecha_final, A:I, 9, FALSO).
-        // POI puede devolver 0 cuando D10 evalúa error por dependencias externas/caché,
-        // por eso se hace el lookup explícito sobre la tabla base.
-        // Importante: se usan valores cacheados (sin evaluator) para evitar evaluar miles de fórmulas y disparar uso de heap.
-        double objetivo = DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte));
-        BigDecimal exacta = null;
-        BigDecimal anterior = null;
-        double fechaAnterior = Double.NEGATIVE_INFINITY;
-
-        int last = consolidado.getLastRowNum() + 1;
-        for (int r = 14; r <= last; r++) {
-            BigDecimal fecha = num(consolidado, r, 1, null);
-            if (fecha.signum() == 0) {
-                continue;
-            }
-            double excelDate = fecha.doubleValue();
-            BigDecimal real = num(consolidado, r, 9, null);
-            if (Math.abs(excelDate - objetivo) < 0.00001d && real.signum() != 0) {
-                exacta = real;
-                break;
-            }
-            if (excelDate <= objetivo && excelDate > fechaAnterior && real.signum() != 0) {
-                fechaAnterior = excelDate;
-                anterior = real;
-            }
-        }
-
-        if (exacta != null) return exacta;
-        if (anterior != null) {
-            log.info("Rentabilidad real D10 sin match exacto para {}. Se usa fecha hábil anterior (excelDate={})", fechaCorte, fechaAnterior);
-            return anterior;
-        }
-        return num(consolidado, "D10", null);
-    }
-
-
-    private RentResult readRentabilidadDesdeXml(Path rentFile, LocalDate fechaCorte) throws Exception {
-        double objetivoFinal = DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte));
-        double objetivoInicial = DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte.minusYears(1)));
-
-        try (ZipFile zip = new ZipFile(rentFile.toFile())) {
-            String sheetPath = findSheetPathByName(zip, "Consolidado");
-            if (sheetPath == null) throw new IllegalStateException("No se encontró hoja Consolidado en workbook.xml");
-
-            BigDecimal eIni = null, eFin = null, eIniPrev = null, eFinPrev = null;
-            double eIniPrevDate = Double.NEGATIVE_INFINITY, eFinPrevDate = Double.NEGATIVE_INFINITY;
-            BigDecimal iFin = null, iFinPrev = null;
-            double iFinPrevDate = Double.NEGATIVE_INFINITY;
-
-            XMLInputFactory factory = XMLInputFactory.newFactory();
-            try (InputStream is = zip.getInputStream(zip.getEntry(sheetPath))) {
-                XMLStreamReader xr = factory.createXMLStreamReader(is);
-                int rowNum = -1;
-                Double aVal = null, eVal = null, iVal = null;
-                String cellRef = null;
-                boolean inV = false;
-                while (xr.hasNext()) {
-                    int ev = xr.next();
-                    if (ev == XMLStreamConstants.START_ELEMENT) {
-                        String name = xr.getLocalName();
-                        if ("row".equals(name)) {
-                            String r = xr.getAttributeValue(null, "r");
-                            rowNum = r == null ? -1 : Integer.parseInt(r);
-                            aVal = eVal = iVal = null;
-                        } else if ("c".equals(name)) {
-                            cellRef = xr.getAttributeValue(null, "r");
-                        } else if ("v".equals(name)) {
-                            inV = true;
-                        }
-                    } else if (ev == XMLStreamConstants.CHARACTERS && inV && cellRef != null) {
-                        String t = xr.getText();
-                        if (t != null && !t.isBlank()) {
-                            try {
-                                double n = Double.parseDouble(t.trim());
-                                if (cellRef.startsWith("A")) aVal = n;
-                                else if (cellRef.startsWith("E")) eVal = n;
-                                else if (cellRef.startsWith("I")) iVal = n;
-                            } catch (NumberFormatException ignored) {
-                            }
-                        }
-                    } else if (ev == XMLStreamConstants.END_ELEMENT) {
-                        String name = xr.getLocalName();
-                        if ("v".equals(name)) inV = false;
-                        if ("row".equals(name) && rowNum >= 14 && aVal != null) {
-                            double d = aVal;
-                            if (eVal != null && eVal != 0d) {
-                                if (Math.abs(d - objetivoInicial) < 0.00001d) eIni = BigDecimal.valueOf(eVal);
-                                if (Math.abs(d - objetivoFinal) < 0.00001d) eFin = BigDecimal.valueOf(eVal);
-                                if (d <= objetivoInicial && d > eIniPrevDate) { eIniPrevDate = d; eIniPrev = BigDecimal.valueOf(eVal); }
-                                if (d <= objetivoFinal && d > eFinPrevDate) { eFinPrevDate = d; eFinPrev = BigDecimal.valueOf(eVal); }
-                            }
-                            if (iVal != null && iVal != 0d) {
-                                if (Math.abs(d - objetivoFinal) < 0.00001d) iFin = BigDecimal.valueOf(iVal);
-                                if (d <= objetivoFinal && d > iFinPrevDate) { iFinPrevDate = d; iFinPrev = BigDecimal.valueOf(iVal); }
-                            }
-                        }
-                    }
-                }
-                xr.close();
-            }
-
-            BigDecimal vi = eIni != null ? eIni : eIniPrev;
-            BigDecimal vf = eFin != null ? eFin : eFinPrev;
-            BigDecimal nominal = BigDecimal.ZERO;
-            if (vi != null && vf != null && vi.signum() != 0) {
-                double dias = Math.max(1d, fechaCorte.toEpochDay() - fechaCorte.minusYears(1).toEpochDay());
-                nominal = BigDecimal.valueOf(Math.pow(vf.doubleValue() / vi.doubleValue(), 365d / dias) - 1d);
-            }
-            BigDecimal real = iFin != null ? iFin : iFinPrev;
-            if (real == null) real = BigDecimal.ZERO;
-            return new RentResult(nominal, real);
-        }
     }
 
     private String findSheetPathByName(ZipFile zip, String sheetName) throws Exception {
@@ -607,9 +277,6 @@ public class MensualDataReader {
         }
         return null;
     }
-
-    private record RentResult(BigDecimal nominal, BigDecimal real) {}
-
 
     private SexTotals readAfiliadosFromDataXml(Path file491, LocalDate fechaCorte) {
         double fechaObjetivo = DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte));
@@ -728,37 +395,6 @@ public class MensualDataReader {
         return BigDecimal.ZERO;
     }
 
-    private LocalDate cellAsDate(Cell cell) {
-        if (cell == null) {
-            return null;
-        }
-        try {
-            if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
-                return cell.getLocalDateTimeCellValue().toLocalDate();
-            }
-            String txt = new DataFormatter().formatCellValue(cell);
-            if (txt == null || txt.isBlank()) {
-                return null;
-            }
-            txt = txt.trim();
-            try {
-                return java.time.LocalDate.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy"));
-            } catch (Exception ignored) {
-            }
-            try {
-                return java.time.LocalDateTime.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy H:mm")).toLocalDate();
-            } catch (Exception ignored) {
-            }
-            try {
-                return java.time.LocalDateTime.parse(txt, java.time.format.DateTimeFormatter.ofPattern("d/M/yyyy HH:mm")).toLocalDate();
-            } catch (Exception ignored) {
-            }
-            return null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
     private boolean shouldSkipPoiOpen(Path file, String tag) {
         try {
             long bytes = Files.size(file);
@@ -772,32 +408,6 @@ public class MensualDataReader {
         } catch (Exception e) {
             return false;
         }
-    }
-
-    private BigDecimal sumRange(Sheet sheet, FormulaEvaluator evaluator, int rowStart, int rowEnd, int col1Based) {
-        BigDecimal total = BigDecimal.ZERO;
-        for (int r = rowStart; r <= rowEnd; r++) {
-            total = total.add(num(sheet, r, col1Based, evaluator));
-        }
-        return total;
-    }
-
-    private void setDate(Sheet sheet, String a1, LocalDate value) {
-        CellReference ref = new CellReference(a1);
-        Row row = sheet.getRow(ref.getRow());
-        if (row == null) row = sheet.createRow(ref.getRow());
-        Cell cell = row.getCell(ref.getCol());
-        if (cell == null) cell = row.createCell(ref.getCol());
-        cell.setCellValue(java.sql.Date.valueOf(value));
-    }
-
-    private void setNumeric(Sheet sheet, String a1, double value) {
-        CellReference ref = new CellReference(a1);
-        Row row = sheet.getRow(ref.getRow());
-        if (row == null) row = sheet.createRow(ref.getRow());
-        Cell cell = row.getCell(ref.getCol());
-        if (cell == null) cell = row.createCell(ref.getCol());
-        cell.setCellValue(value);
     }
 
     private BigDecimal num(Sheet sheet, String a1, FormulaEvaluator evaluator) {

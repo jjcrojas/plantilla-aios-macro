@@ -46,6 +46,8 @@ public record MensualData(
         BigDecimal fondoSistemaJ14,
         BigDecimal deudaGobB4,
         BigDecimal activosCuentas,
-        BigDecimal pasivosCuentas
+        BigDecimal pasivosCuentas,
+        BigDecimal patrimonioCuentas,
+        BigDecimal administradorasVigentes
 ) {
 }

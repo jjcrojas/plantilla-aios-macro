@@ -5,6 +5,7 @@ import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.math.BigDecimal;
 import java.nio.file.Path;
@@ -15,6 +16,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TrimestralExcelGeneratorTest {
+
+    @Test
+    void shouldBeCreatedBySpringWhenTestConstructorAlsoExists() {
+        AiosProperties properties = new AiosProperties(
+                Path.of("target", "insumos-inexistentes"),
+                Path.of("target", "plantillas-inexistentes"),
+                Path.of("target", "referencias-inexistentes"),
+                40,
+                true);
+
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(AiosProperties.class, () -> properties);
+            context.register(TrimestralExcelGenerator.class);
+            context.refresh();
+
+            assertTrue(context.getBean(TrimestralExcelGenerator.class) != null);
+        }
+    }
 
     @Test
     void shouldCreateMissingQuarterAndCopyPreviousRowFormat() throws Exception {
@@ -39,14 +58,16 @@ class TrimestralExcelGeneratorTest {
             assertEquals("sep-25", sheet.getRow(10).getCell(0).getStringCellValue());
             assertEquals(junio.getHeight(), sheet.getRow(10).getHeight());
             assertEquals(BorderStyle.DOTTED, sheet.getRow(10).getCell(1).getCellStyle().getBorderBottom());
-            assertEquals("(1) Incluye fondo alternativo", sheet.getRow(12).getCell(0).getStringCellValue());
+            assertEquals("(1) Incluye fondo alternativo", sheet.getRow(11).getCell(0).getStringCellValue());
         }
     }
 
     @Test
-    void shouldGenerateQuarterlyWorkbookFromReferenceTemplate() {
+    void shouldGenerateQuarterlyWorkbookFromBlankInternalTemplate() throws Exception {
+        Path missingRoot = Path.of("target", "plantillas-inexistentes-prueba");
         TrimestralExcelGenerator generator = new TrimestralExcelGenerator(
-                new AiosProperties(Path.of("insumos_ejemplo"), Path.of("plantillas"), Path.of("salidas_referencia"), 40, true)
+                new AiosProperties(missingRoot.resolve("insumos"), missingRoot.resolve("plantillas"),
+                        missingRoot.resolve("salidas_referencia"), 40, true)
         );
 
         TrimestralData data = new TrimestralData(
@@ -63,6 +84,13 @@ class TrimestralExcelGeneratorTest {
 
         Path out = generator.generar(LocalDate.of(2025, 6, 30), data);
         assertTrue(out.toFile().exists());
+        try (Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(out.toFile())) {
+            assertEquals("jun-25", workbook.getSheet("afiliados").getRow(7).getCell(0).getStringCellValue());
+            assertEquals(1000d, workbook.getSheet("afiliados").getRow(7).getCell(1).getNumericCellValue());
+            assertEquals("jun-25", workbook.getSheet("aportantes").getRow(6).getCell(0).getStringCellValue());
+            assertEquals("jun-25", workbook.getSheet("gastos").getRow(13).getCell(0).getStringCellValue());
+            assertTrue(workbook.getSheet("afiliados").getRow(7).getCell(1).getCellStyle().getIndex() != 0);
+        }
     }
 
     @Test

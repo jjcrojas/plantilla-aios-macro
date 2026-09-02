@@ -16,15 +16,96 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SemestralExcelGeneratorTest {
+
+    @Test
+    void shouldGenerateFromBlankInternalTemplateWithoutReferenceDirectory() throws Exception {
+        LocalDate cutoff = LocalDate.of(2025, 6, 30);
+        Path missingRoot = Path.of("target", "sin-referencias-semestral");
+        AiosProperties properties = new AiosProperties(
+                missingRoot.resolve("insumos"), missingRoot.resolve("plantillas"),
+                missingRoot.resolve("salidas_referencia"), 40, true);
+        InsumosLocator locator = mock(InsumosLocator.class);
+        RentabilidadService rentabilidadService = mock(RentabilidadService.class);
+        Formato493QueryService formato493 = mock(Formato493QueryService.class);
+        Formato495QueryService formato495 = mock(Formato495QueryService.class);
+        Formato136QueryService formato136 = mock(Formato136QueryService.class);
+        ComisionesSemestralQueryService comisiones = mock(ComisionesSemestralQueryService.class);
+        Path rentFile = missingRoot.resolve("Rent_Vr_Uni_Moderado.xlsm");
+
+        when(locator.findRequired("Rent_Vr_Uni_Moderado", cutoff)).thenReturn(rentFile);
+        when(rentabilidadService.calcularRentabilidad(any(Path.class), any(LocalDate.class), anyInt()))
+                .thenAnswer(invocation -> {
+                    LocalDate end = invocation.getArgument(1);
+                    int years = invocation.getArgument(2);
+                    return new RentabilidadService.RentabilidadResultado(
+                            end.minusYears(years), end, BigDecimal.ZERO, BigDecimal.ZERO);
+                });
+        when(formato493.leerFallecidosSistema(cutoff)).thenReturn(BigDecimal.ZERO);
+        when(formato495.leerResumen(cutoff)).thenReturn(new Formato495QueryService.PensionadosResumen(
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO));
+        when(formato136.leerAportesRecibidos(cutoff)).thenReturn(BigDecimal.ZERO);
+        when(comisiones.leer590000(any(), any())).thenReturn(BigDecimal.ZERO);
+        when(comisiones.leer411500(any(), any())).thenReturn(BigDecimal.ZERO);
+        when(comisiones.leerGastosOperativos(any(), any())).thenReturn(BigDecimal.ZERO);
+        when(comisiones.leerCuenta(any(), any(), anyInt())).thenReturn(BigDecimal.ZERO);
+
+        SemestralExcelGenerator generator = new SemestralExcelGenerator(
+                properties, locator, rentabilidadService, formato493, formato495, formato136, comisiones);
+        TrimestralData quarterly = new TrimestralData(
+                "jun-25", Map.of(), Map.of(), Map.of(), Map.of(), Map.of(),
+                Map.of("col_obl", BigDecimal.ZERO, "por_obl", BigDecimal.ZERO,
+                        "pro_obl", BigDecimal.ZERO, "ska_obl", BigDecimal.ZERO),
+                Map.of(), Map.of());
+
+        Path output = generator.generar(cutoff, monthlyData("jun-25"), quarterly);
+
+        assertTrue(Files.isRegularFile(output));
+        try (Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(output.toFile())) {
+            Sheet sheet = workbook.getSheet("Hoja1");
+            assertEquals("junio", sheet.getRow(0).getCell(2).getStringCellValue());
+            assertEquals(2025, (int) sheet.getRow(1).getCell(2).getNumericCellValue());
+            assertEquals(1d, sheet.getRow(2).getCell(2).getNumericCellValue());
+            assertEquals(0d, sheet.getRow(41).getCell(2).getNumericCellValue());
+            assertNotEquals(0, sheet.getRow(2).getCell(2).getCellStyle().getIndex());
+        }
+    }
+
+    @Test
+    void shouldUseFirstFormattedColumnOfBlankInternalTemplate() throws Exception {
+        Path missingRoot = Path.of("target", "plantillas-inexistentes-semestral");
+        AiosProperties properties = new AiosProperties(
+                missingRoot.resolve("insumos"), missingRoot.resolve("plantillas"),
+                missingRoot.resolve("salidas_referencia"), 40, true);
+
+        try (Workbook workbook = new AiosTemplateService(properties).openWorkbook("semestral.xlsx")) {
+            Sheet sheet = workbook.getSheet("Hoja1");
+            short originalStyle = sheet.getRow(2).getCell(2).getCellStyle().getIndex();
+            SemestralExcelGenerator generator = new SemestralExcelGenerator(
+                    properties, null, null, null, null, null, null);
+
+            int column = generator.columnaSemestral(sheet, LocalDate.of(2025, 6, 30));
+
+            assertEquals(3, column);
+            assertEquals("junio", sheet.getRow(0).getCell(2).getStringCellValue());
+            assertEquals(2025, (int) sheet.getRow(1).getCell(2).getNumericCellValue());
+            assertEquals(originalStyle, sheet.getRow(2).getCell(2).getCellStyle().getIndex());
+        }
+    }
 
     @Test
     void shouldCreateMissingSemesterColumnAndCopyPreviousFormat() throws Exception {
@@ -57,7 +138,7 @@ class SemestralExcelGeneratorTest {
 
     @Test
     void shouldReadFila25FromFallecidosSheetForJune2025() throws Exception {
-        AiosProperties properties = new AiosProperties(Path.of("insumos_ejemplo"), null, null, null, null);
+        AiosProperties properties = new AiosProperties(Path.of("target", "insumos-dinamicos-prueba"), null, null, null, null);
         Formato493QueryService formato493QueryService = mock(Formato493QueryService.class);
         when(formato493QueryService.leerFallecidosSistema(LocalDate.of(2025, 6, 30))).thenReturn(new BigDecimal("38279"));
         SemestralExcelGenerator generator = new SemestralExcelGenerator(properties, new InsumosLocator(properties), null, formato493QueryService, mock(Formato495QueryService.class), mock(Formato136QueryService.class), null);
@@ -241,5 +322,18 @@ class SemestralExcelGeneratorTest {
         assertEquals(new BigDecimal("1400.00000000"), indicadores.fila61());
         assertEquals(new BigDecimal("20.00000000"), indicadores.fila65());
         assertEquals(new BigDecimal("10.00000000"), indicadores.fila66());
+    }
+
+    private MensualData monthlyData(String period) {
+        BigDecimal one = BigDecimal.ONE;
+        return new MensualData(period,
+                one, one, one, one, one, one,
+                one, one, one, one, one, one, one,
+                one, one, one, one, one, one,
+                one, one, one, one, one, one,
+                one, one, one, one, one, one,
+                one, one, one, one, one, one,
+                one, one, one, one, one,
+                one, one, one);
     }
 }

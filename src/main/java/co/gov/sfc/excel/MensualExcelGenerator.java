@@ -6,7 +6,6 @@ import org.apache.poi.ss.util.CellReference;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -23,18 +22,23 @@ import java.util.Map;
 @Component
 public class MensualExcelGenerator {
 
-    private final AiosProperties properties;
     private final CeldaLogger celdaLogger;
+    private final AiosTemplateService templateService;
     private final Path outputDir;
 
     @Autowired
     public MensualExcelGenerator(AiosProperties properties, CeldaLogger celdaLogger) {
-        this(properties, celdaLogger, Path.of("target", "aios-output"));
+        this(properties, celdaLogger, new AiosTemplateService(properties), Path.of("target", "aios-output"));
     }
 
     MensualExcelGenerator(AiosProperties properties, CeldaLogger celdaLogger, Path outputDir) {
-        this.properties = properties;
+        this(properties, celdaLogger, new AiosTemplateService(properties), outputDir);
+    }
+
+    MensualExcelGenerator(AiosProperties properties, CeldaLogger celdaLogger,
+                          AiosTemplateService templateService, Path outputDir) {
         this.celdaLogger = celdaLogger;
+        this.templateService = templateService;
         this.outputDir = outputDir;
     }
 
@@ -46,13 +50,15 @@ public class MensualExcelGenerator {
         if (datos == null || datos.isEmpty()) {
             throw new IllegalArgumentException("Debe suministrar al menos un período mensual");
         }
-        Path baseMensual = properties.salidasReferenciaDir().resolve("Boletin_AIOS MENSUAL.xlsx");
         try {
             Files.createDirectories(outputDir);
             Path out = Files.createTempDirectory(outputDir, "mensual-")
                     .resolve("Boletin_AIOS MENSUAL.xlsx");
-            try (InputStream in = Files.newInputStream(baseMensual); Workbook wb = WorkbookFactory.create(in)) {
+            try (Workbook wb = templateService.openWorkbook("Boletin_AIOS MENSUAL.xlsx")) {
                 Sheet sheet = wb.getSheet("HOJA1");
+                if (sheet == null) {
+                    throw new IllegalStateException("La plantilla mensual no contiene la hoja HOJA1");
+                }
                 sortAndNormalizePeriodRows(sheet);
                 List<MensualData> datosOrdenados = datos.stream()
                         .sorted(Comparator.comparing(data -> periodDate(data.textoFecha())))
@@ -86,9 +92,14 @@ public class MensualExcelGenerator {
                 write(sheet, row, 11, pct(data.dudaF()), "LIMITES del nuevo.xlsm", "AIOS", "K4");
                 write(sheet, row, 12, pct(data.h17()), "LIMITES del nuevo.xlsm", "AIOS", "O4:Y4");
                 write(sheet, row, 13, pct(data.otros()), "LIMITES del nuevo.xlsm", "AIOS", "AA4");
-                write(sheet, row, 14, pct(data.tmpNominal1()), "Rent_Vr_Uni_Moderado.xlsm", "(primera)", "D11");
-                write(sheet, row, 15, pct(data.tmpReal1()), "Rent_Vr_Uni_Moderado.xlsm", "(primera)", "D10");
-                write(sheet, row, 16, BigDecimal.valueOf(4), "constante", "", "");
+                write(sheet, row, 14, pct(data.tmpNominal1()), "Rent_Vr_Uni_Moderado.xlsm",
+                        "Consolidado", "NAV columna E, horizonte exacto de 1 año; cálculo en Java");
+                write(sheet, row, 15, pct(data.tmpReal1()), "Rent_Vr_Uni_Moderado.xlsm",
+                        "Consolidado + IPC_D", "NAV columna E ajustado por IPC_D columna B; cálculo en Java");
+                write(sheet, row, 16,
+                        data.administradorasVigentes() == null ? BigDecimal.ZERO : data.administradorasVigentes(),
+                        "Query Teradata PROD_DWH_CONSULTA.ENTIDADES", "ENTIDADES",
+                        "COUNT nombres distintos, Tipo_Entidad=23, Estado=1; nombres sin comillas");
                 write(sheet, row, 17, data.consFdosAdmon(), "Query Teradata PROD_DWH_CONSULTA.FORMATO491", "FORMATO491", "Top 2 AFP por TOTAL_AFILIADOS_TOTAL / total sistema");
                 write(sheet, row, 18, data.porcVrFondo(), "Query Teradata PROD_DWH_CONSULTA.NEGFID_INSUMO_ENTIDAD", "niveles 136/2/4/305", "(Proteccion+Porvenir)/total sistema * 100");
                 write(sheet, row, 19, trm(data), "Servicio web TRM Superfinanciera (archivo PIB_PEA_TRM_DG como contingencia)", "queryTCRM", "fecha de corte");
@@ -196,7 +207,8 @@ public class MensualExcelGenerator {
             if (insertionRow < 0 && periodo.isAfter(fechaObjetivo)) insertionRow = rowIndex;
         }
         int rowIndex = insertionRow >= 0 ? insertionRow : Math.max(lastPeriodRow + 1, 1);
-        if (rowIndex <= sheet.getLastRowNum()) {
+        Row reusableRow = sheet.getRow(rowIndex);
+        if (rowIndex <= sheet.getLastRowNum() && !isReusableBlankMonthlyRow(reusableRow)) {
             sheet.shiftRows(rowIndex, sheet.getLastRowNum(), 1, true, false);
         }
         Row row = sheet.getRow(rowIndex);
@@ -205,6 +217,16 @@ public class MensualExcelGenerator {
         if (dateCell == null) dateCell = row.createCell(0, CellType.STRING);
         dateCell.setCellValue(canonicalPeriodLabel(fechaObjetivo));
         return rowIndex + 1;
+    }
+
+    private boolean isReusableBlankMonthlyRow(Row row) {
+        if (row == null) return false;
+        DataFormatter formatter = new DataFormatter();
+        for (int column = 0; column < 19; column++) {
+            Cell cell = row.getCell(column);
+            if (cell != null && !formatter.formatCellValue(cell).isBlank()) return false;
+        }
+        return true;
     }
 
     private void sortAndNormalizePeriodRows(Sheet sheet) {

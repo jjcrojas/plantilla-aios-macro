@@ -30,8 +30,8 @@ El primer ejemplo genera los tres archivos para junio. El segundo genera el mens
 
 1. Validar el rango antes de iniciar aplicaciones o Excel.
 2. Ejecutar la Skill mensual una vez para el intervalo completo.
-3. Preparar referencias temporales, sin modificar `salidas_referencia`.
-4. Ejecutar los cortes trimestrales en orden cronológico; usar cada salida como referencia del siguiente corte para conservar todas las filas en un solo libro.
+3. Partir de las plantillas internas vacías incluidas en `src/main/resources/aios-templates`.
+4. Ejecutar los cortes trimestrales en orden cronológico; usar cada salida como plantilla temporal del siguiente corte para conservar todas las filas en un solo libro.
 5. Ejecutar los cortes semestrales de la misma forma para conservar todas las columnas en un solo libro.
 6. Reutilizar los scripts trimestral y semestral, incluidas sus validaciones de Excel, plantilla, fórmulas e insumos.
 7. Detener únicamente las instancias temporales iniciadas por el flujo.

@@ -81,14 +81,14 @@ try {
 $monthlyFile = Get-Item -LiteralPath (Join-Path $monthlyDir 'Boletin_AIOS MENSUAL.xlsx')
 Copy-Item -LiteralPath $monthlyFile.FullName -Destination (Join-Path $outputPath 'Boletin_AIOS MENSUAL.xlsx') -Force
 
-$sourceReferences = Join-Path $projectPath 'salidas_referencia'
-$previousReferenceEnv = $env:AIOS_SALIDAS_REFERENCIA_DIR
+$sourceTemplates = Join-Path $projectPath 'src\main\resources\aios-templates'
+$previousTemplateEnv = $env:AIOS_PLANTILLA_DIR
 try {
     if ($trimestres.Count -gt 0) {
-        $quarterReferenceDir = Join-Path $outputPath '.referencias-trimestral'
-        New-Item -ItemType Directory -Path $quarterReferenceDir -Force | Out-Null
-        Copy-Item -LiteralPath (Join-Path $sourceReferences 'Boletin_AIOS TRIMESTRAL.xlsx') -Destination $quarterReferenceDir -Force
-        $env:AIOS_SALIDAS_REFERENCIA_DIR = $quarterReferenceDir
+        $quarterTemplateDir = Join-Path $outputPath '.plantilla-trimestral'
+        New-Item -ItemType Directory -Path $quarterTemplateDir -Force | Out-Null
+        Copy-Item -LiteralPath (Join-Path $sourceTemplates 'Boletin_AIOS TRIMESTRAL.xlsx') -Destination $quarterTemplateDir -Force
+        $env:AIOS_PLANTILLA_DIR = $quarterTemplateDir
         for ($i = 0; $i -lt $trimestres.Count; $i++) {
             $cutoff = $trimestres[$i]
             $stepDir = Join-Path $outputPath "trimestral-$($cutoff.ToString('yyyy-MM'))"
@@ -96,16 +96,16 @@ try {
             if (-not [string]::IsNullOrWhiteSpace($MavenRepository)) { $args.MavenRepository = $MavenRepository }
             & $quarterlyScript @args
             $stepFile = Get-Item -LiteralPath (Join-Path $stepDir 'Boletin_AIOS TRIMESTRAL.xlsx')
-            Copy-Item -LiteralPath $stepFile.FullName -Destination (Join-Path $quarterReferenceDir 'Boletin_AIOS TRIMESTRAL.xlsx') -Force
+            Copy-Item -LiteralPath $stepFile.FullName -Destination (Join-Path $quarterTemplateDir 'Boletin_AIOS TRIMESTRAL.xlsx') -Force
         }
-        Copy-Item -LiteralPath (Join-Path $quarterReferenceDir 'Boletin_AIOS TRIMESTRAL.xlsx') -Destination (Join-Path $outputPath 'Boletin_AIOS TRIMESTRAL.xlsx') -Force
+        Copy-Item -LiteralPath (Join-Path $quarterTemplateDir 'Boletin_AIOS TRIMESTRAL.xlsx') -Destination (Join-Path $outputPath 'Boletin_AIOS TRIMESTRAL.xlsx') -Force
     }
 
     if ($semestres.Count -gt 0) {
-        $semesterReferenceDir = Join-Path $outputPath '.referencias-semestral'
-        New-Item -ItemType Directory -Path $semesterReferenceDir -Force | Out-Null
-        Copy-Item -LiteralPath (Join-Path $sourceReferences 'semestral.xlsx') -Destination $semesterReferenceDir -Force
-        $env:AIOS_SALIDAS_REFERENCIA_DIR = $semesterReferenceDir
+        $semesterTemplateDir = Join-Path $outputPath '.plantilla-semestral'
+        New-Item -ItemType Directory -Path $semesterTemplateDir -Force | Out-Null
+        Copy-Item -LiteralPath (Join-Path $sourceTemplates 'semestral.xlsx') -Destination $semesterTemplateDir -Force
+        $env:AIOS_PLANTILLA_DIR = $semesterTemplateDir
         for ($i = 0; $i -lt $semestres.Count; $i++) {
             $cutoff = $semestres[$i]
             $stepDir = Join-Path $outputPath "semestral-$($cutoff.ToString('yyyy-MM'))"
@@ -113,12 +113,12 @@ try {
             if (-not [string]::IsNullOrWhiteSpace($MavenRepository)) { $args.MavenRepository = $MavenRepository }
             & $semesterScript @args
             $stepFile = Get-Item -LiteralPath (Join-Path $stepDir 'semestral.xlsx')
-            Copy-Item -LiteralPath $stepFile.FullName -Destination (Join-Path $semesterReferenceDir 'semestral.xlsx') -Force
+            Copy-Item -LiteralPath $stepFile.FullName -Destination (Join-Path $semesterTemplateDir 'semestral.xlsx') -Force
         }
-        Copy-Item -LiteralPath (Join-Path $semesterReferenceDir 'semestral.xlsx') -Destination (Join-Path $outputPath 'semestral.xlsx') -Force
+        Copy-Item -LiteralPath (Join-Path $semesterTemplateDir 'semestral.xlsx') -Destination (Join-Path $outputPath 'semestral.xlsx') -Force
     }
 } finally {
-    $env:AIOS_SALIDAS_REFERENCIA_DIR = $previousReferenceEnv
+    $env:AIOS_PLANTILLA_DIR = $previousTemplateEnv
 }
 
 $finalFiles = @('Boletin_AIOS MENSUAL.xlsx', 'Boletin_AIOS TRIMESTRAL.xlsx', 'semestral.xlsx') |

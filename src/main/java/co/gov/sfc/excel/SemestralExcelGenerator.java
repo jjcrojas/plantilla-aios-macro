@@ -20,7 +20,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.Files;
@@ -29,14 +28,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Stream;
 
 @Component
 public class SemestralExcelGenerator {
@@ -50,6 +45,7 @@ public class SemestralExcelGenerator {
     private final Formato495QueryService formato495QueryService;
     private final Formato136QueryService formato136QueryService;
     private final ComisionesSemestralQueryService comisionesSemestralQueryService;
+    private final AiosTemplateService templateService;
 
     public SemestralExcelGenerator(AiosProperties properties, InsumosLocator locator, RentabilidadService rentabilidadService, Formato493QueryService formato493QueryService, Formato495QueryService formato495QueryService, Formato136QueryService formato136QueryService, ComisionesSemestralQueryService comisionesSemestralQueryService) {
         this.properties = properties;
@@ -59,6 +55,7 @@ public class SemestralExcelGenerator {
         this.formato495QueryService = formato495QueryService;
         this.formato136QueryService = formato136QueryService;
         this.comisionesSemestralQueryService = comisionesSemestralQueryService;
+        this.templateService = new AiosTemplateService(properties);
     }
 
     public Path generar(LocalDate fechaCorte, MensualData mensual, TrimestralData trimestral) {
@@ -69,13 +66,13 @@ public class SemestralExcelGenerator {
         if (periodos == null || periodos.isEmpty()) {
             throw new IllegalArgumentException("Debe suministrar al menos un período semestral");
         }
-        Path base = resolveTemplate();
         Path outDir = Path.of("target", "aios-output");
 
         try {
             Files.createDirectories(outDir);
             Path out = Files.createTempDirectory(outDir, "semestral-").resolve("semestral.xlsx");
-            try (InputStream in = Files.newInputStream(base); Workbook wb = WorkbookFactory.create(in)) {
+            try (Workbook wb = templateService.openWorkbook(
+                    "semestral.xlsx", "Semestral_Colombia.xlsx", "Boletin_AIOS SEMESTRAL.xlsx")) {
                 periodos.stream()
                         .sorted(Comparator.comparing(PeriodoSemestral::fechaCorte))
                         .forEach(periodo -> escribirPeriodo(wb, periodo));
@@ -167,17 +164,23 @@ public class SemestralExcelGenerator {
                 write(hoja, 39, col, mensual.dudaNfe());
                 write(hoja, 40, col, mensual.dudaAce());
                 write(hoja, 41, col, mensual.dudaFe());
-                write(hoja, 42, col, BigDecimal.valueOf(2));
+                write(hoja, 42, col, BigDecimal.ZERO);
                 write(hoja, 43, col, mensual.otros());
                 DatoDetalle fila44Pct = readFila44DesdeLimites(fechaCorte);
                 write(hoja, 44, col, fila44Pct.valor());
                 detallesFilas.put(44, fila44Pct.detalle());
-                DatoDetalle deudaGubernamentalTotal = readDeudaGubernamentalTotal(fechaCorte);
-                BigDecimal fila45 = safeDivide(fondoUsdMM, deudaGubernamentalTotal.valor());
+                BigDecimal deudaGubernamentalTotal = mensual.deudaG() == null ? BigDecimal.ZERO : mensual.deudaG();
+                BigDecimal fila45 = safeDivide(fondoUsdMM, deudaGubernamentalTotal);
                 write(hoja, 45, col, fila45);
                 setNumberFormat(hoja, 45, col, "#,##0.00%");
-                detallesFilas.put(45, "operando fila28 fondoUsdMM=" + fondoUsdMM + "; operando deudaGubernamentalTotalUSD=" + deudaGubernamentalTotal.valor() + "; " + deudaGubernamentalTotal.detalle());
-                write(hoja, 46, col, BigDecimal.valueOf(4));
+                detallesFilas.put(45, "operando fila28 fondoUsdMM=" + fondoUsdMM
+                        + "; operando deudaGubernamentalTotalUSD=" + deudaGubernamentalTotal
+                        + "; fuente=PIB_PEA_TRM_DG/Hoja1 columnas L:M.");
+                BigDecimal administradorasVigentes = mensual.administradorasVigentes() == null
+                        ? BigDecimal.ZERO : mensual.administradorasVigentes();
+                write(hoja, 46, col, administradorasVigentes);
+                detallesFilas.put(46, "fuente=Query PROD_DWH_CONSULTA.ENTIDADES; filtros Tipo_Entidad=23 y Estado=1; "
+                        + "número de administradoras vigentes=" + administradorasVigentes + ".");
                 DatoDetalle fila47 = new DatoDetalle(
                         mensual.porcVrFondo() == null ? BigDecimal.ZERO : mensual.porcVrFondo(),
                         "fuente=Query Teradata NEGFID_INSUMO_ENTIDAD; operación=(Protección+Porvenir)/total sistema * 100; presentación numérica sin símbolo de porcentaje.");
@@ -185,17 +188,18 @@ public class SemestralExcelGenerator {
                 detallesFilas.put(47, fila47.detalle());
                 BigDecimal activos = mensual.activosCuentas() == null ? BigDecimal.ZERO : mensual.activosCuentas();
                 BigDecimal pasivos = mensual.pasivosCuentas() == null ? BigDecimal.ZERO : mensual.pasivosCuentas();
+                BigDecimal patrimonio = mensual.patrimonioCuentas() == null ? BigDecimal.ZERO : mensual.patrimonioCuentas();
                 BigDecimal activosUsd = safeDivide(activos, trm(mensual));
                 BigDecimal pasivosUsd = safeDivide(pasivos, trm(mensual));
-                BigDecimal patrimonioUsd = safeDivide(activos.subtract(pasivos), trm(mensual));
+                BigDecimal patrimonioUsd = safeDivide(patrimonio, trm(mensual));
                 write(hoja, 48, col, activosUsd);
                 write(hoja, 49, col, pasivosUsd);
                 write(hoja, 50, col, patrimonioUsd);
                 setNumberFormat(hoja, 48, col, "#,##0.00");
                 setNumberFormat(hoja, 49, col, "#,##0.00");
                 setNumberFormat(hoja, 50, col, "#,##0.00");
-                log.info("Semestral traza filas48-50: activosCuentas(MM COP)={} pasivosCuentas(MM COP)={} trm={} -> activosUsd(MM USD)={} pasivosUsd(MM USD)={} patrimonioUsd(MM USD)={}",
-                        activos, pasivos, trm(mensual), activosUsd, pasivosUsd, patrimonioUsd);
+                log.info("Semestral traza filas48-50: activosCuentas(MM COP)={} pasivosCuentas(MM COP)={} patrimonioCuentas(MM COP)={} trm={} -> activosUsd(MM USD)={} pasivosUsd(MM USD)={} patrimonioUsd(MM USD)={}",
+                        activos, pasivos, patrimonio, trm(mensual), activosUsd, pasivosUsd, patrimonioUsd);
 
                 BigDecimal trm = trm(mensual);
                 BigDecimal resultadoNeto = comisionesSemestralQueryService.leer590000(fechaCorte, trm);
@@ -244,9 +248,8 @@ public class SemestralExcelGenerator {
                         + "; fila11=" + mensual.aportantesSemestral() + "; TRM=" + trm
                         + "; operación=query/(fila11*TRM).");
                 write(hoja, 62, col, safeDivide(gastosFila52, aportesUsdMM).multiply(BigDecimal.valueOf(100)));
-                BigDecimal patrimonioBaseMesMMCop = readPatrimonioBaseMesMMCop(fechaCorte);
-                BigDecimal patrimonioBaseMesMMUsd = safeDivide(patrimonioBaseMesMMCop, trm);
-                BigDecimal fila63 = safeDivide(patrimonioBaseMesMMUsd, fondoUsdMM).multiply(BigDecimal.valueOf(100));
+                BigDecimal patrimonioMmUsd = safeDivide(patrimonio, trm);
+                BigDecimal fila63 = safeDivide(patrimonioMmUsd, fondoUsdMM).multiply(BigDecimal.valueOf(100));
                 write(hoja, 63, col, fila63);
                 write(hoja, 64, col, safeDivide(patrimonioUsd, mensual.afiliados()).multiply(BigDecimal.valueOf(1_000_000)));
                 write(hoja, 65, col, indicadores.fila65());
@@ -266,11 +269,11 @@ public class SemestralExcelGenerator {
                 write(hoja, 79, col, safeDivide(comisionesFila51, fondoUsdMM));
                 write(hoja, 80, col, BigDecimal.valueOf(fechaCorte.getYear() - 1994L));
 
-                log.info("Semestral traza filas51-80: comisiones={} gastos={} resultadoOper={} resultadoNeto={} admon={} fila56(511524+511527)={} fila57(519015)={} fila58(fila56+fila57)={} fila59(fila52-fila56-fila55-fila57)={} fila60(fila55+fila56+fila57+fila59)={} aportesRecibidosCOP={} aportesUsd={} aportesUsdMM={} aportantesFila11={} fila61=query/(fila11*TRM)={} fila65=fila54/fila51*100={} fila66=fila54/fila50*100={} p1={} fila63(%)={} patrimonioBaseMesMMCop={} patrimonioBaseMesMMUsd={} fondoUsdMM={}",
+                log.info("Semestral traza filas51-80: comisiones={} gastos={} resultadoOper={} resultadoNeto={} admon={} fila56(511524+511527)={} fila57(519015)={} fila58(fila56+fila57)={} fila59(fila52-fila56-fila55-fila57)={} fila60(fila55+fila56+fila57+fila59)={} aportesRecibidosCOP={} aportesUsd={} aportesUsdMM={} aportantesFila11={} fila61=query/(fila11*TRM)={} fila65=fila54/fila51*100={} fila66=fila54/fila50*100={} p1={} fila63(%)={} patrimonioCuenta300000MmCop={} patrimonioMmUsd={} fondoUsdMM={}",
                         comisionesFila51, gastosFila52, filasGastos.fila53(), resultadoNeto, filasGastos.fila55(),
                         filasGastos.fila56(), filasGastos.fila57(), filasGastos.fila58(), filasGastos.fila59(), filasGastos.fila60(),
                         aportesRecibidos, aportesUsd, aportesUsdMM, mensual.aportantesSemestral(), indicadores.fila61(),
-                        indicadores.fila65(), indicadores.fila66(), p1, fila63, patrimonioBaseMesMMCop, patrimonioBaseMesMMUsd, fondoUsdMM);
+                        indicadores.fila65(), indicadores.fila66(), p1, fila63, patrimonio, patrimonioMmUsd, fondoUsdMM);
                 BigDecimal comisionPromedioPct = promedioComisionObligatoria(trimestral);
                 write(hoja, 71, col, comisionPromedioPct);
                 write(hoja, 72, col, BigDecimal.ZERO);
@@ -314,7 +317,6 @@ public class SemestralExcelGenerator {
         String pibPeaTrmDg = rutaInsumo("PIB_PEA_TRM_DG", () -> locator.findRequired("PIB_PEA_TRM_DG", fechaCorte));
         String queryAportes136 = "Query Teradata prod_dwh_consulta.negfid_insumo_entidad (patrimonios 1000/8000; nivel1=136,nivel2=2,nivel3=4,nivel4=10; ventana anual exclusiva del mismo día del año anterior)";
         LocalDate fechaInicioAportes136 = fechaCorte.minusYears(1).plusDays(1);
-        String plantillaAios = rutaInsumo("Plantilla AIOS-probable", () -> findPlantillaAiosFile(fechaCorte));
         String rentVrUni = rutaInsumo("Rent_Vr_Uni_Moderado", () -> findRentModeradoFile(fechaCorte));
 
         java.util.Map<Integer, String> explicaciones = new java.util.LinkedHashMap<>();
@@ -356,13 +358,13 @@ public class SemestralExcelGenerator {
         explicaciones.put(43, "valor = mensual.otros(); otros conceptos calculados por MensualDataReader desde los insumos mensuales.");
         explicaciones.put(44, "valor = (LIMITES hoja AIOS celdas O4 + Q4 + S4 + U4 + W4 + Y4) * 100; ruta=" + limites + ".");
         explicaciones.put(45, "valor = fila 28 / deuda gubernamental total en USD; deuda gubernamental total proviene de PIB_PEA_TRM_DG hoja Hoja1 columna M para la fecha de corte, ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(46, "valor fijo = 4; no usa insumo externo.");
+        explicaciones.put(46, "valor = cantidad de nombres distintos de administradoras vigentes consultadas en PROD_DWH_CONSULTA.ENTIDADES con Tipo_Entidad=23 y Estado=1; los nombres se normalizan sin comillas.");
         explicaciones.put(47, "valor = concentración porcentual de Protección y Porvenir consultada en Teradata NEGFID_INSUMO_ENTIDAD para niveles 136/2/4/305 y la fecha de corte; se escribe como número sin símbolo %.");
-        explicaciones.put(48, "valor = mensual.activosCuentas() / mensual.trm(); activosCuentas desde Plantilla AIOS/CUENTAS o fuente contable, ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(49, "valor = mensual.pasivosCuentas() / mensual.trm(); pasivosCuentas desde Plantilla AIOS/CUENTAS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(50, "valor = (mensual.activosCuentas() - mensual.pasivosCuentas()) / mensual.trm(); activos y pasivos desde CUENTAS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(51, "valor = query Teradata sobre ESTFIN_INDIV, cuenta 411500: (saldo corte actual + saldo cierre anterior - saldo mismo corte anterior) / 1,000,000 / TRM; la ruta de CUENTAS ya no se usa para esta fila. Plantilla=" + plantillaAios + ".");
-        explicaciones.put(52, "valor = query Teradata de gastos operativos: cuenta 510000 menos cuentas 510300, 510400, 510600, 510700, 510800, 512500, 512800, 512900 y 513900; aplica saldo corte + cierre anterior - mismo corte anterior, dividido entre 1,000,000 y TRM. Plantilla=" + plantillaAios + ".");
+        explicaciones.put(48, "valor = saldo de la cuenta 100000 / 1,000,000 / TRM; fuente=Teradata ESTFIN_INDIV para la fecha de corte, Tipo_Entidad=23 y Tipo_Informe=0; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(49, "valor = saldo de la cuenta 200000 / 1,000,000 / TRM; fuente=Teradata ESTFIN_INDIV para la fecha de corte, Tipo_Entidad=23 y Tipo_Informe=0; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(50, "valor = saldo de la cuenta 300000 / 1,000,000 / TRM; fuente=Teradata ESTFIN_INDIV para la fecha de corte, Tipo_Entidad=23 y Tipo_Informe=0; no se calcula como activo menos pasivo; TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(51, "valor = query Teradata sobre ESTFIN_INDIV, cuenta 411500: (saldo corte actual + saldo cierre anterior - saldo mismo corte anterior) / 1,000,000 / TRM.");
+        explicaciones.put(52, "valor = query Teradata de gastos operativos: cuenta 510000 menos cuentas 510300, 510400, 510600, 510700, 510800, 512500, 512800, 512900 y 513900; aplica saldo corte + cierre anterior - mismo corte anterior, dividido entre 1,000,000 y TRM.");
         explicaciones.put(53, "valor = fila 51 - fila 52; la fila 51 proviene de la cuenta 411500 y la fila 52 del query consolidado de gastos operativos sobre 510000 menos 510300, 510400, 510600, 510700, 510800, 512500, 512800, 512900 y 513900.");
         explicaciones.put(54, "valor = query Teradata ESTFIN_INDIV para la cuenta 590000: saldo del corte + saldo del cierre anterior - saldo del mismo corte del año anterior, dividido entre 1,000,000 y la TRM del corte.");
         explicaciones.put(55, "valor = flujo cuenta 512000 + flujo cuenta 513000; ambos valores provienen de queries Teradata ESTFIN_INDIV con las tres fechas y la TRM del corte.");
@@ -374,12 +376,12 @@ public class SemestralExcelGenerator {
         explicaciones.put(61, "valor = resultado bruto de " + queryAportes136 + " / (fila 11 * TRM); ventana="
                 + fechaInicioAportes136 + " a " + fechaCorte + "; TRM ruta=" + pibPeaTrmDg + ".");
         explicaciones.put(62, "valor = fila 52 / recaudación en MM USD * 100; recaudación = resultado bruto de " + queryAportes136 + " / TRM / 1,000,000.");
-        explicaciones.put(63, "valor = (patrimonioBaseMesMMCop / TRM) / fila 28 * 100; patrimonio base_mes desde Plantilla AIOS ruta=" + plantillaAios + "; TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(64, "valor = patrimonioUsd / mensual.afiliados() * 1,000,000; patrimonioUsd=(activos-pasivos)/TRM desde CUENTAS ruta=" + plantillaAios + " y afiliados por query Teradata Formato491.");
+        explicaciones.put(63, "valor = (saldo cuenta 300000 / 1,000,000 / TRM) / fila 28 * 100; patrimonio desde Teradata ESTFIN_INDIV y TRM ruta=" + pibPeaTrmDg + ".");
+        explicaciones.put(64, "valor = patrimonioUsd / mensual.afiliados() * 1,000,000; patrimonioUsd proviene directamente de la cuenta 300000 en Teradata ESTFIN_INDIV y afiliados del query Teradata Formato491.");
         explicaciones.put(65, "valor = fila 54 / fila 51 * 100; fila 54 proviene de la query 590000 y se expresa en porcentaje.");
         explicaciones.put(66, "valor = fila 54 / fila 50 * 100; fila 54 proviene de la query 590000 y se expresa en porcentaje.");
-        explicaciones.put(67, "valor = fila 52 / mensual.afiliados() * 1,000,000; gastos desde query Teradata de la fila 52; plantilla=" + plantillaAios + "; afiliados por query Teradata Formato491.");
-        explicaciones.put(68, "valor = fila 51 / mensual.aportantesSemestral() * 1,000,000; comisiones desde la query Teradata 411500; plantilla=" + plantillaAios + "; aportantes semestrales desde query Teradata.");
+        explicaciones.put(67, "valor = fila 52 / mensual.afiliados() * 1,000,000; gastos desde query Teradata de la fila 52 y afiliados por query Teradata Formato491.");
+        explicaciones.put(68, "valor = fila 51 / mensual.aportantesSemestral() * 1,000,000; comisiones desde la query Teradata 411500 y aportantes semestrales desde query Teradata.");
         explicaciones.put(69, "valor = fila 55 / fila 61; fila 55 calculada con las queries 512000 y 513000, y fila 61 calculada con " + queryAportes136 + ".");
         explicaciones.put(70, "valor fijo = 16; no usa insumo externo.");
         explicaciones.put(71, "valor = promedio(trimestral.comisionesPct col_obl, por_obl, pro_obl, ska_obl); valores obtenidos por OCR de la Carta Circular SFC correspondiente al período de corte; el log muestra el PDF, el texto OCR y las cuatro comisiones utilizadas.");
@@ -388,9 +390,9 @@ public class SemestralExcelGenerator {
         explicaciones.put(74, "valor = (3 - fila 71) * 0.25; usa comisión promedio porcentual calculada en fila 71.");
         explicaciones.put(75, "valor = (3 - fila 71) * 0.75; usa comisión promedio porcentual calculada en fila 71.");
         explicaciones.put(76, "valor fijo = 0; no usa insumo externo.");
-        explicaciones.put(77, "valor = fila 51; comisiones desde la query Teradata 411500; plantilla=" + plantillaAios + ".");
+        explicaciones.put(77, "valor = fila 51; comisiones desde la query Teradata 411500.");
         explicaciones.put(78, "valor = fila 28; se reutiliza el valor de fondos administrados consultado en Teradata y convertido con TRM ruta=" + pibPeaTrmDg + ".");
-        explicaciones.put(79, "valor = fila 77 / fila 78; fila 77 son comisiones desde la query Teradata 411500; plantilla=" + plantillaAios + " y fila 78 fondos administrados.");
+        explicaciones.put(79, "valor = fila 77 / fila 78; fila 77 son comisiones desde la query Teradata 411500 y fila 78 fondos administrados.");
         explicaciones.put(80, "valor = año(fechaCorte) - 1994; no usa insumo externo.");
         explicaciones.put(82, "valor = rentabilidad nominal 10 años calculada por RentabilidadService * 100 para expresarla en puntos porcentuales sin símbolo %; usa siempre el NAV sintético de Consolidado!E en Rent_Vr_Uni_Moderado ruta=" + rentVrUni + ".");
         explicaciones.put(83, "valor = rentabilidad real 10 años calculada con el NAV sintético de Consolidado!E y el índice diario IPC_D!B de Rent_Vr_Uni_Moderado ruta=" + rentVrUni + ".");
@@ -459,15 +461,15 @@ public class SemestralExcelGenerator {
             case 39 -> "valores tomados: dudaNfe=" + mensual.dudaNfe() + ".";
             case 40 -> "valores tomados: dudaAce=" + mensual.dudaAce() + ".";
             case 41 -> "valores tomados: dudaFe=" + mensual.dudaFe() + ".";
-            case 42 -> "valores tomados: constante=2.";
+            case 42 -> "valores tomados: constante=0; no existe una fuente definida para este indicador.";
             case 43 -> "valores tomados: otros=" + mensual.otros() + ".";
             case 44 -> "valores tomados: fila44=" + num(hoja, 44, col) + ".";
             case 45 -> "valores tomados: fila28=" + num(hoja, 28, col) + "; fila45=" + num(hoja, 45, col) + ".";
-            case 46 -> "valores tomados: constante=4.";
+            case 46 -> "valores tomados: administradorasVigentes=" + mensual.administradorasVigentes() + ".";
             case 47 -> "valores tomados: participación porcentual fila47=" + num(hoja, 47, col) + "; presentación numérica sin símbolo %; mensual.porcVrFondo=" + mensual.porcVrFondo() + ".";
             case 48 -> "valores tomados: activosCuentas=" + mensual.activosCuentas() + "; TRM=" + trm(mensual) + ".";
             case 49 -> "valores tomados: pasivosCuentas=" + mensual.pasivosCuentas() + "; TRM=" + trm(mensual) + ".";
-            case 50 -> "valores tomados: activosCuentas=" + mensual.activosCuentas() + "; pasivosCuentas=" + mensual.pasivosCuentas() + "; TRM=" + trm(mensual) + ".";
+            case 50 -> "valores tomados: patrimonioCuentas(cuenta 300000)=" + mensual.patrimonioCuentas() + "; TRM=" + trm(mensual) + ".";
             case 51 -> "valores tomados: comisiones=fila51=" + num(hoja, 51, col) + ".";
             case 52 -> "valores tomados: gastos=fila52=" + num(hoja, 52, col) + ".";
             case 53 -> "valores tomados: fila51=" + num(hoja, 51, col) + "; fila52=" + num(hoja, 52, col) + "; fila53=fila51-fila52=" + num(hoja, 53, col) + ".";
@@ -538,167 +540,6 @@ public class SemestralExcelGenerator {
     }
 
 
-    private BigDecimal readTotalPensionados495(LocalDate fechaCorte, BigDecimal fallback) {
-        try {
-            Path file495 = findPensionados495File(fechaCorte);
-            try (Workbook wb = WorkbookFactory.create(file495.toFile(), null, true)) {
-                Sheet totalPensionados = getSheetIgnoreCase(wb, "TOTAL PENSIONADOS");
-                if (totalPensionados == null) {
-                    totalPensionados = findSheetContainsIgnoreCase(wb, "total pensionados");
-                }
-                if (totalPensionados == null) {
-                    log.warn("Semestral fila16: no se encontró hoja TOTAL PENSIONADOS en {}. Se usa fallback={}",
-                            file495.toAbsolutePath(), fallback);
-                    return fallback == null ? BigDecimal.ZERO : fallback;
-                }
-
-                setDate(totalPensionados, "B4", fechaCorte);
-                BigDecimal valor = readTotalPensionadosSerie(totalPensionados, fechaCorte);
-                if (valor.signum() != 0) {
-                    log.info("Semestral fila16: archivo={} hoja=TOTAL PENSIONADOS parámetro=B4 fecha={} valor columna I={}",
-                            file495.toAbsolutePath(), fechaCorte, valor);
-                    return valor;
-                }
-                log.warn("Semestral fila16: no se encontró valor en columna I para fecha={} en {}. Se usa fallback={}",
-                        fechaCorte, file495.toAbsolutePath(), fallback);
-            }
-        } catch (Exception e) {
-            log.warn("Semestral fila16: no fue posible leer Series_Formato-495 PENSIONADOS para fecha={}: {}. Se usa fallback={}",
-                    fechaCorte, e.getMessage(), fallback);
-        }
-        return fallback == null ? BigDecimal.ZERO : fallback;
-    }
-
-
-    private PensionadosPorEntidad readPensionadosPorEntidad495(LocalDate fechaCorte, PensionadosPorEntidad fallback) {
-        try {
-            Path file495 = findPensionados495File(fechaCorte);
-            try (Workbook wb = WorkbookFactory.create(file495.toFile(), null, true)) {
-                FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
-                Sheet porEntidad = getSheetIgnoreCase(wb, "por Entidad");
-                if (porEntidad == null) {
-                    porEntidad = findSheetContainsIgnoreCase(wb, "por entidad");
-                }
-                if (porEntidad == null) {
-                    log.warn("Semestral filas17-19: no se encontró hoja por Entidad en {}. Se usa fallback={}",
-                            file495.toAbsolutePath(), fallback);
-                    return fallback;
-                }
-
-                setDate(porEntidad, "C6", fechaCorte);
-                evaluator.clearAllCachedResultValues();
-                BigDecimal invalidez = num(porEntidad, "BI62", evaluator);
-                BigDecimal vejez = num(porEntidad, "BH62", evaluator);
-                BigDecimal sobrevivencia = num(porEntidad, "BJ62", evaluator);
-                log.info("Semestral filas17-19: archivo={} hoja=por Entidad parámetro=C6 fecha={} BI62(invalidez)={} BH62(vejez)={} BJ62(sobrevivencia)={}",
-                        file495.toAbsolutePath(), fechaCorte, invalidez, vejez, sobrevivencia);
-                return new PensionadosPorEntidad(
-                        invalidez.signum() == 0 ? fallback.invalidez() : invalidez,
-                        vejez.signum() == 0 ? fallback.vejez() : vejez,
-                        sobrevivencia.signum() == 0 ? fallback.sobrevivencia() : sobrevivencia
-                );
-            }
-        } catch (Exception e) {
-            log.warn("Semestral filas17-19: no fue posible leer por Entidad BI62/BH62/BJ62 para fecha={}: {}. Se usa fallback={}",
-                    fechaCorte, e.getMessage(), fallback);
-            return fallback;
-        }
-    }
-
-    private Path findPensionados495File(LocalDate fechaCorte) {
-        Path principal = properties.insumosDir()
-                .resolve("Formato 495")
-                .resolve("Series_Formato-495 PENSIONADOS.xlsm");
-        if (Files.isRegularFile(principal)) {
-            return principal;
-        }
-        try {
-            return locator.findRequired("Series_Formato-495 PENSIONADOS", fechaCorte);
-        } catch (Exception ignored) {
-            Path local = Path.of("insumos_ejemplo", "Series_Formato-495 PENSIONADOS.xlsm");
-            if (Files.isRegularFile(local)) return local;
-            throw ignored;
-        }
-    }
-
-    private BigDecimal readTotalPensionadosSerie(Sheet totalPensionados, LocalDate fechaCorte) {
-        DataFormatter formatter = new DataFormatter(Locale.forLanguageTag("es-CO"));
-        BigDecimal mejor = BigDecimal.ZERO;
-        LocalDate mejorFecha = LocalDate.MIN;
-        int mejorFila = -1;
-        for (int r = 0; r <= totalPensionados.getLastRowNum(); r++) {
-            Row row = totalPensionados.getRow(r);
-            if (row == null) continue;
-            LocalDate fechaFila = cellAsDate(row.getCell(1)); // columna B
-            if (fechaFila == null) continue;
-            BigDecimal valor = cellAsBigDecimal(row.getCell(8), formatter); // columna I
-            if (valor.signum() == 0) continue;
-            if (fechaFila.equals(fechaCorte)) {
-                log.info("Semestral fila16: match exacto hoja=TOTAL PENSIONADOS fila={} fecha={} celda=I{} valor={}",
-                        r + 1, fechaFila, r + 1, valor);
-                return valor;
-            }
-            if (!fechaFila.isAfter(fechaCorte) && fechaFila.isAfter(mejorFecha)) {
-                mejorFecha = fechaFila;
-                mejor = valor;
-                mejorFila = r + 1;
-            }
-        }
-        if (mejor.signum() != 0) {
-            log.info("Semestral fila16: usando fecha anterior hoja=TOTAL PENSIONADOS fila={} fechaFila={} fechaCorte={} celda=I{} valor={}",
-                    mejorFila, mejorFecha, fechaCorte, mejorFila, mejor);
-        }
-        return mejor;
-    }
-
-    private BigDecimal cellAsBigDecimal(Cell cell, DataFormatter formatter) {
-        if (cell == null) return BigDecimal.ZERO;
-        try {
-            if (cell.getCellType() == CellType.NUMERIC ||
-                    (cell.getCellType() == CellType.FORMULA && cell.getCachedFormulaResultType() == CellType.NUMERIC)) {
-                return BigDecimal.valueOf(cell.getNumericCellValue());
-            }
-            String text = formatter.formatCellValue(cell);
-            if (text == null || text.isBlank()) return BigDecimal.ZERO;
-            String normalized = text.trim().replace("$", "").replace("%", "").replace(" ", "");
-            if (normalized.contains(",") && normalized.contains(".")) {
-                normalized = normalized.replace(",", "");
-            } else if (normalized.contains(",")) {
-                normalized = normalized.replace(".", "").replace(",", ".");
-            }
-            return new BigDecimal(normalized);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
-    }
-
-    private void setDate(Sheet sheet, String ref, LocalDate date) {
-        Cell target = cell(sheet, ref);
-        target.setCellValue(Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant()));
-    }
-
-    private Sheet findSheetContainsIgnoreCase(Workbook wb, String fragment) {
-        String normalizedFragment = fragment.toLowerCase(Locale.ROOT);
-        for (int i = 0; i < wb.getNumberOfSheets(); i++) {
-            Sheet sheet = wb.getSheetAt(i);
-            if (sheet.getSheetName().toLowerCase(Locale.ROOT).contains(normalizedFragment)) {
-                return sheet;
-            }
-        }
-        return null;
-    }
-
-    private Path resolveTemplate() {
-        String[] nombres = {"semestral.xlsx", "Semestral_Colombia.xlsx", "Boletin_AIOS SEMESTRAL.xlsx"};
-        for (String nombre : nombres) {
-            Path candidate = properties.salidasReferenciaDir().resolve(nombre);
-            if (Files.isRegularFile(candidate)) {
-                return candidate;
-            }
-        }
-        throw new IllegalStateException("No se encontró plantilla semestral en salidas_referencia");
-    }
-
     private Sheet resolveSheet(Workbook wb) {
         Sheet s = wb.getSheet("Hoja1");
         if (s != null) return s;
@@ -739,7 +580,9 @@ public class SemestralExcelGenerator {
             if ((mes != null && !mes.isBlank()) || (anio != null && !anio.isBlank())) lastPeriodCol = c;
         }
         int targetColIndex = Math.max(lastPeriodCol + 1, 2);
-        copyPreviousColumnFormat(hoja, targetColIndex);
+        if (!columnHasFormatting(hoja, targetColIndex)) {
+            copyPreviousColumnFormat(hoja, targetColIndex);
+        }
         Row targetMes = hoja.getRow(0);
         Row targetAnio = hoja.getRow(1);
         Cell mesCell = targetMes.getCell(targetColIndex);
@@ -749,6 +592,18 @@ public class SemestralExcelGenerator {
         mesCell.setCellValue(mesObjetivo);
         anioCell.setCellValue(fechaCorte.getYear());
         return targetColIndex + 1;
+    }
+
+    private boolean columnHasFormatting(Sheet sheet, int columnIndex) {
+        for (int rowIndex = 0; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) continue;
+            Cell cell = row.getCell(columnIndex);
+            if (cell != null && cell.getCellStyle() != null && cell.getCellStyle().getIndex() != 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void copyPreviousColumnFormat(Sheet sheet, int targetColIndex) {
@@ -1091,208 +946,8 @@ public class SemestralExcelGenerator {
         return value;
     }
 
-
-
-    private Path findPlantillaAiosFile(LocalDate fechaCorte) {
-        Path repoPath = Path.of("plantillas", "Plantilla AIOS-probable.xlsm");
-        if (Files.isRegularFile(repoPath)) return repoPath;
-        Path base = properties.insumosDir();
-        try (Stream<Path> paths = Files.walk(base, 4)) {
-            return paths
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).contains("plantilla aios"))
-                    .findFirst()
-                    .orElse(repoPath);
-        } catch (Exception ignore) {
-            return repoPath;
-        }
-    }
-
-    private BigDecimal readPatrimonioBaseMesMMCop(LocalDate fechaCorte) {
-        Path plantilla = findPlantillaAiosFile(fechaCorte);
-        try (Workbook wb = WorkbookFactory.create(plantilla.toFile(), null, true)) {
-            Sheet cuentas = getSheetIgnoreCase(wb, "cuentas");
-            Sheet baseMes = getSheetIgnoreCase(wb, "base mes");
-            if (cuentas == null || baseMes == null) {
-                log.warn("Patrimonio base mes: no se encontró hoja cuentas/base mes en {}", plantilla.toAbsolutePath());
-                return BigDecimal.ZERO;
-            }
-            LocalDate fechaBaseMes = LocalDate.of(fechaCorte.getYear(), fechaCorte.getMonth(), 1);
-            int serialFecha = (int) Math.round(org.apache.poi.ss.usermodel.DateUtil.getExcelDate(java.sql.Date.valueOf(fechaBaseMes)));
-            int serialFechaCorte = (int) Math.round(org.apache.poi.ss.usermodel.DateUtil.getExcelDate(java.sql.Date.valueOf(fechaCorte)));
-            String cuentaPatrimonio = "300000";
-            Set<String> entidades = new HashSet<>();
-            for (int r = 1; r <= 4; r++) { // J1:J4
-                Row row = cuentas.getRow(r - 1);
-                if (row == null) continue;
-                Cell c = row.getCell(9);
-                if (c == null) continue;
-                String entidad = normalize(c.toString());
-                if (!entidad.isBlank()) entidades.add(entidad);
-            }
-            if (entidades.isEmpty()) {
-                log.warn("Patrimonio base mes: no se encontraron administradoras en cuentas!J1:J4");
-                return BigDecimal.ZERO;
-            }
-
-            Set<String> keysEsperadasBaseMes = new HashSet<>();
-            for (String entidad : entidades) {
-                keysEsperadasBaseMes.add(entidad + "-" + serialFecha + "-" + cuentaPatrimonio);
-            }
-            BigDecimal sumaCop = BigDecimal.ZERO;
-            Set<String> encontradas = new HashSet<>();
-            int last = baseMes.getLastRowNum() + 1;
-            for (int r = 2; r <= last; r++) {
-                Row row = baseMes.getRow(r - 1);
-                if (row == null) continue;
-                String entidad = normalize(cellAsString(row.getCell(4))); // col E
-                if (!entidades.contains(entidad)) continue;
-                String cuenta = normalize(cellAsString(row.getCell(1))); // col B
-                if (!cuentaPatrimonio.equals(cuenta)) continue;
-                Integer serialFila = excelSerialFromCell(row.getCell(3)); // col D
-                if (serialFila == null || serialFila != serialFecha) continue;
-                String keyConstruida = entidad + "-" + serialFila + "-" + cuenta;
-                if (!keysEsperadasBaseMes.contains(keyConstruida)) continue;
-                BigDecimal valor = num(baseMes, r, 6); // col F valor
-                if (valor.signum() > 0) {
-                    sumaCop = sumaCop.add(valor);
-                    encontradas.add(keyConstruida);
-                    log.info("Patrimonio base mes match: key={} valorCOP={}", keyConstruida, valor);
-                }
-                if (encontradas.size() == keysEsperadasBaseMes.size()) break;
-            }
-            BigDecimal mmCop = sumaCop.divide(BigDecimal.valueOf(1_000_000), 8, RoundingMode.HALF_UP);
-            log.info("Patrimonio base mes total: fechaParametro={} fechaBaseMes={} serialBaseMes={} serialFechaCorte={} entidades={} matches={} sumaCOP={} sumaMMCOP={}",
-                    fechaCorte, fechaBaseMes, serialFecha, serialFechaCorte, entidades, encontradas.size(), sumaCop, mmCop);
-            if (encontradas.size() < keysEsperadasBaseMes.size()) {
-                log.warn("Patrimonio base mes incompleto: esperadas={} encontradas={} faltantes={}",
-                        keysEsperadasBaseMes.size(), encontradas.size(), keysEsperadasBaseMes.stream().filter(k -> !encontradas.contains(k)).toList());
-                // Fallback defensivo: si no hay match con serial del primer día de mes, intentar serial exacto de fecha de corte.
-                if (serialFechaCorte != serialFecha) {
-                    Set<String> keysEsperadasCorte = new HashSet<>();
-                    for (String entidad : entidades) {
-                        keysEsperadasCorte.add(entidad + "-" + serialFechaCorte + "-" + cuentaPatrimonio);
-                    }
-                    BigDecimal sumaCopCorte = BigDecimal.ZERO;
-                    Set<String> encontradasCorte = new HashSet<>();
-                    for (int r = 2; r <= last; r++) {
-                        Row row = baseMes.getRow(r - 1);
-                        if (row == null) continue;
-                        String entidad = normalize(cellAsString(row.getCell(4)));
-                        if (!entidades.contains(entidad)) continue;
-                        String cuenta = normalize(cellAsString(row.getCell(1)));
-                        if (!cuentaPatrimonio.equals(cuenta)) continue;
-                        Integer serialFila = excelSerialFromCell(row.getCell(3));
-                        if (serialFila == null || serialFila != serialFechaCorte) continue;
-                        String keyConstruida = entidad + "-" + serialFila + "-" + cuenta;
-                        if (!keysEsperadasCorte.contains(keyConstruida)) continue;
-                        BigDecimal valor = num(baseMes, r, 6);
-                        if (valor.signum() > 0) {
-                            sumaCopCorte = sumaCopCorte.add(valor);
-                            encontradasCorte.add(keyConstruida);
-                            log.info("Patrimonio base mes fallback(fecha corte) match: key={} valorCOP={}", keyConstruida, valor);
-                        }
-                        if (encontradasCorte.size() == keysEsperadasCorte.size()) break;
-                    }
-                    if (encontradasCorte.size() > encontradas.size()) {
-                        BigDecimal mmCopCorte = sumaCopCorte.divide(BigDecimal.valueOf(1_000_000), 8, RoundingMode.HALF_UP);
-                        log.info("Patrimonio base mes fallback usado con serial fecha corte: serial={} matches={} sumaCOP={} sumaMMCOP={}",
-                                serialFechaCorte, encontradasCorte.size(), sumaCopCorte, mmCopCorte);
-                        return mmCopCorte;
-                    }
-                }
-            }
-            return mmCop;
-        } catch (Exception e) {
-            log.warn("No fue posible leer patrimonio desde base mes: {}", e.getMessage());
-            return BigDecimal.ZERO;
-        }
-    }
-
-    private String cellAsString(Cell cell) {
-        if (cell == null) return "";
-        try {
-            return switch (cell.getCellType()) {
-                case STRING -> cell.getStringCellValue();
-                case NUMERIC -> BigDecimal.valueOf(cell.getNumericCellValue()).stripTrailingZeros().toPlainString();
-                case FORMULA -> cell.getCachedFormulaResultType() == org.apache.poi.ss.usermodel.CellType.NUMERIC
-                        ? BigDecimal.valueOf(cell.getNumericCellValue()).stripTrailingZeros().toPlainString()
-                        : cell.getRichStringCellValue().getString();
-                default -> cell.toString();
-            };
-        } catch (Exception e) {
-            return cell.toString();
-        }
-    }
-
-    private Integer excelSerialFromCell(Cell cell) {
-        if (cell == null) return null;
-        try {
-            return switch (cell.getCellType()) {
-                case NUMERIC -> (int) Math.round(cell.getNumericCellValue());
-                case FORMULA -> cell.getCachedFormulaResultType() == org.apache.poi.ss.usermodel.CellType.NUMERIC
-                        ? (int) Math.round(cell.getNumericCellValue())
-                        : null;
-                default -> null;
-            };
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
     private Path findRentModeradoFile(LocalDate fechaCorte) {
-        try {
-            return locator.findRequired("Rent_Vr_Uni_Moderado", fechaCorte);
-        } catch (Exception ignore) {
-            return Path.of("insumos_ejemplo", "Rent_Vr_Uni_Moderado.xlsm");
-        }
-    }
-
-    private DatoDetalle readDeudaGubernamentalTotal(LocalDate fechaCorte) {
-        try {
-            Path seriesFile = locator.findRequired("PIB_PEA_TRM_DG", fechaCorte);
-            try (Workbook wb = WorkbookFactory.create(seriesFile.toFile(), null, true)) {
-                Sheet sheet = wb.getSheet("Hoja1");
-                if (sheet == null) sheet = wb.getSheetAt(0);
-                BigDecimal mejor = BigDecimal.ZERO;
-                LocalDate mejorFecha = LocalDate.MIN;
-                int mejorFila = -1;
-                for (Row row : sheet) {
-                    LocalDate fecha = cellAsDate(row.getCell(11)); // columna L
-                    if (fecha == null || fecha.isAfter(fechaCorte)) continue;
-                    BigDecimal deuda = num(sheet, row.getRowNum() + 1, 13); // columna M
-                    if (deuda.signum() == 0) continue;
-                    if (fecha.equals(fechaCorte)) {
-                        String detalle = "detalle fuente deuda gubernamental: archivo=" + seriesFile.toAbsolutePath()
-                                + " hoja=Hoja1 fila=" + (row.getRowNum() + 1) + " fecha=" + fecha
-                                + " celda=M" + (row.getRowNum() + 1) + " valor=" + deuda + ".";
-                        log.debug("Deuda gubernamental total exacta: {}", detalle);
-                        return new DatoDetalle(deuda, detalle);
-                    }
-                    if (fecha.isAfter(mejorFecha)) {
-                        mejorFecha = fecha;
-                        mejor = deuda;
-                        mejorFila = row.getRowNum() + 1;
-                    }
-                }
-                if (mejor.signum() != 0) {
-                    String detalle = "detalle fuente deuda gubernamental: archivo=" + seriesFile.toAbsolutePath()
-                            + " hoja=Hoja1 fila=" + mejorFila + " fechaFila=" + mejorFecha + " fechaCorte=" + fechaCorte
-                            + " celda=M" + mejorFila + " valor=" + mejor + " (fallback por fecha anterior).";
-                    log.debug("Deuda gubernamental total por fecha anterior: {}", detalle);
-                    return new DatoDetalle(mejor, detalle);
-                } else {
-                    String detalle = "no se encontró deuda gubernamental total en archivo=" + seriesFile.toAbsolutePath()
-                            + " hoja=Hoja1 columna M para fecha=" + fechaCorte + " o anterior.";
-                    log.warn("Semestral fila45: {}", detalle);
-                    return new DatoDetalle(BigDecimal.ZERO, detalle);
-                }
-            }
-        } catch (Exception e) {
-            String detalle = "no fue posible leer deuda gubernamental total desde PIB_PEA_TRM_DG para fecha=" + fechaCorte + ": " + e.getMessage() + ".";
-            log.warn("Semestral fila45: {}", detalle);
-            return new DatoDetalle(BigDecimal.ZERO, detalle);
-        }
+        return locator.findRequired("Rent_Vr_Uni_Moderado", fechaCorte);
     }
 
     private DatoDetalle readFila44DesdeLimites(LocalDate fechaCorte) {

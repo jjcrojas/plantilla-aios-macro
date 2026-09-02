@@ -16,7 +16,7 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 | Componente | Responsabilidad |
 |---|---|
 | `AiosGeneracionService` | Orquesta el flujo de generación según el modo: mensual, trimestral, semestral o todo. Valida meses trimestrales y semestrales, captura errores de memoria y crea ZIP en modo `TODO`. |
-| `MensualDataReader` | Lee los insumos base mensuales y arma el record `MensualData`: afiliados, aportantes, traspasos, TRM, límites, rentabilidades, PEA, deuda, pensionados, fondos, activos y pasivos. La TRM se obtiene una sola vez por fecha mediante el servicio web de la Superfinanciera y se reutiliza; `PIB_PEA_TRM_DG` actúa como contingencia. |
+| `MensualDataReader` | Lee los insumos base mensuales y arma el record `MensualData`: afiliados, aportantes, traspasos, TRM, límites, rentabilidades, PEA, deuda, pensionados, fondos, activos y pasivos. La rentabilidad de un año se calcula con `RentabilidadService`, igual que en el semestral, sin leer `D10/D11`. La TRM se obtiene una sola vez por fecha mediante el servicio web de la Superfinanciera y se reutiliza; `PIB_PEA_TRM_DG` actúa como contingencia. |
 | `MensualExcelGenerator` | Escribe el boletín mensual sobre `Boletin_AIOS MENSUAL.xlsx`, hoja `HOJA1`, en la fila que coincide con la etiqueta de fecha. |
 | `TrimestralDataReader` | Lee y calcula los mapas por administradora/fondo requeridos para el boletín trimestral: afiliados, aportantes, traspasos, Colombia USD, gastos USD, comisiones y rentabilidades. |
 | `TrimestralExcelGenerator` | Escribe los mapas trimestrales en las hojas de la plantilla trimestral: `afiliados`, `aportantes`, `colombia`, `traspasos`, `gastos`, `promotores`, `rentabilidad` y `comisiones`. |
@@ -33,28 +33,19 @@ Este proyecto genera boletines AIOS en Excel para tres periodicidades: **mensual
 | `SISTEMA TOTAL` | Fondos administrados, composición y participación de entidades. | Hoja `restot`: `J14`, `C14`, `D14` y otros valores por administradora/fondo. |
 | `LIMITES` | Límites de inversión locales y del exterior. | Hoja `AIOS`: `AB4`, `C4`, `E4`, `G4`, `I4`, `K4`, `O4`, `Q4`, `S4`, `U4`, `W4`, `Y4`, `AA4`. |
 | `PIB_PEA_TRM_DG` | PEA, PIB semestral, TRM de contingencia y deuda gubernamental. | Hoja `Hoja1`: fecha en columna `L`, deuda gubernamental en columna `M`, además de series de PEA/PIB y la TRM usada solo si falla el servicio web. |
-| `Series_Formato-495 PENSIONADOS.xlsm` | Total y composición de pensionados. | Hoja `TOTAL PENSIONADOS`, parámetro `B4`, serie en columna `I`; hoja `por Entidad`, parámetro `C6`, celdas `BI62`, `BH62`, `BJ62`. |
+| Query Teradata Formato 495 | Total y composición de pensionados; el Excel histórico ya no se abre durante la generación. | Consulta sobre el Formato 495 para total, invalidez, vejez y sobrevivencia a la fecha de corte. |
 | Query Teradata Formato 136 | Aportes recibidos para indicadores semestrales. | `SUM(e.valor)/1000000` desde `prod_dwh_consulta.negfid_insumo_entidad` filtrando `nivel1=136`, `nivel2=2`, `nivel3=4`, `nivel4=10`, patrimonio 1000 y tipo entidad 23. |
-| `Plantilla AIOS-probable.xlsm` | Datos contables de cuentas, activos/pasivos, patrimonio, resultados y gastos trimestrales. Debe actualizarse previamente con las salidas del programa Fox de sociedades. | Hojas `base anual`, `base mes` y `CUENTAS`; en `CUENTAS`: `C4`, `C6`, `C15`, `C21`, `C22`, `C24`, `C28`, `C29`, `C31:C38`, `E13`, `G15`, `E41`, `E44`, `H24`. |
-| `Rent_Vr_Uni_Moderado.xlsm` | IPC y rentabilidad real/nominal cuando aplica fallback. | Hojas o series de IPC/rentabilidad moderada. |
+| Query Teradata `ESTFIN_INDIV` | Activo, pasivo, patrimonio, resultados y gastos. | Cuentas 100000, 200000 y 300000 a la fecha de corte; los flujos de resultados y gastos usan las cuentas documentadas en cada indicador. |
+| Query Teradata `ENTIDADES` | Administradoras vigentes. | Nombres distintos con `Tipo_Entidad = 23` y `Estado = 1`; los nombres se normalizan sin comillas. |
+| `Rent_Vr_Uni_Moderado.xlsm` | Fuente de NAV e IPC para las rentabilidades mensual y semestral calculadas en Java. | `Consolidado!A:E` para fecha/NAV e `IPC_D!A:B` para fecha/IPC diario; no se usan `D10/D11` como resultados. |
 | `Valores_Fondo_Moder` / `MODERADO` | NAV histórico para rentabilidades semestrales. | Series de valor de unidad/NAV por fecha. |
 
 
-### 3.1 Actualización contable de Plantilla AIOS-probable
+### 3.1 Datos contables sin Plantilla AIOS-probable
 
-Antes de generar un informe trimestral, o cualquier salida que use las hojas contables de la plantilla, se debe actualizar `Plantilla AIOS-probable.xlsm` mediante este procedimiento:
+La aplicación ya no abre ni requiere `Plantilla AIOS-probable.xlsm`. Los saldos contables se consultan directamente en Teradata `ESTFIN_INDIV`, unidos con `TIEMPO`, `ENTIDADES` y `PUC`, con `Tipo_Entidad = 23`, `Tipo_Informe = 0`, la fecha de corte solicitada y el código de cuenta correspondiente. Activo usa 100000, pasivo 200000 y patrimonio 300000; cada saldo se divide entre 1.000.000 antes de convertirlo con la TRM cuando el indicador está expresado en USD.
 
-1. Ejecutar el programa Fox de sociedades en la máquina donde está instalado. El proceso genera `base_anual.txt` y `base.txt`.
-2. Convertir o guardar esos archivos como `base_anual.xlsx` y `base.xlsx`, respectivamente, en la carpeta de OneDrive `FORMATOS ACTUALIZADOS/ANÁLISIS DIARIO/SOCIEDADES`.
-3. Agregar como primera columna de cada archivo `.xlsx` la misma fórmula de concatenación usada como clave en las hojas correspondientes de la plantilla:
-   - `base_anual.xlsx`: fórmula de concatenación de la hoja `base anual`.
-   - `base.xlsx`: fórmula de concatenación de la hoja `base mes`.
-4. Reemplazar el contenido de `base anual` con la información actualizada de `base_anual.xlsx` y el contenido de `base mes` con la información actualizada de `base.xlsx`.
-5. Recalcular y guardar `Plantilla AIOS-probable.xlsm`. Comprobar que el período solicitado exista y que los valores contables relevantes no estén vacíos ni sean ceros anómalos antes de generar los informes.
-
-La hoja `gastos` del boletín trimestral se calcula directamente desde `base anual`. Otras variables mensuales y semestrales se obtienen de `base mes`, `base anual` o de las fórmulas de `CUENTAS` que consultan esas hojas mediante la clave concatenada. Por tanto, actualizar únicamente la fecha o recalcular la plantilla no sustituye la actualización previa de los archivos generados por Fox.
-
-Este procedimiento es externo y exclusivamente documental: debe completarse antes de invocar la skill trimestral. La skill `generar-trimestral-aios` no abre `base_anual.xlsx` ni `base.xlsx`, no reemplaza las hojas `base anual` o `base mes` y no ejecuta las macros `CopiarBalances_BaseAnual` ni `CopiarBalances_BaseMes`; únicamente valida que ambas hojas ya contengan el período solicitado.
+El número de administradoras se obtiene de los nombres distintos vigentes en `ENTIDADES`, filtrando `Tipo_Entidad = 23` y `Estado = 1`. La hoja `gastos` trimestral y los resultados semestrales también se calculan mediante sus queries contables, por lo que no es necesario ejecutar Fox, copiar las hojas `base anual`/`base mes` ni recalcular macros de la plantilla antigua.
 
 ### 3.2 Trazabilidad de formatos consultados por query
 
@@ -179,11 +170,11 @@ Hojas escritas:
 El informe semestral escribe filas específicas de una plantilla semestral. La columna destino se determina por la fecha de corte. La lógica agrupa los datos en bloques:
 
 1. **Afiliados, edades, aportantes, PEA y salario mínimo**: afiliados/edades/aportantes provienen de queries Teradata del Formato 491; el salario mínimo oficial se lee de `SalarioMinimo.csv` y el salario mínimo ponderado de la fila 15 se calcula con query Teradata; PEA/TRM se toman de sus fuentes correspondientes.
-2. **Pensionados**: usa Formato 495 para totales y composición por invalidez, vejez y sobrevivencia.
+2. **Pensionados**: consulta el Formato 495 en Teradata para totales y composición por invalidez, vejez y sobrevivencia; no requiere el libro `Series_Formato-495 PENSIONADOS.xlsm`.
 3. **Movimiento de afiliados**: para la fila 25 consulta fallecidos del Formato 493 en `PROD_DWH_CONSULTA.S9_FORMATO_493` con `UNIDAD_CAPTURA=1`, `RENGLON IN (165,170,175)` y ventana de 12 meses por `FECHA_CORTE`; el resultado se divide entre `1000`. Los traspasos de filas 26 y 27 vienen del mismo formato vía query, con las unidades/renglones de traspasos documentados en la trazabilidad.
 4. **Fondos, PIB y deuda**: combina `SISTEMA TOTAL`, TRM, PIB y deuda gubernamental total de `PIB_PEA_TRM_DG`.
 5. **Límites de inversión**: usa `LIMITES`, hoja `AIOS`.
-6. **Contabilidad y gastos**: usa `Plantilla AIOS-probable.xlsm`, hoja `CUENTAS`, y query Teradata Formato 136 para aportes recibidos.
+6. **Contabilidad y gastos**: usa queries Teradata sobre `ESTFIN_INDIV`; activo, pasivo y patrimonio corresponden a las cuentas 100000, 200000 y 300000. Formato 136 se consulta para aportes recibidos.
 7. **Comisiones y aportes**: combina comisiones trimestrales con constantes regulatorias.
 8. **Rentabilidades**: usa `RentabilidadService` sobre NAV e IPC para horizontes de 1, 3, 5 y 10 años.
 
@@ -298,4 +289,4 @@ Por defecto, la salida se guarda bajo `target\aios-output`:
 - Un período: `target\aios-output\mensual-AAAA-MM\Boletin_AIOS MENSUAL.xlsx`.
 - Un rango: `target\aios-output\mensuales-AAAA-MM-a-AAAA-MM\Boletin_AIOS MENSUAL.xlsx`.
 
-Antes de ejecutar, se requiere conexión a Teradata, credenciales `AIOS_DB_USER` y `AIOS_PASS`, los insumos locales usados por `MensualDataReader` y la plantilla base en `salidas_referencia`. El proceso no abre Excel ni ejecuta macros VBA.
+Antes de ejecutar, se requiere conexión a Teradata, credenciales `AIOS_DB_USER` y `AIOS_PASS`, y acceso a los insumos dinámicos de OneDrive todavía usados por `MensualDataReader`. La presentación se carga desde plantillas vacías incluidas dentro de la aplicación; `salidas_referencia` no es obligatoria. Si existen plantillas personalizadas en `aios.plantilla-dir`, estas tienen prioridad. El proceso mensual no abre Excel ni ejecuta macros VBA.

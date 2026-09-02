@@ -67,9 +67,9 @@ El archivo mensual es una serie de tiempo del sistema. Cada fila identifica un m
 | Fondo mutuo (K) | `AIOS!K4 * 100` | `LIMITES del nuevo.xlsm`, hoja `AIOS`, celda `K4`. | Porcentaje | — | — |
 | Emisores extranjeros (L) | `(O4 + Q4 + S4 + U4 + W4 + Y4) * 100` | `LIMITES del nuevo.xlsm`, hoja `AIOS`, celdas `O4,Q4,S4,U4,W4,Y4`. | Porcentaje | — | — |
 | Otros instrumentos (M) | `AIOS!AA4 * 100` | `LIMITES del nuevo.xlsm`, hoja `AIOS`, celda `AA4`. | Porcentaje | — | — |
-| Rentabilidad nominal (N) | Macro: escribe `D4 = fecha_corte - 1 año` y `D5 = fecha_corte`; toma `D11` y calcula `tmp_nominal_1 * 100`. | `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`: fechas de entrada `D4:D5`, resultado nominal `D11`. La aplicación vigente reproduce la búsqueda sobre la serie de esa hoja. | Porcentaje | — | — |
-| Rentabilidad real (O) | Macro: con las mismas fechas de `D4:D5`, toma `D10` y calcula `tmp_real_1 * 100`. | `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`: fechas de entrada `D4:D5`, resultado real `D10`. La aplicación busca la fecha de corte en la serie real y admite el día hábil anterior. | Porcentaje | — | — |
-| N.° administradoras (P) | `4` | Constante de la macro: cuatro administradoras vigentes incluidas en la generación (Colfondos, Porvenir, Protección y Skandia). | Número | — | — |
+| Rentabilidad nominal (N) | `((NAV_final / NAV_inicial)^(365 / días) - 1) * 100`, con horizonte exacto de un año. | `Rent_Vr_Uni_Moderado.xlsm`, hoja `Consolidado`: fecha en columna `A` y NAV sintético en columna `E`. La aplicación calcula el resultado en Java con `RentabilidadService`; no lee `D11`. | Porcentaje | — | — |
+| Rentabilidad real (O) | `(((NAV_final / NAV_inicial) / (IPC_final / IPC_inicial))^(365 / días) - 1) * 100`. | `Rent_Vr_Uni_Moderado.xlsm`: NAV de `Consolidado!E` e IPC diario de `IPC_D!B` para las fechas exactas inicial y final. La aplicación calcula el resultado en Java con `RentabilidadService`; no lee `D10` ni `Consolidado!I`. | Porcentaje | — | — |
+| N.° administradoras (P) | `COUNT(DISTINCT nombre_entidad)` | Query `ENTIDADES` con `tipo_entidad = 23` y `Estado = 1`; los nombres se normalizan sin comillas. | Número | `ENTIDADES` | Cuenta las administradoras vigentes en cada ejecución. |
 | Concentración fondos administrados (Q) | `((multifondos!J8 + multifondos!J9) / multifondos!J12) * 100` | Macro: `Serie_Formato_ 491 AFILIADOS AFP.xlsm`, hoja `multifondos`, celdas `J8,J9,J12`. | Porcentaje | [Q491-CONCENTRACION](#q491-concentracion) | Agrupa afiliados por AFP, ordena de mayor a menor y divide las dos mayores entre el total del sistema. |
 | Concentración cuentas administradas (R) | `(fondos Protección + fondos Porvenir) / fondos del sistema * 100` | Macro Excel (sin cambios): `SISTEMA TOTAL`, hoja `restot`, valores de Protección, Porvenir y total. Aplicación AIOS: la misma razón con valores de `NEGFID_INSUMO_ENTIDAD`, niveles `136/2/4/305`. | Porcentaje | [Q136-FONDOS](#q136-fondos) | Agrupa la nueva fuente por AFP y obtiene la participación conjunta de Protección y Porvenir. |
 | Tipo de cambio (S) | Búsqueda de la TRM aplicable a la fecha | Servicio web TRM de la Superfinanciera; contingencia: `PIB_PEA_TRM_DG`, fecha y valor de TRM. | COP/USD | — | No es Teradata: se consulta una vez al servicio oficial y se reutiliza. |
@@ -98,7 +98,7 @@ El archivo trimestral contiene una hoja por tema. Cada fila corresponde a un cie
 | Afiliados por AFP y fondo | La macro toma las celdas `C:H` de las filas 8–11 de `multifondos`; para Skandia moderado suma `mod_sk + alt_sk`. | `Serie_Formato_ 491 AFILIADOS AFP.xlsm`, hoja `multifondos`: Porvenir fila 8, Protección 9, Colfondos 10, Skandia 11. | Personas | [Q491-AFILIADOS-FONDO](#q491-afiliados-fondo) | Agrupa `TOTAL_AFILIADOS_TOTAL` por AFP, UC y código de fondo con renglón 999. |
 | Aportantes por AFP | `cot_colf`, `cot_porv`, `cot_prot`, `cot_sk`; las administradoras históricas sin dato reciben cero. | `Serie_Formato_ 491 AFILIADOS AFP.xlsm`, `multifondos!J19:J22`. | Personas | [Q491-APORTANTES-ENTIDAD](#q491-aportantes-entidad) | Suma `TOTAL_AFILIADOS_COTIZANTES` para cada código de AFP. |
 | Fondos administrados | `saldo del fondo y AFP / TRM`; Skandia moderado suma el fondo alternativo. | Macro Excel (sin cambios): balances por tipo de fondo (`MOD`, `CON`, `MR`, `RP`) y `SISTEMA TOTAL`. Aplicación AIOS: desagrega `SUM(valor)/1000000` de `NEGFID_INSUMO_ENTIDAD` por patrimonio y AFP. | MM USD | [Q136-FONDOS](#q136-fondos) | Usa niveles `136/2/4/305`, conserva la distribución por fondo y AFP, y convierte con TRM. |
-| Gastos operativos | `(débito - crédito) / TRM` para cada AFP. | `Plantilla AIOS-probable.xlsm`, hoja `cuentas`: Protección `C50-D57`, Porvenir `C51-D69`, Skandia `C52-D81`, Colfondos `C53-D93`; datos originados en `base anual`. | USD según escala del boletín | — | — |
+| Gastos operativos | Cuenta 510000 menos 510300, 510400, 510600, 510700, 510800, 512500, 512800, 512900 y 513900, aplicando el flujo semestral y dividiendo entre TRM. | Query Teradata `ESTFIN_INDIV` por código de entidad. | MM USD | `ESTFIN_INDIV` | No usa la hoja `cuentas` ni `base anual`. |
 | Comisiones | Cada comisión obligatoria y de seguro se multiplica por `100`. | `Comisión FPO desde 2003.xlsx`, hoja `COTIZACION CORTE ANUAL`: Skandia `B1:C1`, Porvenir `F1:G1`, Protección `N1:O1`, Colfondos `R1:S1`. | Porcentaje | — | — |
 | Rentabilidad nominal/real | En cada hoja de AFP se escribe `D4 = fecha_corte - 1 año` y `D5 = fecha_corte`; se toma `D11` para nominal y `D10` para real, y cada resultado se multiplica por `100`. | `Rent_Vr_Uni_Moderado.xlsm`, hojas `Colfondos`, `Porvenir`, `Protección` y `oldmutual`: entradas `D4:D5`, salida real `D10` y salida nominal `D11`. La aplicación vigente realiza la misma parametrización y evaluación por hoja. | Porcentaje | — | — |
 | Promotores | `n.d.` | Sin fuente implementada; se conserva explícitamente como no disponible. | No aplica | — | — |
@@ -163,10 +163,10 @@ El archivo semestral reúne indicadores de cobertura, demografía, pensionados, 
 | 13. Aportantes / PEA | `aportantes / PEA * 100` | Aportantes y `PIB_PEA_TRM_DG`, serie PEA. | Porcentaje | [Q491-TOTALES](#q491-totales) | El numerador proviene del Formato 491. |
 | 14. Aportantes / afiliados | `aportantes / afiliados * 100` | Totales de aportantes y afiliados. | Porcentaje | [Q491-TOTALES](#q491-totales) | Reutiliza ambos agregados del Formato 491. |
 | 15. Salario promedio | `SM COLOMBIA!E8 / TRM` | Macro: `Serie_Formato_ 491 AFILIADOS AFP.xlsm`, hoja `SM COLOMBIA`, celda `E8`. | USD | [Q491-SALARIO](#q491-salario) | Pondera rangos IBC por salario mínimo y divide por afiliados; luego convierte con TRM. |
-| 16. Total pensionados | `por entidad!BJ67` | `Series_Formato-495 PENSIONADOS.xlsm`, hoja `por entidad`, celda `BJ67`. | Personas | [Q495-PENSIONADOS](#q495-pensionados) | Suma las columnas de pensiones con UC 1 y renglón 200. |
-| 17. Invalidez | `por entidad!BI66 / fila 16` | Mismo libro, `por entidad!BI66`. | Porcentaje | [Q495-PENSIONADOS](#q495-pensionados) | Suma las columnas de invalidez y divide por total. |
-| 18. Vejez | `por entidad!BH66 / fila 16` | Mismo libro, `por entidad!BH66`. | Porcentaje | [Q495-PENSIONADOS](#q495-pensionados) | Suma las columnas de vejez y divide por total. |
-| 19. Sobrevivencia | `por entidad!BJ66 / fila 16` | Mismo libro, `por entidad!BJ66`. | Porcentaje | [Q495-PENSIONADOS](#q495-pensionados) | Suma las columnas de sobrevivencia y divide por total. |
+| 16. Total pensionados | Histórica: `por entidad!BJ67`; vigente: total consultado. | Query Teradata Formato 495; el libro histórico ya no se abre. | Personas | [Q495-PENSIONADOS](#q495-pensionados) | Suma las columnas de pensiones con UC 1 y renglón 200. |
+| 17. Invalidez | Histórica: `por entidad!BI66 / fila 16`; vigente: invalidez consultada / total. | Query Teradata Formato 495. | Porcentaje | [Q495-PENSIONADOS](#q495-pensionados) | Suma las columnas de invalidez y divide por total. |
+| 18. Vejez | Histórica: `por entidad!BH66 / fila 16`; vigente: vejez consultada / total. | Query Teradata Formato 495. | Porcentaje | [Q495-PENSIONADOS](#q495-pensionados) | Suma las columnas de vejez y divide por total. |
+| 19. Sobrevivencia | Histórica: `por entidad!BJ66 / fila 16`; vigente: sobrevivencia consultada / total. | Query Teradata Formato 495. | Porcentaje | [Q495-PENSIONADOS](#q495-pensionados) | Suma las columnas de sobrevivencia y divide por total. |
 | 20–24. Altas de beneficiarios | La macro escribe `"no disponible"` en la fila 20; no calcula las filas 21–24. | Sin fuente implementada. | No disponible | — | — |
 | 25. Fallecimientos | `'Fallecidos'!M11 / 1000`, con fecha en `B11` y entidad 99 en `D4`. | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Fallecidos`. | Miles de personas | [Q493-FALLECIDOS](#q493-fallecidos) | Suma rangos de sexo/edad, UC 1, renglones 165/170/175 y ventana anual. |
 | 26. Traspasos anuales | `'Traslados Entre AFP'!BQ11` con entidad 99. | `Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx`, hoja `Traslados Entre AFP`. | Personas | [Q493-TRASPASOS](#q493-traspasos) | Total de traspasos del sistema en la ventana anual. |
@@ -190,24 +190,24 @@ El archivo semestral reúne indicadores de cobertura, demografía, pensionados, 
 | 39. Instituciones no financieras exterior | `AIOS!S4` | Mismo libro, `AIOS!S4`. | Ratio/porcentaje | — | — |
 | 40. Acciones exterior | `AIOS!U4` | Mismo libro, `AIOS!U4`. | Ratio/porcentaje | — | — |
 | 41. Administradores de fondos exterior | `AIOS!W4` | Mismo libro, `AIOS!W4`. | Ratio/porcentaje | — | — |
-| 42. Sociedades titulizadoras exterior | Macro: `AIOS!Y4`; aplicación vigente: constante `2`. | `LIMITES del nuevo.xlsm`, `AIOS!Y4`; se documenta la diferencia respecto del valor vigente. | Ratio/porcentaje | — | — |
+| 42. Sociedades titulizadoras exterior | Macro histórica: `AIOS!Y4`; aplicación vigente: constante `0`. | Sin fuente vigente definida; se escribe cero por decisión funcional. | Ratio/porcentaje | — | — |
 | 43. Otros | `AIOS!AA4` | `LIMITES del nuevo.xlsm`, `AIOS!AA4`. | Ratio/porcentaje | — | — |
 | 44. Inversión en moneda extranjera | `O4 + Q4 + S4 + U4 + W4 + Y4` | `LIMITES del nuevo.xlsm`, hoja `AIOS`. | Ratio/porcentaje | — | — |
 | 45. Fondos / deuda gubernamental | `(vr_fondo / TRM) / deuda_gubernamental_USD` | Fondos del sistema y `PIB_PEA_TRM_DG`, serie de deuda gubernamental. | Porcentaje mediante formato Excel | [Q136-FONDOS](#q136-fondos) | Fondos desde Teradata; deuda continúa en archivo. |
-| 46. Número de administradoras | `4` | Constante: Colfondos, Porvenir, Protección y Skandia. | Número | — | — |
+| 46. Número de administradoras | `COUNT(DISTINCT nombre_entidad)` | Query `ENTIDADES`, filtros `tipo_entidad = 23` y `Estado = 1`; nombres sin comillas. | Número | `ENTIDADES` | Conteo vigente, no constante. |
 | 47. Participación de las dos mayores | `(fondos Protección + fondos Porvenir) / total fondos * 100` | Macro Excel: `SISTEMA TOTAL`, `restot`. Aplicación AIOS: valores agrupados por AFP desde `NEGFID_INSUMO_ENTIDAD`, niveles `136/2/4/305`. | Valor porcentual numérico, sin símbolo `%` | [Q136-FONDOS](#q136-fondos) | Calcula la participación conjunta y escribe, por ejemplo, `70.25` en lugar de `70.25%`. |
 
 ### 4.4 Matriz de trazabilidad semestral: balance, gastos y eficiencia
 
 | Fila / indicador | Fórmula Excel | Fuente, hoja, celda | Unidad | Query | Descripción query |
 |---|---|---|---|---|---|
-| 48. Activo | `CUENTAS!C6 / TRM` | `Plantilla AIOS-probable.xlsm`, hoja `CUENTAS`, celda `C6`. | USD | — | — |
-| 49. Pasivo | `CUENTAS!C4 / TRM` | Mismo libro, `CUENTAS!C4`. | USD | — | — |
-| 50. Patrimonio neto | `(CUENTAS!C6 - CUENTAS!C4) / TRM` | Mismo libro, activo `C6` y pasivo `C4`. | USD | — | — |
+| 48. Activo | `SUM(saldo cuenta 100000) / 1,000,000 / TRM` | Query Teradata `ESTFIN_INDIV` a la fecha de corte. | MM USD | `ESTFIN_INDIV` | `Tipo_Entidad=23`, `Tipo_Informe=0`. |
+| 49. Pasivo | `SUM(saldo cuenta 200000) / 1,000,000 / TRM` | Query Teradata `ESTFIN_INDIV` a la fecha de corte. | MM USD | `ESTFIN_INDIV` | `Tipo_Entidad=23`, `Tipo_Informe=0`. |
+| 50. Patrimonio neto | `SUM(saldo cuenta 300000) / 1,000,000 / TRM` | Query Teradata `ESTFIN_INDIV` a la fecha de corte. | MM USD | `ESTFIN_INDIV` | Se consulta directamente; no se calcula como activo menos pasivo. |
 | 51. Ingresos por comisiones | `(saldo 411500 corte + saldo 411500 cierre anterior - saldo 411500 mismo corte anterior) / 1,000,000 / TRM` | Query Teradata `ESTFIN_INDIV`, cuenta 411500, Tipo_Informe=0. | MM USD | `ESTFIN_INDIV` | Consulta parametrizada con las tres fechas y la TRM del corte. |
 | 52. Gastos operativos | `(510000 - (510300+510400+510600+510700+510800+512500+512800+512900+513900))`, aplicando `saldo corte + cierre anterior - mismo corte anterior`, luego `/1,000,000/TRM` | Query Teradata `ESTFIN_INDIV`, Tipo_Informe=0. | MM USD | `ESTFIN_INDIV` | Fechas y TRM parametrizadas según el corte. |
 | 53. Resultado operativo | `fila 51 - flujo cuenta 510000` | Fila 51 y query Teradata `ESTFIN_INDIV`, cuenta 510000, con las tres fechas y TRM del corte. | MM USD | `ESTFIN_INDIV` | Reutiliza el mismo valor de la cuenta 510000 escrito en la fila 60. |
-| 54. Resultado neto | `CUENTAS!E44` | `Plantilla AIOS-probable.xlsm`, `CUENTAS!E44`. | Unidad contable de la plantilla | — | — |
+| 54. Resultado neto | Flujo semestral de la cuenta 590000 dividido entre 1,000,000 y TRM | Query Teradata `ESTFIN_INDIV`. | MM USD | `ESTFIN_INDIV` | Usa saldo corte + cierre anterior − mismo corte anterior. |
 | 55. Gastos de administración | `flujo cuenta 512000 + flujo cuenta 513000` | Query Teradata `ESTFIN_INDIV`, cuentas 512000 y 513000. | MM USD | `ESTFIN_INDIV` | Cada flujo aplica saldo del corte + cierre anterior − mismo corte anterior, dividido por 1,000,000 y TRM. |
 | 56. Comisión vendedores | `flujo cuenta 511524 + flujo cuenta 511527` | Query Teradata `ESTFIN_INDIV`, cuentas 511524 y 511527. | MM USD | `ESTFIN_INDIV` | Suma los dos resultados ya convertidos a MM USD. |
 | 57. Comercialización | `flujo cuenta 519015` | Query Teradata `ESTFIN_INDIV`, cuenta 519015. | MM USD | `ESTFIN_INDIV` | Usa las tres fechas y la TRM del corte. |
@@ -216,12 +216,12 @@ El archivo semestral reúne indicadores de cobertura, demografía, pensionados, 
 | 60. Total gastos | `flujo cuenta 510000` | Query Teradata `ESTFIN_INDIV`, cuenta 510000. | MM USD | `ESTFIN_INDIV` | Reutiliza la cuenta consultada para calcular la fila 53. |
 | 61. Recaudación anual por aportante | `(FORMATO OBL!E6 / TRM) / (aportantes/1000) * 1000` | Macro: `Formato_136_Meses.xlsm`, hoja `FORMATO OBL`, fechas en `B6:B7`, resultado `E6`. | USD por mil aportantes | [Q136-APORTES](#q136-aportes) | Suma aportes recibidos del Formato 136 entre 2024-06-01 y 2025-06-30; sustituye la lectura de `E6`. |
 | 62. Gastos / recaudación | `gastos / (aportes_recibidos / TRM) * 100` | Gastos de fila 52 y aportes que en la macro provienen de `FORMATO OBL!E6`. | Porcentaje | [Q136-APORTES](#q136-aportes) | Reutiliza los aportes recibidos consultados. |
-| 63. Patrimonio / fondos | `(patrimonio base mes / TRM) / fila 28 * 100` | `Plantilla AIOS-probable.xlsm`, `base mes`, patrimonio del período; fila 28. | Porcentaje | — | — |
+| 63. Patrimonio / fondos | `(saldo cuenta 300000 / 1,000,000 / TRM) / fila 28 * 100` | Query Teradata `ESTFIN_INDIV` y fila 28. | Porcentaje | `ESTFIN_INDIV` | Reutiliza el patrimonio consultado directamente para la fecha de corte. |
 | 64. Patrimonio por afiliado | `fila 50 / afiliados * 1,000,000` | Patrimonio en USD de fila 50 y afiliados. | USD por afiliado | [Q491-TOTALES](#q491-totales) | El denominador proviene del total de afiliados. |
-| 65. Utilidad / comisiones | `resultado_neto / comisiones * 100` | `CUENTAS!E44 / E13`. | Porcentaje | — | — |
-| 66. Utilidad / patrimonio | `resultado_neto / patrimonio_USD * 100` | `CUENTAS!E44` y fila 50. | Porcentaje | — | — |
-| 67. Gastos por afiliado | `gastos / afiliados * 1,000,000` | `CUENTAS!G15` y afiliados. | Valor por afiliado | [Q491-TOTALES](#q491-totales) | El denominador proviene del total de afiliados. |
-| 68. Comisiones por aportante | `comisiones / aportantes * 1,000,000` | `CUENTAS!E13` y aportantes. | Valor por aportante | [Q491-TOTALES](#q491-totales) | El denominador proviene del total de aportantes. |
+| 65. Utilidad / comisiones | `fila 54 / fila 51 * 100` | Resultados de las queries 590000 y 411500. | Porcentaje | `ESTFIN_INDIV` | Reutiliza las filas calculadas. |
+| 66. Utilidad / patrimonio | `fila 54 / fila 50 * 100` | Query 590000 y patrimonio de la cuenta 300000. | Porcentaje | `ESTFIN_INDIV` | Reutiliza las filas calculadas. |
+| 67. Gastos por afiliado | `fila 52 / afiliados * 1,000,000` | Query de gastos y afiliados. | Valor por afiliado | [Q491-TOTALES](#q491-totales) | El denominador proviene del total de afiliados. |
+| 68. Comisiones por aportante | `fila 51 / aportantes * 1,000,000` | Query 411500 y aportantes. | Valor por aportante | [Q491-TOTALES](#q491-totales) | El denominador proviene del total de aportantes. |
 | 69. Comisión / recaudación neta | `fila 55 / fila 61` | Gastos de administración consultados en Teradata y fila 61. | Ratio | [Q136-APORTES](#q136-aportes) | Reutiliza la nueva fila 55 y la recaudación normalizada del Formato 136. |
 
 ### 4.5 Matriz de trazabilidad semestral: aportes, comisiones y rentabilidad
@@ -235,7 +235,7 @@ El archivo semestral reúne indicadores de cobertura, demografía, pensionados, 
 | 74. Porcentaje trabajador | `(3 - fila 71) * 0.25` | Fila 71 y constantes 3/0,25. | Porcentaje | — | — |
 | 75. Porcentaje empleador | `(3 - fila 71) * 0.75` | Fila 71 y constantes 3/0,75. | Porcentaje | — | — |
 | 76. Porcentaje Estado | `0` | Constante de la macro. | Porcentaje | — | — |
-| 77. Ingresos por comisiones (a) | `CUENTAS!E13` | `Plantilla AIOS-probable.xlsm`, `CUENTAS!E13`. | Unidad contable | — | — |
+| 77. Ingresos por comisiones (a) | Reutiliza `fila 51` | Query Teradata `ESTFIN_INDIV`, cuenta 411500. | MM USD | `ESTFIN_INDIV` | No usa la plantilla. |
 | 78. Fondo de aportes obligatorios (b) | Reutiliza `fila 28` | Fondos administrados en MM USD. | MM USD | [Q136-FONDOS](#q136-fondos) | Reutiliza el total calculado por la aplicación desde `NEGFID_INSUMO_ENTIDAD`. |
 | 79. (a)/(b) | `fila 77 / fila 78` | Filas 77 y 78. | Ratio | — | — |
 | 80. Antigüedad en el sistema | `año(fecha_corte) - 1994` | Fecha del período. | Años | — | — |
@@ -693,9 +693,9 @@ $$
 \text{Rentabilidad nominal} = \left(\frac{\text{Valor final}}{\text{Valor inicial}} - 1\right) \times 100
 $$
 
-**Fórmula implementada por la macro Excel**
+**Fórmula implementada por la aplicación**
 
-La macro abre `Rent_Vr_Uni_Moderado.xlsm`, usa la hoja `Consolidado`, escribe la fecha inicial (`fecha_corte - 1 año`) en `D4` y la fecha final en `D5`. Después toma la rentabilidad nominal de `D11` y escribe `D11 * 100` en la columna N del mensual.
+La aplicación usa `RentabilidadService`, igual que el archivo semestral. Busca las fechas exactas `fecha_corte - 1 año` y `fecha_corte` en `Consolidado!A`, toma sus NAV de `Consolidado!E` y calcula en Java `((NAV_final / NAV_inicial)^(365 / días) - 1) * 100`. No modifica `D4:D5`, no evalúa fórmulas de Excel con POI y no lee el resultado almacenado en `D11`.
 
 #### Columna O: Rentabilidad real 1 año (%)
 
@@ -713,9 +713,9 @@ $$
 \text{Rentabilidad real} = \left(\frac{1+\text{Rentabilidad nominal}}{1+\text{Inflación}} - 1\right) \times 100
 $$
 
-**Fórmula implementada por la macro Excel**
+**Fórmula implementada por la aplicación**
 
-Con las mismas fechas en `Consolidado!D4:D5`, la macro toma la rentabilidad real de `D10` y escribe `D10 * 100` en la columna O del mensual. La aplicación vigente reproduce la búsqueda sobre la serie del libro y puede usar el día hábil anterior cuando la fecha de corte no aparece exactamente.
+Con las mismas fechas exactas, la aplicación toma los NAV de `Consolidado!E` y los índices de `IPC_D!B`. Calcula en Java `(((NAV_final / NAV_inicial) / (IPC_final / IPC_inicial))^(365 / días) - 1) * 100`. No toma el valor de `D10` ni de `Consolidado!I`; por tanto, el mensual no depende de que Excel haya recalculado o guardado esas celdas de salida.
 
 #### Columna P: Referencia fija
 
@@ -1845,7 +1845,7 @@ La fila 42 corresponde a la participación de inversiones del exterior en socied
 
 **Interpretación económica u operativa**
 
-Permite identificar esta categoría de inversión exterior. La macro y la aplicación vigente usan fuentes distintas para poblarla.
+Permite identificar esta categoría de inversión exterior. Como actualmente no existe una fuente definida para calcularla, la aplicación la deja en cero.
 
 **Fórmula conceptual**
 
@@ -1856,10 +1856,10 @@ $$
 **Fórmula implementada**
 
 $$
-\text{Fila 42} = 2
+\text{Fila 42} = 0
 $$
 
-La macro histórica toma `LIMITES!AIOS!Y4`; la aplicación vigente escribe la constante `2`. Esta diferencia se conserva explícita en la matriz 4.3.
+La macro histórica tomaba `LIMITES!AIOS!Y4`; la aplicación vigente escribe la constante `0` por decisión funcional hasta que se defina una fuente verificable.
 
 #### Fila 43: Otros activos (%)
 
@@ -2042,13 +2042,13 @@ Mide el valor patrimonial contable de la entidad o sistema reportado.
 **Fórmula conceptual**
 
 $$
-\text{Patrimonio en USD} = \frac{\text{Activos} - \text{Pasivos}}{\text{TRM}}
+\text{Patrimonio en USD} = \frac{\text{Saldo cuenta 300000}/1{,}000{,}000}{\text{TRM}}
 $$
 
 **Fórmula implementada**
 
 $$
-\text{Fila 50} = \frac{\text{Activos cuentas} - \text{Pasivos cuentas}}{\text{TRM}}
+\text{Fila 50} = \frac{\text{Patrimonio cuenta 300000}}{\text{TRM}}
 $$
 
 La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
@@ -2144,7 +2144,7 @@ $$
 **Fórmula implementada**
 
 $$
-\text{Fila 54} = \text{CUENTAS!E44}
+\text{Fila 54} = \frac{\text{Flujo semestral cuenta 590000}}{1{,}000{,}000 \times \text{TRM}}
 $$
 
 La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
@@ -2360,7 +2360,7 @@ $$
 **Fórmula implementada**
 
 $$
-\text{Fila 63} = \frac{\text{Patrimonio base mes}/\text{TRM}}{\text{Fila 28}} \times 100
+\text{Fila 63} = \frac{\text{Saldo cuenta 300000}/1{,}000{,}000/\text{TRM}}{\text{Fila 28}} \times 100
 $$
 
 La fuente técnica exacta está descrita en la tabla de fórmulas semestrales.
@@ -3028,7 +3028,7 @@ Macro Excel: usa las mismas fechas de un año en `Consolidado!D4:D5` y toma el r
 |---|---|
 | `LIMITES del nuevo.xlsm` | Composición local/exterior y total de inversiones. |
 | `PIB_PEA_TRM_DG` | PEA, PIB, deuda gubernamental y TRM de contingencia. |
-| `Plantilla AIOS-probable.xlsm` | Cuentas, balances, resultados y gastos. Sus hojas `base anual` y `base mes` deben estar actualizadas antes de generar. |
+| Teradata `ESTFIN_INDIV` y `ENTIDADES` | Cuentas, balances, resultados, gastos y administradoras vigentes; reemplaza la dependencia de `Plantilla AIOS-probable.xlsm`. |
 | `Rent_Vr_Uni_Moderado.xlsm` | IPC y referencias para rentabilidad real. |
 | `Valores_Fondo_Moder` / `MODERADO` | NAV histórico usado para rentabilidades nominales. |
 | `Comisión FPO desde 2003.xlsx` | Comisiones obligatorias y de seguro por AFP. |

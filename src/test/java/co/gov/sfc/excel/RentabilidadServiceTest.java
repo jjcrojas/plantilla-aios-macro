@@ -85,6 +85,10 @@ class RentabilidadServiceTest {
                 Row navRow = consolidado.createRow(13 + i);
                 navRow.createCell(0).setCellValue(java.sql.Date.valueOf(dates[i]));
                 navRow.createCell(4).setCellValue(navValues[i]);
+                if (dates[i].equals(LocalDate.of(2025, 6, 30))) {
+                    // Valor deliberadamente incorrecto para demostrar que no se lee Consolidado!I.
+                    navRow.createCell(8).setCellValue(0.0011923327597287425);
+                }
 
                 Row ipcRow = ipcDiario.createRow(1 + i);
                 ipcRow.createCell(0).setCellValue(java.sql.Date.valueOf(dates[i]));

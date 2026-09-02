@@ -2,9 +2,9 @@ package co.gov.sfc.excel;
 
 import co.gov.sfc.config.AiosProperties;
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,10 +19,15 @@ import java.util.Map;
 @Component
 public class TrimestralExcelGenerator {
 
-    private final AiosProperties properties;
+    private final AiosTemplateService templateService;
 
+    @Autowired
     public TrimestralExcelGenerator(AiosProperties properties) {
-        this.properties = properties;
+        this(new AiosTemplateService(properties));
+    }
+
+    TrimestralExcelGenerator(AiosTemplateService templateService) {
+        this.templateService = templateService;
     }
 
     public Path generar(LocalDate fechaCorte, TrimestralData data) {
@@ -42,16 +47,15 @@ public class TrimestralExcelGenerator {
         if (periodos == null || periodos.isEmpty()) {
             throw new IllegalArgumentException("Debe suministrar al menos un período trimestral");
         }
-        Path base = properties.salidasReferenciaDir().resolve(plantillaNombre);
-        if (!Files.isRegularFile(base) && "Boletin_AIOS SEMESTRAL.xlsx".equals(plantillaNombre)) {
-            base = properties.salidasReferenciaDir().resolve("Boletin_AIOS TRIMESTRAL.xlsx");
-        }
         Path outDir = Path.of("target", "aios-output");
 
         try {
             Files.createDirectories(outDir);
             Path out = Files.createTempDirectory(outDir, "trimestral-").resolve(salidaNombre);
-            try (InputStream in = Files.newInputStream(base); Workbook wb = WorkbookFactory.create(in)) {
+            String[] templates = "Boletin_AIOS SEMESTRAL.xlsx".equals(plantillaNombre)
+                    ? new String[]{plantillaNombre, "Boletin_AIOS TRIMESTRAL.xlsx"}
+                    : new String[]{plantillaNombre};
+            try (Workbook wb = templateService.openWorkbook(templates)) {
                 periodos.stream()
                         .sorted(Comparator.comparing(PeriodoTrimestral::fechaCorte))
                         .forEach(periodo -> escribirPeriodo(wb, periodo));
@@ -163,9 +167,10 @@ public class TrimestralExcelGenerator {
             }
         }
 
+        int firstDataRow = firstDataRowIndex(sheet);
         int lastPeriodRow = -1;
         int insertionRow = -1;
-        for (int rowIndex = 5; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+        for (int rowIndex = firstDataRow; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
             Row candidate = sheet.getRow(rowIndex);
             if (candidate == null) continue;
             LocalDate periodo = periodDate(candidate.getCell(0), formatter);
@@ -173,12 +178,13 @@ public class TrimestralExcelGenerator {
             lastPeriodRow = rowIndex;
             if (insertionRow < 0 && periodo.isAfter(fechaCorte)) insertionRow = rowIndex;
         }
-        int r = insertionRow >= 0 ? insertionRow : Math.max(lastPeriodRow + 1, 6);
-        if (r <= sheet.getLastRowNum()) {
+        int r = insertionRow >= 0 ? insertionRow : Math.max(lastPeriodRow + 1, firstDataRow);
+        Row reusableRow = sheet.getRow(r);
+        if (r <= sheet.getLastRowNum() && !isReusableBlankDataRow(reusableRow)) {
             sheet.shiftRows(r, sheet.getLastRowNum(), 1, true, false);
         }
         Row row = sheet.getRow(r); if (row == null) row = sheet.createRow(r);
-        copyPreviousRowFormat(sheet, r);
+        if (!hasStyledCells(row)) copyPreviousRowFormat(sheet, r);
         Cell c = row.getCell(0); if (c == null) c = row.createCell(0);
         c.setCellValue(etiquetaCanonica);
         return r + 1;
@@ -187,7 +193,7 @@ public class TrimestralExcelGenerator {
     private void sortAndNormalizePeriodRows(Sheet sheet) {
         DataFormatter formatter = new DataFormatter();
         List<PeriodRowSnapshot> periods = new ArrayList<>();
-        for (int rowIndex = 5; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+        for (int rowIndex = firstDataRowIndex(sheet); rowIndex <= sheet.getLastRowNum(); rowIndex++) {
             Row row = sheet.getRow(rowIndex);
             if (row == null) continue;
             LocalDate period = periodDate(row.getCell(0), formatter);
@@ -282,6 +288,32 @@ public class TrimestralExcelGenerator {
     private String canonicalPeriodLabel(LocalDate date) {
         String[] months = {"", "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"};
         return months[date.getMonthValue()] + "-" + String.format("%02d", date.getYear() % 100);
+    }
+
+    private int firstDataRowIndex(Sheet sheet) {
+        return switch (sheet.getSheetName().toLowerCase(Locale.ROOT)) {
+            case "afiliados", "comisiones" -> 7; // fila 8
+            case "gastos" -> 13;                 // fila 14
+            case "aportantes", "colombia", "rentabilidad", "promotores", "traspasos" -> 6; // fila 7
+            default -> 6;
+        };
+    }
+
+    private boolean isReusableBlankDataRow(Row row) {
+        if (row == null) return false;
+        DataFormatter formatter = new DataFormatter();
+        for (Cell cell : row) {
+            if (!formatter.formatCellValue(cell).isBlank()) return false;
+        }
+        return true;
+    }
+
+    private boolean hasStyledCells(Row row) {
+        if (row == null) return false;
+        for (Cell cell : row) {
+            if (cell.getCellStyle() != null && cell.getCellStyle().getIndex() != 0) return true;
+        }
+        return false;
     }
 
     private record CellSnapshot(CellType type, Object value, CellStyle style) { }

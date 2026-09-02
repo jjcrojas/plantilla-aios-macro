@@ -25,12 +25,11 @@ class MensualExcelGeneratorTest {
     Path tempDir;
 
     @Test
-    void shouldGenerateRequestedPeriodsInOrderUsingRealTemplate() throws Exception {
-        Path projectDir = Path.of("").toAbsolutePath();
+    void shouldGenerateRequestedPeriodsInOrderUsingBlankInternalTemplate() throws Exception {
         AiosProperties properties = new AiosProperties(
-                projectDir.resolve("insumos"),
-                projectDir.resolve("plantillas"),
-                projectDir.resolve("salidas_referencia"),
+                tempDir.resolve("insumos-inexistentes"),
+                tempDir.resolve("plantillas-inexistentes"),
+                tempDir.resolve("salidas-referencia-inexistentes"),
                 40,
                 false
         );
@@ -51,9 +50,12 @@ class MensualExcelGeneratorTest {
         try (Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(output.toFile())) {
             Sheet sheet = workbook.getSheet("HOJA1");
             assertEquals(List.of("jun-25", "jul-25", "ago-25", "sep-25", "oct-25", "nov-25", "dic-25"),
-                    java.util.stream.IntStream.rangeClosed(24, 30)
+                    java.util.stream.IntStream.rangeClosed(1, 7)
                             .mapToObj(row -> sheet.getRow(row).getCell(0).getStringCellValue())
                             .toList());
+            assertEquals(1d, sheet.getRow(1).getCell(15).getNumericCellValue());
+            assertEquals("#,##0", sheet.getRow(1).getCell(1).getCellStyle().getDataFormatString());
+            assertEquals("#,##0.00", sheet.getRow(1).getCell(14).getCellStyle().getDataFormatString());
         }
     }
 
@@ -77,7 +79,7 @@ class MensualExcelGeneratorTest {
             assertEquals(6, row);
             assertEquals("jul-25", sheet.getRow(5).getCell(0).getStringCellValue());
             assertEquals("#,##0", sheet.getRow(5).getCell(1).getCellStyle().getDataFormatString());
-            assertEquals("(1) Nota metodológica", sheet.getRow(7).getCell(0).getStringCellValue());
+            assertEquals("(1) Nota metodológica", sheet.getRow(6).getCell(0).getStringCellValue());
         }
     }
 
@@ -149,6 +151,6 @@ class MensualExcelGeneratorTest {
                 one, one, one, one, one, one,
                 one, one, one, one, one, one,
                 one, one, one, one, one,
-                one);
+                one, one, one);
     }
 }

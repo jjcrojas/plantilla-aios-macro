@@ -29,10 +29,11 @@ class TrimestralDataReaderTest {
         ComisionesSfcService comisionesSfcService = mock(ComisionesSfcService.class);
 
         LocalDate fecha = LocalDate.of(2025, 6, 30);
-        when(locator.findRequired("493", fecha)).thenReturn(Path.of("insumos_ejemplo", "Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx"));
-        when(locator.findRequired("SISTEMA TOTAL", fecha)).thenReturn(Path.of("insumos_ejemplo", "SISTEMA TOTAL Junio 2025.xls"));
-        when(locator.findRequired("Rent_Vr_Uni_Moderado", fecha)).thenReturn(Path.of("insumos_ejemplo", "Rent_Vr_Uni_Moderado.xlsm"));
-        when(locator.findRequired("comision fpo desde 2003", fecha)).thenReturn(Path.of("insumos_ejemplo", "comisión FPO desde 2003.xls"));
+        Path dynamicInputs = Path.of("target", "insumos-dinamicos-prueba");
+        when(locator.findRequired("493", fecha)).thenReturn(dynamicInputs.resolve("Serie_Formato_493 MOVIMIENTO AFILIADOS.xlsx"));
+        when(locator.findRequired("SISTEMA TOTAL", fecha)).thenReturn(dynamicInputs.resolve("SISTEMA TOTAL Junio 2025.xls"));
+        when(locator.findRequired("Rent_Vr_Uni_Moderado", fecha)).thenReturn(dynamicInputs.resolve("Rent_Vr_Uni_Moderado.xlsm"));
+        when(locator.findRequired("comision fpo desde 2003", fecha)).thenReturn(dynamicInputs.resolve("comisión FPO desde 2003.xls"));
         when(mensualDataReader.read(fecha)).thenReturn(new MensualData(
                 "jun-25",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
@@ -44,6 +45,8 @@ class TrimestralDataReaderTest {
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,

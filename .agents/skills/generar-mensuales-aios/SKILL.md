@@ -45,7 +45,7 @@ Usar `-Desde` y opcionalmente `-Hasta` para seleccionar el intervalo. Sin ambos 
 ## Requisitos y validación
 
 - Requerir conexión y credenciales válidas para Teradata.
-- Requerir los insumos locales que todavía consume `MensualDataReader` y el boletín base en `salidas_referencia`.
+- Requerir acceso a los insumos dinámicos de OneDrive que todavía consume `MensualDataReader`; la presentación del boletín proviene de una plantilla interna vacía y no requiere `salidas_referencia`.
 - No abrir Excel ni ejecutar macros VBA.
 - Fallar ante cualquier respuesta HTTP inválida; no presentar archivos parciales como exitosos.
 - Validar el formato de los períodos y rechazar rangos invertidos antes de iniciar la aplicación.
