@@ -21,7 +21,7 @@ public class AiosViewController {
     public String generarHelp(Model model) {
         model.addAttribute("modos", ModoGeneracion.values());
         model.addAttribute("fechaHoy", LocalDate.now());
-        model.addAttribute("mensaje", "Use este formulario para enviar POST a /aios/generar.");
+        model.addAttribute("mensaje", "Seleccione una fecha o un rango de períodos y el modo de generación.");
         return "aios-index";
     }
 }

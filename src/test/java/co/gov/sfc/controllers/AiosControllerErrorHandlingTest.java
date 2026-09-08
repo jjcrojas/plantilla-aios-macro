@@ -25,6 +25,27 @@ class AiosControllerErrorHandlingTest {
     @MockBean
     private AiosGeneracionService generacionService;
 
+    @org.junit.jupiter.api.io.TempDir
+    java.nio.file.Path tempDir;
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(co.gov.sfc.model.ModoGeneracion.class)
+    void shouldDownloadRangeForEveryMode(co.gov.sfc.model.ModoGeneracion modo) throws Exception {
+        boolean zip = modo == co.gov.sfc.model.ModoGeneracion.TODO;
+        var file = java.nio.file.Files.writeString(tempDir.resolve(zip ? "aios.zip" : "aios.xlsx"), "test");
+        var desde = java.time.LocalDate.of(2025, 6, 1);
+        var hasta = java.time.LocalDate.of(2025, 12, 31);
+        when(generacionService.generarRango(desde, hasta, modo))
+                .thenReturn(new co.gov.sfc.model.ResultadoGeneracion(java.util.List.of(file), zip));
+        mockMvc.perform(post("/aios/generar-rango")
+                        .param("desde", desde.toString()).param("hasta", hasta.toString())
+                        .param("modo", modo.name()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(zip ? "application/zip"
+                        : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        org.mockito.Mockito.verify(generacionService).generarRango(desde, hasta, modo);
+    }
+
     @Test
     void shouldReturnPlainMessageWhenGenerationFails() throws Exception {
         when(generacionService.generar(any(), any())).thenThrow(new IllegalStateException("fallo controlado"));

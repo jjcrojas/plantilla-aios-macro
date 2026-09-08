@@ -45,7 +45,7 @@ public class InsumosLocator {
             }
         }
 
-        throw new IllegalArgumentException("No se encontró insumo que contenga: " + contains + " en rutas: " + candidates);
+        throw new InsumoNoEncontradoException("No se encontró insumo que contenga: " + contains + " en rutas: " + candidates);
     }
 
     private List<Path> candidateDirsFor(String contains, LocalDate fechaCorte) {
@@ -122,7 +122,7 @@ public class InsumosLocator {
                     .findFirst()
                     .orElse(null);
         } catch (IOException e) {
-            return null;
+            throw new java.io.UncheckedIOException("No fue posible inspeccionar la ruta de insumos: " + dir, e);
         }
     }
 }

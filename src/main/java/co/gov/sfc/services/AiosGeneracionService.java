@@ -179,9 +179,19 @@ public class AiosGeneracionService {
             case MENSUAL -> generarMensuales(desde, hasta);
             case TRIMESTRAL -> generarTrimestrales(desde, hasta);
             case SEMESTRAL -> generarSemestrales(desde, hasta);
-            case TODO -> throw new IllegalArgumentException(
-                    "La generación consolidada por rango requiere modo MENSUAL, TRIMESTRAL o SEMESTRAL");
+            case TODO -> generarTodoRango(desde, hasta);
         };
+    }
+
+    private ResultadoGeneracion generarTodoRango(LocalDate desde, LocalDate hasta) {
+        List<Path> archivos = new ArrayList<>(generarMensuales(desde, hasta).archivosGenerados());
+        if (!cutoffs(desde, hasta, this::isQuarterMonthValue, "trimestral", false).isEmpty()) {
+            archivos.addAll(generarTrimestrales(desde, hasta).archivosGenerados());
+        }
+        if (!cutoffs(desde, hasta, this::isSemesterMonthValue, "semestral", false).isEmpty()) {
+            archivos.addAll(generarSemestrales(desde, hasta).archivosGenerados());
+        }
+        return new ResultadoGeneracion(List.of(zip(archivos)), true);
     }
 
     public ResultadoGeneracion generarTrimestrales(LocalDate desde, LocalDate hasta) {
@@ -220,6 +230,10 @@ public class AiosGeneracionService {
     }
 
     private List<LocalDate> cutoffs(LocalDate desde, LocalDate hasta, IntPredicate allowedMonth, String tipo) {
+        return cutoffs(desde, hasta, allowedMonth, tipo, true);
+    }
+
+    private List<LocalDate> cutoffs(LocalDate desde, LocalDate hasta, IntPredicate allowedMonth, String tipo, boolean required) {
         List<LocalDate> fechas = new ArrayList<>();
         YearMonth actual = YearMonth.from(desde);
         YearMonth ultimo = YearMonth.from(hasta);
@@ -232,7 +246,7 @@ public class AiosGeneracionService {
             }
             actual = actual.plusMonths(1);
         }
-        if (fechas.isEmpty()) {
+        if (required && fechas.isEmpty()) {
             throw new IllegalArgumentException("El rango no contiene ningún corte " + tipo + " válido");
         }
         return fechas;

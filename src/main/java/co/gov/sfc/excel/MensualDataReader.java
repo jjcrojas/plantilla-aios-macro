@@ -100,14 +100,21 @@ public class MensualDataReader {
         log.info("Consulta Teradata Formato 491 completada para fechaCorte={}", fechaCorte);
         log.info("Consulta Teradata Formato 493 completada para fechaCorte={}", fechaCorte);
 
+        BigDecimal tmpNominal1 = null;
+        BigDecimal tmpReal1 = null;
+        try {
         var rentFile = locator.findRequired("Rent_Vr_Uni_Moderado", fechaCorte);
         var rentabilidadUnAnio = rentabilidadService.calcularRentabilidad(rentFile, fechaCorte, 1);
-        BigDecimal tmpNominal1 = rentabilidadUnAnio.rentabilidadNominal();
-        BigDecimal tmpReal1 = rentabilidadUnAnio.rentabilidadReal();
+        tmpNominal1 = rentabilidadUnAnio.rentabilidadNominal();
+        tmpReal1 = rentabilidadUnAnio.rentabilidadReal();
         log.info("Rentabilidad mensual 1 año calculada en Java con Consolidado!E e IPC_D!B: "
                         + "fechaInicio={} fechaFin={} nominal={} real={} archivo={}",
                 rentabilidadUnAnio.fechaInicio(), rentabilidadUnAnio.fechaFin(),
                 tmpNominal1, tmpReal1, rentFile.toAbsolutePath());
+        } catch (co.gov.sfc.insumos.InsumoNoEncontradoException ex) {
+            log.warn("GENERACION_PARCIAL fechaCorte={}: rentabilidades nominal y real de 1 año no disponibles; "
+                    + "se marcarán N/D y se continuará con las demás fuentes. {}", fechaCorte, ex.getMessage());
+        }
 
         var fondoAdministrado = fondoAdministradoQueryService.leer(fechaCorte);
         BigDecimal vrFondo = fondoAdministrado.totalMmCop();

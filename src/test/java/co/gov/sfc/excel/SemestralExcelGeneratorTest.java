@@ -32,8 +32,9 @@ import static org.mockito.Mockito.when;
 
 class SemestralExcelGeneratorTest {
 
-    @Test
-    void shouldGenerateFromBlankInternalTemplateWithoutReferenceDirectory() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void shouldGenerateFromBlankInternalTemplateWithoutReferenceDirectory(boolean missingRentabilidad) throws Exception {
         LocalDate cutoff = LocalDate.of(2025, 6, 30);
         Path missingRoot = Path.of("target", "sin-referencias-semestral");
         AiosProperties properties = new AiosProperties(
@@ -72,6 +73,10 @@ class SemestralExcelGeneratorTest {
                         "pro_obl", BigDecimal.ZERO, "ska_obl", BigDecimal.ZERO),
                 Map.of(), Map.of());
 
+        if (missingRentabilidad) {
+            when(locator.findRequired("Rent_Vr_Uni_Moderado", cutoff))
+                    .thenThrow(new co.gov.sfc.insumos.InsumoNoEncontradoException("Insumo pendiente"));
+        }
         Path output = generator.generar(cutoff, monthlyData("jun-25"), quarterly);
 
         assertTrue(Files.isRegularFile(output));
@@ -82,6 +87,12 @@ class SemestralExcelGeneratorTest {
             assertEquals(1d, sheet.getRow(2).getCell(2).getNumericCellValue());
             assertEquals(0d, sheet.getRow(41).getCell(2).getNumericCellValue());
             assertNotEquals(0, sheet.getRow(2).getCell(2).getCellStyle().getIndex());
+            if (missingRentabilidad) {
+                for (int row = 81; row <= 88; row++) {
+                    assertEquals("N/D", sheet.getRow(row).getCell(2).getStringCellValue());
+                }
+                org.mockito.Mockito.verifyNoInteractions(rentabilidadService);
+            }
         }
     }
 

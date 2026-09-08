@@ -26,6 +26,21 @@ class AiosViewControllerTest {
     }
 
     @Test
+    void shouldRenderPeriodSelectorAndAllModes() throws Exception {
+        mockMvc.perform(get("/aios"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("id=\"tipoPeriodo\""),
+                                org.hamcrest.Matchers.containsString("id=\"periodoInicial\""),
+                                org.hamcrest.Matchers.containsString("id=\"periodoFinal\""),
+                                org.hamcrest.Matchers.containsString("value=\"MENSUAL\""),
+                                org.hamcrest.Matchers.containsString("value=\"TRIMESTRAL\""),
+                                org.hamcrest.Matchers.containsString("value=\"SEMESTRAL\""),
+                                org.hamcrest.Matchers.containsString("value=\"TODO\""))));
+    }
+
+    @Test
     void shouldRenderUiAtAiosGenerarGet() throws Exception {
         mockMvc.perform(get("/aios/generar"))
                 .andExpect(status().isOk())

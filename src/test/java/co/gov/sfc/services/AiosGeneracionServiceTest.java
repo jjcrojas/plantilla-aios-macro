@@ -30,6 +30,45 @@ class AiosGeneracionServiceTest {
     Path tempDir;
 
     @Test
+    void shouldZipAllApplicableConsolidatedReports() throws Exception {
+        var service = spy(new AiosGeneracionService(mock(MensualDataReader.class),
+                mock(MensualExcelGenerator.class), mock(SemestralExcelGenerator.class),
+                mock(TrimestralDataReader.class), mock(TrimestralExcelGenerator.class), tempDir));
+        var desde = LocalDate.of(2025, 6, 1);
+        var hasta = LocalDate.of(2025, 12, 31);
+        var mensual = Files.writeString(tempDir.resolve("mensual.xlsx"), "mensual");
+        var trimestral = Files.writeString(tempDir.resolve("trimestral.xlsx"), "trimestral");
+        var semestral = Files.writeString(tempDir.resolve("semestral.xlsx"), "semestral");
+        doReturn(new co.gov.sfc.model.ResultadoGeneracion(List.of(mensual), false)).when(service).generarMensuales(desde, hasta);
+        doReturn(new co.gov.sfc.model.ResultadoGeneracion(List.of(trimestral), false)).when(service).generarTrimestrales(desde, hasta);
+        doReturn(new co.gov.sfc.model.ResultadoGeneracion(List.of(semestral), false)).when(service).generarSemestrales(desde, hasta);
+        var resultado = service.generarRango(desde, hasta, ModoGeneracion.TODO);
+        assertTrue(resultado.zip());
+        try (var zip = new ZipFile(resultado.archivosGenerados().getFirst().toFile())) {
+            assertEquals(List.of("mensual.xlsx", "trimestral.xlsx", "semestral.xlsx"),
+                    zip.stream().map(java.util.zip.ZipEntry::getName).toList());
+        }
+    }
+
+    @Test
+    void shouldSkipNonApplicableReportsInTodoRange() throws Exception {
+        var service = spy(new AiosGeneracionService(mock(MensualDataReader.class),
+                mock(MensualExcelGenerator.class), mock(SemestralExcelGenerator.class),
+                mock(TrimestralDataReader.class), mock(TrimestralExcelGenerator.class), tempDir));
+        var desde = LocalDate.of(2025, 7, 1);
+        var hasta = LocalDate.of(2025, 8, 31);
+        var mensual = Files.writeString(tempDir.resolve("mensual.xlsx"), "mensual");
+        doReturn(new co.gov.sfc.model.ResultadoGeneracion(List.of(mensual), false)).when(service).generarMensuales(desde, hasta);
+        var resultado = service.generarRango(desde, hasta, ModoGeneracion.TODO);
+        verify(service, never()).generarTrimestrales(any(), any());
+        verify(service, never()).generarSemestrales(any(), any());
+        try (var zip = new ZipFile(resultado.archivosGenerados().getFirst().toFile())) {
+            assertEquals(1, zip.size());
+        }
+        assertThrows(IllegalArgumentException.class, () -> service.generarRango(hasta, desde, ModoGeneracion.TODO));
+    }
+
+    @Test
     void shouldGenerateAllMonthlyPeriodsInOneWorkbook() {
         MensualDataReader reader = mock(MensualDataReader.class);
         MensualExcelGenerator generator = mock(MensualExcelGenerator.class);

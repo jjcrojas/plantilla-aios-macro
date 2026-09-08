@@ -16,8 +16,9 @@ import static org.mockito.Mockito.when;
 
 class MensualDataReaderTest {
 
-    @Test
-    void shouldUseSameOneYearRentabilidadServiceAsSemestral() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void shouldContinueWithAvailableDataWhenRentabilidadFileIsMissing(boolean missing) {
         LocalDate fechaCorte = LocalDate.of(2025, 6, 30);
         LocalDate fechaInicio = LocalDate.of(2024, 6, 30);
         Path rentFile = Path.of("target", "archivo-no-necesita-existir", "Rent_Vr_Uni_Moderado.xlsm");
@@ -67,11 +68,28 @@ class MensualDataReaderTest {
                 balanceContable,
                 rentabilidadService);
 
+        if (missing) {
+            when(locator.findRequired("Rent_Vr_Uni_Moderado", fechaCorte))
+                    .thenThrow(new co.gov.sfc.insumos.InsumoNoEncontradoException("Insumo pendiente"));
+        }
         MensualData result = reader.read(fechaCorte);
 
+        if (missing) {
+            org.junit.jupiter.api.Assertions.assertNull(result.tmpNominal1());
+            org.junit.jupiter.api.Assertions.assertNull(result.tmpReal1());
+            org.mockito.Mockito.verifyNoInteractions(rentabilidadService);
+        } else {
         assertEquals(new BigDecimal("0.1022608588509073"), result.tmpNominal1());
         assertEquals(new BigDecimal("0.051511390166620874"), result.tmpReal1());
         verify(rentabilidadService).calcularRentabilidad(rentFile, fechaCorte, 1);
+        }
+        assertEquals(new BigDecimal("4069.67"), result.trm());
+        verify(formato495).leerResumen(fechaCorte);
+        verify(fondoAdministrado).leer(fechaCorte);
+        // Un problema de configuración no debe confundirse con un archivo pendiente.
+        org.mockito.Mockito.doThrow(new IllegalStateException("Configuración inválida"))
+                .when(locator).findRequired("Rent_Vr_Uni_Moderado", fechaCorte);
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> reader.read(fechaCorte));
     }
 
     private Formato491QueryService.Resumen491 resumen491EnCeros() {

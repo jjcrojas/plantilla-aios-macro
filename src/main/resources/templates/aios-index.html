@@ -10,7 +10,7 @@
         .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; }
         .row { margin-bottom: 1rem; }
         label { display: block; margin-bottom: 0.35rem; font-weight: bold; }
-        input, select, button { padding: 0.5rem; font-size: 1rem; width: 100%; }
+        input, select, button { box-sizing: border-box; padding: 0.5rem; font-size: 1rem; width: 100%; }
         button { cursor: pointer; background: #0b57d0; color: #fff; border: none; border-radius: 6px; }
         small { color: #555; }
     </style>
@@ -22,8 +22,15 @@
 
 
 <div class="card">
-    <form method="post" action="/aios/generar">
+    <form id="generacion" method="post" action="/aios/generar">
         <div class="row">
+            <label for="tipoPeriodo">Selección de períodos</label>
+            <select id="tipoPeriodo">
+                <option value="unico">Una fecha</option>
+                <option value="rango">Rango de períodos</option>
+            </select>
+        </div>
+        <div class="row" id="periodoUnico">
             <label for="fechaCorte">Fecha de corte</label>
             <input id="fechaCorte" name="fechaCorte" type="date" th:value="${fechaHoy}" required />
         </div>
@@ -35,9 +42,66 @@
             </select>
         </div>
 
+        <div id="periodoRango" hidden>
+            <div class="row">
+                <label for="periodoInicial">Período inicial</label>
+                <input id="periodoInicial" type="month" disabled />
+            </div>
+            <div class="row">
+                <label for="periodoFinal">Período final</label>
+                <input id="periodoFinal" type="month" disabled />
+            </div>
+            <input id="desde" name="desde" type="hidden" disabled />
+            <input id="hasta" name="hasta" type="hidden" disabled />
+            <p><small>Ambos meses están incluidos. Trimestral: cierres de marzo, junio, septiembre y diciembre. Semestral: junio y diciembre. Todo: ZIP con un libro consolidado por cada tipo aplicable.</small></p>
+        </div>
         <button type="submit">Generar</button>
         <small>La descarga del Excel/ZIP iniciará al terminar el proceso.</small>
     </form>
 </div>
+<script>
+    const form = document.getElementById('generacion');
+    const tipo = document.getElementById('tipoPeriodo');
+    const fecha = document.getElementById('fechaCorte');
+    const inicial = document.getElementById('periodoInicial');
+    const final = document.getElementById('periodoFinal');
+    const desde = document.getElementById('desde');
+    const hasta = document.getElementById('hasta');
+    function validarRango() {
+        final.min = inicial.value;
+        final.setCustomValidity(inicial.value && final.value && inicial.value > final.value
+            ? 'El período final no puede ser anterior al inicial.' : '');
+    }
+    function actualizarSeleccion() {
+        const rango = tipo.value === 'rango';
+        form.action = rango ? '/aios/generar-rango' : '/aios/generar';
+        document.getElementById('periodoUnico').hidden = rango;
+        document.getElementById('periodoRango').hidden = !rango;
+        fecha.disabled = rango;
+        fecha.required = !rango;
+        for (const input of [inicial, final]) {
+            input.disabled = !rango;
+            input.required = rango;
+            if (!input.value) input.value = fecha.value.slice(0, 7);
+        }
+        desde.disabled = hasta.disabled = !rango;
+        validarRango();
+    }
+    tipo.addEventListener('change', actualizarSeleccion);
+    inicial.addEventListener('input', validarRango);
+    final.addEventListener('input', validarRango);
+    form.addEventListener('submit', (event) => {
+        if (tipo.value !== 'rango') return;
+        validarRango();
+        if (!form.reportValidity()) {
+            event.preventDefault();
+            return;
+        }
+        desde.value = inicial.value + '-01';
+        const [year, month] = final.value.split('-').map(Number);
+        hasta.value = final.value + '-' + String(new Date(year, month, 0).getDate()).padStart(2, '0');
+    });
+    actualizarSeleccion();
+</script>
 </body>
 </html>

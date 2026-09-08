@@ -74,7 +74,8 @@ public class AiosController {
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + archivo.getFileName() + "\"")
-                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .contentType(MediaType.parseMediaType(resultado.zip() ? "application/zip"
+                        : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(new FileSystemResource(archivo));
     }
 

@@ -115,7 +115,7 @@ public class MensualExcelGenerator {
     }
 
     private BigDecimal pct(BigDecimal value) {
-        return value.multiply(BigDecimal.valueOf(100));
+        return value == null ? null : value.multiply(BigDecimal.valueOf(100));
     }
 
     void aplicarFormatoFilaMensual(Sheet sheet, int row1Based) {
@@ -178,7 +178,18 @@ public class MensualExcelGenerator {
         if (row == null) row = sheet.createRow(row1Based - 1);
         Cell cell = row.getCell(col1Based - 1);
         if (cell == null) cell = row.createCell(col1Based - 1, CellType.NUMERIC);
-        cell.setCellValue(value.doubleValue());
+        if (value == null) {
+            cell.setCellValue("N/D");
+            var helper = sheet.getWorkbook().getCreationHelper();
+            var comment = sheet.createDrawingPatriarch().createCellComment(helper.createClientAnchor());
+            comment.setAuthor("AIOS");
+            comment.setString(helper.createRichTextString("Generación parcial: dato no disponible por falta de insumo. Fuente: "
+                    + fuenteArchivo + ". Período: " + row.getCell(0).toString() + ". No representa cero."));
+            cell.setCellComment(comment);
+        } else {
+            cell.setCellValue(value.doubleValue());
+            cell.removeCellComment();
+        }
         String celda = CellReference.convertNumToColString(col1Based - 1) + row1Based;
         celdaLogger.log(sheet.getSheetName(), celda, value, fuenteArchivo, fuenteHoja, fuenteCelda);
     }

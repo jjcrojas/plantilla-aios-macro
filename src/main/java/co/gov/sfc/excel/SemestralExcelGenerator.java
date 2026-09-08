@@ -285,6 +285,7 @@ public class SemestralExcelGenerator {
                 write(hoja, 76, col, BigDecimal.ZERO);
                 log.info("Semestral traza filas71-76: comisionPromedioPct={} aporteTrabajador={} aporteEmpleador={}",
                         comisionPromedioPct, aporteTrabajador, aporteEmpleador);
+                try {
                 Rentabilidades rent = readRentabilidades(fechaCorte);
                 write(hoja, 82, col, rent.nominal10().multiply(BigDecimal.valueOf(100)));
                 write(hoja, 83, col, rent.real10().multiply(BigDecimal.valueOf(100)));
@@ -307,6 +308,13 @@ public class SemestralExcelGenerator {
                         rent.nominal5().multiply(BigDecimal.valueOf(100)), rent.real5().multiply(BigDecimal.valueOf(100)),
                         rent.nominal3().multiply(BigDecimal.valueOf(100)), rent.real3().multiply(BigDecimal.valueOf(100)),
                         rent.nominal1().multiply(BigDecimal.valueOf(100)), rent.real1().multiply(BigDecimal.valueOf(100)));
+                } catch (co.gov.sfc.insumos.InsumoNoEncontradoException ex) {
+                    for (int fila = 82; fila <= 89; fila++) {
+                        write(hoja, fila, col, "N/D");
+                    }
+                    log.warn("GENERACION_PARCIAL fechaCorte={}: rentabilidades semestrales N/D; "
+                            + "se conservan las demás cifras. {}", fechaCorte, ex.getMessage());
+                }
                 logFilasSemestral(hoja, col, fechaCorte, mensual, trimestral, detallesFilas);
                 log.info("Período semestral escrito: fecha={} columnaDestino={}", fechaCorte, col);
     }

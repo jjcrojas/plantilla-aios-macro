@@ -16,6 +16,16 @@ class InsumosLocatorTest {
     Path tempDir;
 
     @Test
+    void shouldDistinguishMissingInputFromInvalidConfiguration() {
+        var locator = new InsumosLocator(new AiosProperties(tempDir, tempDir, tempDir, 40, false));
+        org.junit.jupiter.api.Assertions.assertThrows(InsumoNoEncontradoException.class,
+                () -> locator.findRequired("Rent_Vr_Uni_Moderado", LocalDate.of(2026, 8, 31)));
+        var invalid = new InsumosLocator(new AiosProperties(null, tempDir, tempDir, 40, false));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> invalid.findRequired("Rent_Vr_Uni_Moderado", LocalDate.of(2026, 8, 31)));
+    }
+
+    @Test
     void shouldResolveSistemaTotalInMacroBalancesStructure() throws Exception {
         Path monthDir = tempDir.resolve("Balances/2025/6 junio");
         Files.createDirectories(monthDir);

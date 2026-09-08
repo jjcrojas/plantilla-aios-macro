@@ -25,6 +25,27 @@ class MensualExcelGeneratorTest {
     Path tempDir;
 
     @Test
+    void shouldMarkMissingRentabilidadWithoutLosingOtherPeriodsOrValues() throws Exception {
+        var properties = new AiosProperties(tempDir, tempDir, tempDir, 40, false);
+        var generator = new MensualExcelGenerator(properties, new CeldaLogger(), tempDir);
+        var missing = org.mockito.Mockito.mock(MensualData.class, invocation ->
+                invocation.getMethod().getReturnType() == BigDecimal.class ? BigDecimal.ONE : "ago-26");
+        org.mockito.Mockito.when(missing.tmpNominal1()).thenReturn(null);
+        org.mockito.Mockito.when(missing.tmpReal1()).thenReturn(null);
+        var output = generator.generar(List.of(monthlyData("jul-26"), missing));
+        try (var workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(output.toFile())) {
+            var sheet = workbook.getSheet("HOJA1");
+            assertEquals("jul-26", sheet.getRow(1).getCell(0).getStringCellValue());
+            assertEquals("ago-26", sheet.getRow(2).getCell(0).getStringCellValue());
+            assertEquals(1d, sheet.getRow(2).getCell(1).getNumericCellValue());
+            assertEquals("N/D", sheet.getRow(2).getCell(13).getStringCellValue());
+            assertEquals("N/D", sheet.getRow(2).getCell(14).getStringCellValue());
+            org.junit.jupiter.api.Assertions.assertTrue(sheet.getRow(2).getCell(13)
+                    .getCellComment().getString().getString().contains("No representa cero"));
+        }
+    }
+
+    @Test
     void shouldGenerateRequestedPeriodsInOrderUsingBlankInternalTemplate() throws Exception {
         AiosProperties properties = new AiosProperties(
                 tempDir.resolve("insumos-inexistentes"),
