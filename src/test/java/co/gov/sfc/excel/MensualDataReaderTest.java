@@ -2,8 +2,6 @@ package co.gov.sfc.excel;
 
 import co.gov.sfc.config.AiosProperties;
 import co.gov.sfc.insumos.InsumosLocator;
-import org.junit.jupiter.api.Test;
-
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.LocalDate;

@@ -16,7 +16,7 @@ import java.util.Locale;
 @Component
 public class InsumosLocator {
 
-    private static final Locale ES_CO = new Locale("es", "CO");
+	private static final Locale ES_CO = Locale.of("es", "CO");
     private final AiosProperties properties;
 
     public InsumosLocator(AiosProperties properties) {

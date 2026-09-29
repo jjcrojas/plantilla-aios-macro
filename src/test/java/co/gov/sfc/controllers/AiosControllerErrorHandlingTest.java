@@ -1,19 +1,20 @@
 package co.gov.sfc.controllers;
 
-import co.gov.sfc.AIOSApplication;
-import co.gov.sfc.services.AiosGeneracionService;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.test.web.servlet.MockMvc;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import co.gov.sfc.AIOSApplication;
+import co.gov.sfc.services.AiosGeneracionService;
 
 @WebMvcTest(AiosController.class)
 @ContextConfiguration(classes = AIOSApplication.class)
@@ -22,7 +23,7 @@ class AiosControllerErrorHandlingTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private AiosGeneracionService generacionService;
 
     @org.junit.jupiter.api.io.TempDir

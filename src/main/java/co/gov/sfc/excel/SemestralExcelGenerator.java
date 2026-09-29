@@ -1,44 +1,41 @@
 package co.gov.sfc.excel;
 
-import co.gov.sfc.config.AiosProperties;
-import co.gov.sfc.insumos.InsumosLocator;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.CellType;
-import org.apache.poi.ss.usermodel.DataFormatter;
-import org.apache.poi.ss.usermodel.DataFormat;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.FormulaEvaluator;
-import org.apache.poi.ss.usermodel.FillPatternType;
-import org.apache.poi.ss.usermodel.Font;
-import org.apache.poi.ss.usermodel.IndexedColors;
-import org.apache.poi.ss.usermodel.CellValue;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellValue;
+import org.apache.poi.ss.usermodel.DataFormat;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.FormulaEvaluator;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import co.gov.sfc.config.AiosProperties;
+import co.gov.sfc.insumos.InsumosLocator;
+
 @Component
 public class SemestralExcelGenerator {
 
     private static final Logger log = LoggerFactory.getLogger(SemestralExcelGenerator.class);
 
-    private final AiosProperties properties;
     private final InsumosLocator locator;
     private final RentabilidadService rentabilidadService;
     private final Formato493QueryService formato493QueryService;
@@ -48,7 +45,6 @@ public class SemestralExcelGenerator {
     private final AiosTemplateService templateService;
 
     public SemestralExcelGenerator(AiosProperties properties, InsumosLocator locator, RentabilidadService rentabilidadService, Formato493QueryService formato493QueryService, Formato495QueryService formato495QueryService, Formato136QueryService formato136QueryService, ComisionesSemestralQueryService comisionesSemestralQueryService) {
-        this.properties = properties;
         this.locator = locator;
         this.rentabilidadService = rentabilidadService;
         this.formato493QueryService = formato493QueryService;
@@ -763,189 +759,6 @@ public class SemestralExcelGenerator {
         return new RentPair(r.rentabilidadNominal(), r.rentabilidadReal());
     }
 
-    private RentPair calcularRentabilidad(Sheet consolidado, FormulaEvaluator evaluator, LocalDate fechaInicial, LocalDate fechaFinal) {
-        Cell d4 = cell(consolidado, "D4");
-        Cell d5 = cell(consolidado, "D5");
-        d4.setCellValue(java.sql.Date.valueOf(fechaInicial));
-        d5.setCellValue(java.sql.Date.valueOf(fechaFinal));
-        evaluator.clearAllCachedResultValues();
-        Cell d10 = cell(consolidado, "D10");
-        Cell d11 = cell(consolidado, "D11");
-        BigDecimal real;
-        BigDecimal nominal;
-        try {
-            evaluator.notifyUpdateCell(d4);
-            evaluator.notifyUpdateCell(d5);
-            forceRecalculateConsolidadoInputs(consolidado, evaluator);
-            CellValue ev10 = evaluator.evaluate(d10);
-            CellValue ev11 = evaluator.evaluate(d11);
-            real = (ev10 != null && ev10.getCellType() == org.apache.poi.ss.usermodel.CellType.NUMERIC)
-                    ? BigDecimal.valueOf(ev10.getNumberValue())
-                    : num(consolidado, "D10");
-            nominal = (ev11 != null && ev11.getCellType() == org.apache.poi.ss.usermodel.CellType.NUMERIC)
-                    ? BigDecimal.valueOf(ev11.getNumberValue())
-                    : num(consolidado, "D11");
-            log.info("Rent moderado detalle eval: ini={} fin={} D10[type={},cached={},eval={}] D11[type={},cached={},eval={}]",
-                    fechaInicial, fechaFinal,
-                    d10.getCellType(), num(consolidado, "D10"), formatCellValue(ev10),
-                    d11.getCellType(), num(consolidado, "D11"), formatCellValue(ev11));
-        } catch (Exception e) {
-            real = num(consolidado, "D10");
-            nominal = num(consolidado, "D11");
-            log.warn("Rent moderado: evaluator falló para inicio={} fin={}; se usan valores cacheados D10/D11. Causa={}",
-                    fechaInicial, fechaFinal, e.getMessage());
-        }
-        log.info("Rent moderado (solo D4/D5->D10/D11): D4(inicio)={} D5(fin)={} => D11 nominal={} D10 real={}",
-                fechaInicial, fechaFinal, nominal, real);
-        return new RentPair(nominal, real);
-    }
-
-    private void forceRecalculateConsolidadoInputs(Sheet consolidado, FormulaEvaluator evaluator) {
-        int maxRow = Math.min(consolidado.getLastRowNum(), 20);
-        for (int r = 0; r <= maxRow; r++) {
-            Row row = consolidado.getRow(r);
-            if (row == null) continue;
-            int lastCell = Math.min(Math.max(row.getLastCellNum(), (short) 1), 20);
-            for (int c = 0; c < lastCell; c++) {
-                Cell cell = row.getCell(c);
-                if (cell == null) continue;
-                if (cell.getCellType() == CellType.FORMULA) {
-                    try {
-                        evaluator.evaluateFormulaCell(cell);
-                    } catch (Exception ignored) {
-                        // Celdas con dependencias externas pueden fallar; D10/D11 se intentan evaluar al final.
-                    }
-                }
-            }
-        }
-    }
-
-    private String formatCellValue(CellValue cellValue) {
-        if (cellValue == null) return "null";
-        if (cellValue.getCellType() == CellType.NUMERIC) {
-            return BigDecimal.valueOf(cellValue.getNumberValue()).toPlainString();
-        }
-        if (cellValue.getCellType() == CellType.STRING) {
-            return cellValue.getStringValue();
-        }
-        if (cellValue.getCellType() == CellType.BOOLEAN) {
-            return String.valueOf(cellValue.getBooleanValue());
-        }
-        if (cellValue.getCellType() == CellType.ERROR) {
-            return "ERROR:" + cellValue.getErrorValue();
-        }
-        return cellValue.formatAsString();
-    }
-
-    private RentPair leerRentabilidadDesdeSerieConsolidado(Sheet consolidado, LocalDate fechaInicial, LocalDate fechaFinal) {
-        Row rowIni = consolidado.getRow(3);   // fila 4
-        Row rowFin = consolidado.getRow(4);   // fila 5
-        if (rowIni == null || rowFin == null) return new RentPair(BigDecimal.ZERO, BigDecimal.ZERO);
-        int last = Math.max(rowIni.getLastCellNum(), rowFin.getLastCellNum());
-        int fallbackColByIniOnly = -1;
-        for (int c = 3; c < Math.max(last, 4); c++) { // desde columna D
-            LocalDate ini = cellAsDate(rowIni.getCell(c));
-            LocalDate fin = cellAsDate(rowFin.getCell(c));
-            if (fechaInicial.equals(ini) && fallbackColByIniOnly < 0) {
-                fallbackColByIniOnly = c;
-            }
-            if (fechaInicial.equals(ini) && fechaFinal.equals(fin)) {
-                BigDecimal real = num(consolidado, 10, c + 1);     // fila 10
-                BigDecimal nominal = num(consolidado, 11, c + 1);  // fila 11
-                log.info("Rent serie consolidado match exacto: col={} ini={} fin={} nominal(row11)={} real(row10)={}",
-                        c + 1, ini, fin, nominal, real);
-                return new RentPair(nominal, real);
-            }
-        }
-        if (fallbackColByIniOnly >= 0) {
-            LocalDate ini = cellAsDate(rowIni.getCell(fallbackColByIniOnly));
-            LocalDate fin = cellAsDate(rowFin.getCell(fallbackColByIniOnly));
-            BigDecimal real = num(consolidado, 10, fallbackColByIniOnly + 1);
-            BigDecimal nominal = num(consolidado, 11, fallbackColByIniOnly + 1);
-            log.info("Rent serie consolidado match por fecha inicial: col={} ini={} fin={} nominal(row11)={} real(row10)={}",
-                    fallbackColByIniOnly + 1, ini, fin, nominal, real);
-            return new RentPair(nominal, real);
-        }
-        log.warn("Rent serie consolidado: no hubo match de columna para ini={} fin={}; se usará fallback D10/D11 o tabla.",
-                fechaInicial, fechaFinal);
-        return new RentPair(BigDecimal.ZERO, BigDecimal.ZERO);
-    }
-
-    private RentPair calcularRentabilidadDesdeTabla(Sheet consolidado, LocalDate fechaInicial, LocalDate fechaFinal) {
-        BigDecimal eIni = lookupByDate(consolidado, 5, fechaInicial);
-        BigDecimal eFin = lookupByDate(consolidado, 5, fechaFinal);
-        BigDecimal iIni = lookupByDate(consolidado, 9, fechaInicial);
-        BigDecimal iFin = lookupByDate(consolidado, 9, fechaFinal);
-        double dias = Math.max(1d, fechaFinal.toEpochDay() - fechaInicial.toEpochDay());
-
-        BigDecimal nominal = BigDecimal.ZERO;
-        if (eIni.signum() != 0 && eFin.signum() != 0) {
-            nominal = BigDecimal.valueOf(Math.pow(eFin.doubleValue() / eIni.doubleValue(), 365d / dias) - 1d);
-        }
-        BigDecimal real = BigDecimal.ZERO;
-        if (iIni.signum() != 0 && iFin.signum() != 0) {
-            real = BigDecimal.valueOf(Math.pow(iFin.doubleValue() / iIni.doubleValue(), 365d / dias) - 1d);
-        }
-        return new RentPair(nominal, real);
-    }
-
-    private BigDecimal lookupByDate(Sheet sheet, int valueCol1Based, LocalDate target) {
-        BigDecimal exacta = null;
-        BigDecimal anterior = null;
-        LocalDate fechaAnterior = LocalDate.MIN;
-        int last = sheet.getLastRowNum() + 1;
-        for (int r = 14; r <= last; r++) {
-            Row row = sheet.getRow(r - 1);
-            if (row == null) continue;
-            LocalDate fechaFila = cellAsDate(row.getCell(0));
-            if (fechaFila == null) continue;
-            BigDecimal valor = num(sheet, r, valueCol1Based);
-            if (fechaFila.equals(target) && valor.signum() != 0) {
-                exacta = valor;
-                break;
-            }
-            if (!fechaFila.isAfter(target) && fechaFila.isAfter(fechaAnterior) && valor.signum() != 0) {
-                fechaAnterior = fechaFila;
-                anterior = valor;
-            }
-        }
-        return exacta != null ? exacta : (anterior != null ? anterior : BigDecimal.ZERO);
-    }
-
-    private LocalDate cellAsDate(Cell cell) {
-        if (cell == null) return null;
-        try {
-            if (cell.getCellType() == org.apache.poi.ss.usermodel.CellType.NUMERIC) {
-                if (org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(cell)) {
-                    return cell.getDateCellValue().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-                }
-                double excel = cell.getNumericCellValue();
-                if (excel > 10_000d && excel < 100_000d) {
-                    return org.apache.poi.ss.usermodel.DateUtil.getJavaDate(excel).toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-                }
-            }
-            String txt = new DataFormatter(Locale.forLanguageTag("es-CO")).formatCellValue(cell);
-            if (txt == null || txt.isBlank()) return null;
-            String v = txt.trim().toLowerCase(Locale.ROOT).replace(".", "");
-            DateTimeFormatter[] fmts = new DateTimeFormatter[]{
-                    DateTimeFormatter.ofPattern("d-MMM-yy", new Locale("es", "CO")),
-                    DateTimeFormatter.ofPattern("d-MMM-yyyy", new Locale("es", "CO")),
-                    DateTimeFormatter.ofPattern("d/M/yyyy"),
-                    DateTimeFormatter.ofPattern("d/M/yy"),
-                    DateTimeFormatter.ISO_LOCAL_DATE
-            };
-            for (DateTimeFormatter f : fmts) {
-                try {
-                    return LocalDate.parse(v, f);
-                } catch (Exception ignored) {
-                }
-            }
-            return null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
     private BigDecimal readAportesRecibidos136(LocalDate fechaCorte) {
         BigDecimal value = formato136QueryService.leerAportesRecibidos(fechaCorte);
         LocalDate fechaInicial = fechaCorte.minusYears(1).plusDays(1);
@@ -1000,10 +813,6 @@ public class SemestralExcelGenerator {
             }
         }
         return null;
-    }
-
-    private BigDecimal num(Sheet sheet, String ref) {
-        return num(sheet, ref, null);
     }
 
     private BigDecimal num(Sheet sheet, int row1Based, int col1Based) {
@@ -1090,12 +899,6 @@ public class SemestralExcelGenerator {
             BigDecimal nominal3, BigDecimal real3,
             BigDecimal nominal1, BigDecimal real1
     ) {
-        static final Rentabilidades ZERO = new Rentabilidades(
-                BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, BigDecimal.ZERO
-        );
     }
 
     void writeFilasAfiliadosDisponibilidad(Sheet sheet, int column, MensualData mensual) {
