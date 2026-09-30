@@ -14,7 +14,7 @@
   <artifactId>plantilla-aios-generator</artifactId>
   <name>plantilla-aios-generator</name>
   <description>Generador de reportes AIOS (migración de macro Excel a Spring Boot)</description>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>1.3</version>
   <packaging>jar</packaging>
 
   <properties>
@@ -105,6 +105,18 @@
         <configuration>
           <mainClass>co.gov.sfc.AIOSApplication</mainClass>
         </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>build-info</goal>
+            </goals>
+            <configuration>
+              <additionalProperties>
+                <applicationName>Generador AIOS - Delegatura para Pensiones</applicationName>
+              </additionalProperties>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

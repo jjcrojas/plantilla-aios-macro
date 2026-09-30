@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<body>
+    <footer class="version-footer" th:fragment="versionFooter"
+            aria-label="Información de versión de la aplicación">
+        Versión <span th:text="${versionAplicacion}">desarrollo local</span>
+        <span aria-hidden="true"> | </span>
+        Compilación <span th:text="${fechaVersion}">no disponible</span>
+        <span aria-hidden="true"> | </span>
+        App: <span th:text="${nombreAplicacion}">Generador AIOS - Delegatura para Pensiones</span>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<body>
+    <header class="sfc-brand-header" th:fragment="institutionalHeader"
+            aria-label="Encabezado institucional">
+        <div class="sfc-brand-logo-row">
+            <div class="sfc-brand-content">
+                <a class="sfc-brand-home" href="/aios" th:href="@{/aios}"
+                   aria-label="Ir al generador de archivos AIOS">
+                    <img class="sfc-brand-logo"
+                         src="https://www.superfinanciera.gov.co/info/superfinancierav8/media/bloque531.png"
+                         onerror="this.onerror=null;this.src='/images/logo-superfinanciera.png';"
+                         alt="Superintendencia Financiera de Colombia">
+                </a>
+            </div>
+        </div>
+        <div class="sfc-delegatura-bar">
+            <div class="sfc-brand-content">
+                <span class="sfc-delegatura-title">Delegatura para Pensiones</span>
+            </div>
+        </div>
+    </header>
+</body>
+</html>

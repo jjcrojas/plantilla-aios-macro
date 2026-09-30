@@ -1,0 +1,63 @@
+:root {
+    --sfc-brand-blue: #0878ce;
+    --sfc-brand-max-width: 1320px;
+}
+
+.sfc-brand-header {
+    width: 100%;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .12);
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.sfc-brand-content {
+    width: min(calc(100% - 2rem), var(--sfc-brand-max-width));
+    margin: 0 auto;
+}
+
+.sfc-brand-logo-row {
+    background: #fff;
+}
+
+.sfc-brand-home {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    padding: .85rem 0 .75rem;
+    text-decoration: none;
+}
+
+.sfc-brand-logo {
+    display: block;
+    width: 393px;
+    max-width: 100%;
+    height: auto;
+}
+
+.sfc-delegatura-bar {
+    background: var(--sfc-brand-blue);
+    color: #fff;
+}
+
+.sfc-delegatura-title {
+    display: block;
+    padding: .7rem 0 .78rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -.015em;
+}
+
+@media (max-width: 576px) {
+    .sfc-brand-content {
+        width: min(calc(100% - 1.5rem), var(--sfc-brand-max-width));
+    }
+
+    .sfc-brand-logo {
+        width: 330px;
+    }
+
+    .sfc-delegatura-title {
+        font-size: 1.25rem;
+    }
+}

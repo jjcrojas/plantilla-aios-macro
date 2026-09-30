@@ -1,0 +1,109 @@
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #f6f7fb;
+    color: #212529;
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.app-title {
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+    font-weight: 700;
+    letter-spacing: .3px;
+}
+
+.aios-container {
+    max-width: 960px;
+}
+
+.page-intro {
+    max-width: 780px;
+}
+
+.pill {
+    border-radius: 999px;
+    font-weight: 600;
+    padding: .25rem .7rem;
+}
+
+.generator-card {
+    border: 0;
+    border-radius: 1rem;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .06);
+    overflow: hidden;
+}
+
+.generator-card .card-header {
+    border: 0;
+    padding: 1rem 1.5rem;
+}
+
+.section-title {
+    color: #334155;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.period-panel {
+    padding: 1.25rem;
+    background: #f8fafc;
+    border: 1px solid #dee2e6;
+    border-radius: .75rem;
+}
+
+.form-control,
+.form-select {
+    min-height: 44px;
+}
+
+.version-footer {
+    clear: both;
+    margin-top: 2rem;
+    padding: 1rem;
+    text-align: center;
+    font-size: .85rem;
+    color: #526170;
+    border-top: 1px solid #dee2e6;
+}
+
+#loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    background: rgba(255, 255, 255, .88);
+    backdrop-filter: blur(1px);
+}
+
+#loading-overlay p {
+    margin-top: 1rem;
+    color: #334155;
+    font-weight: 600;
+}
+
+.aios-spinner {
+    width: 3rem;
+    height: 3rem;
+    border: .35rem solid #e5e7eb;
+    border-top-color: #0d6efd;
+    border-radius: 50%;
+    animation: aios-spin 1s linear infinite;
+}
+
+@keyframes aios-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 576px) {
+    .generator-card .card-body {
+        padding: 1.25rem !important;
+    }
+
+    .period-panel {
+        padding: 1rem;
+    }
+}

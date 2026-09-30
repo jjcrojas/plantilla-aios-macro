@@ -1,107 +1,161 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Generador Plantilla AIOS</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 2rem; max-width: 720px; }
-        h1 { margin-bottom: 0.5rem; }
-        .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; }
-        .row { margin-bottom: 1rem; }
-        label { display: block; margin-bottom: 0.35rem; font-weight: bold; }
-        input, select, button { box-sizing: border-box; padding: 0.5rem; font-size: 1rem; width: 100%; }
-        button { cursor: pointer; background: #0b57d0; color: #fff; border: none; border-radius: 6px; }
-        small { color: #555; }
-    </style>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" th:href="@{/css/brand-header.css}">
+    <link rel="stylesheet" th:href="@{/css/aios.css}">
 </head>
 <body>
-<h1>Generador Plantilla AIOS</h1>
-<p>Seleccione parámetros y ejecute la generación del archivo.</p>
-<p th:if="${mensaje}" style="background:#fff7d1;border:1px solid #f0d66a;padding:.5rem;border-radius:6px;" th:text="${mensaje}"></p>
+    <div th:replace="~{fragments/brand-header :: institutionalHeader}"></div>
 
-
-<div class="card">
-    <form id="generacion" method="post" action="/aios/generar">
-        <div class="row">
-            <label for="tipoPeriodo">Selección de períodos</label>
-            <select id="tipoPeriodo">
-                <option value="unico">Una fecha</option>
-                <option value="rango">Rango de períodos</option>
-            </select>
+    <main class="container py-4 flex-grow-1 aios-container">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <h1 class="app-title mb-0">Generador Plantilla AIOS</h1>
+            <span class="pill text-white bg-primary">Parámetros</span>
         </div>
-        <div class="row" id="periodoUnico">
-            <label for="fechaCorte">Fecha de corte</label>
-            <input id="fechaCorte" name="fechaCorte" type="date" th:value="${fechaHoy}" required />
-        </div>
+        <p class="page-intro text-muted mb-4">
+            Seleccione el período y el tipo de informe. La descarga del archivo Excel o ZIP
+            comenzará cuando finalice el procesamiento.
+        </p>
 
-        <div class="row">
-            <label for="modo">Modo</label>
-            <select id="modo" name="modo" required>
-                <option th:each="m : ${modos}" th:value="${m}" th:text="${m}"></option>
-            </select>
-        </div>
+        <div class="alert alert-warning" role="alert" th:if="${mensaje}" th:text="${mensaje}"></div>
 
-        <div id="periodoRango" hidden>
-            <div class="row">
-                <label for="periodoInicial">Período inicial</label>
-                <input id="periodoInicial" type="month" disabled />
+        <section class="card generator-card" aria-labelledby="generator-title">
+            <div class="card-header bg-primary text-white">
+                <h2 id="generator-title" class="h5 mb-1">Generación de archivos AIOS</h2>
+                <p class="mb-0 small opacity-75">Configure una fecha de corte o un rango inclusivo de meses.</p>
             </div>
-            <div class="row">
-                <label for="periodoFinal">Período final</label>
-                <input id="periodoFinal" type="month" disabled />
+
+            <div class="card-body p-4">
+                <form id="generacion" method="post" th:action="@{/aios/generar}"
+                      th:attr="data-single-action=@{/aios/generar},data-range-action=@{/aios/generar-rango}">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label section-title" for="tipoPeriodo">Selección de períodos</label>
+                            <select class="form-select" id="tipoPeriodo">
+                                <option value="unico">Una fecha</option>
+                                <option value="rango">Rango de períodos</option>
+                            </select>
+                            <div class="form-text">El rango incluye tanto el mes inicial como el final.</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label section-title" for="modo">Modo de generación</label>
+                            <select class="form-select" id="modo" name="modo" required>
+                                <option th:each="m : ${modos}" th:value="${m}" th:text="${m}"></option>
+                            </select>
+                            <div class="form-text">Todo genera un ZIP con cada periodicidad aplicable.</div>
+                        </div>
+                    </div>
+
+                    <div class="period-panel mt-4">
+                        <div id="periodoUnico">
+                            <label class="form-label section-title" for="fechaCorte">Fecha de corte</label>
+                            <input class="form-control" id="fechaCorte" name="fechaCorte" type="date"
+                                   th:value="${fechaHoy}" required>
+                        </div>
+
+                        <div id="periodoRango" hidden>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label section-title" for="periodoInicial">Período inicial</label>
+                                    <input class="form-control" id="periodoInicial" type="month" disabled>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label section-title" for="periodoFinal">Período final</label>
+                                    <input class="form-control" id="periodoFinal" type="month" disabled>
+                                </div>
+                            </div>
+                            <input id="desde" name="desde" type="hidden" disabled>
+                            <input id="hasta" name="hasta" type="hidden" disabled>
+                            <div class="form-text mt-3">
+                                Trimestral usa cierres de marzo, junio, septiembre y diciembre; semestral usa
+                                junio y diciembre.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-column flex-sm-row align-items-sm-center gap-3 mt-4">
+                        <button id="btnGenerar" type="submit" class="btn btn-primary btn-lg px-4">
+                            Generar archivos
+                        </button>
+                        <span class="text-muted small">El proceso puede tardar mientras se consultan las fuentes.</span>
+                    </div>
+                </form>
             </div>
-            <input id="desde" name="desde" type="hidden" disabled />
-            <input id="hasta" name="hasta" type="hidden" disabled />
-            <p><small>Ambos meses están incluidos. Trimestral: cierres de marzo, junio, septiembre y diciembre. Semestral: junio y diciembre. Todo: ZIP con un libro consolidado por cada tipo aplicable.</small></p>
-        </div>
-        <button type="submit">Generar</button>
-        <small>La descarga del Excel/ZIP iniciará al terminar el proceso.</small>
-    </form>
-</div>
-<script>
-    const form = document.getElementById('generacion');
-    const tipo = document.getElementById('tipoPeriodo');
-    const fecha = document.getElementById('fechaCorte');
-    const inicial = document.getElementById('periodoInicial');
-    const final = document.getElementById('periodoFinal');
-    const desde = document.getElementById('desde');
-    const hasta = document.getElementById('hasta');
-    function validarRango() {
-        final.min = inicial.value;
-        final.setCustomValidity(inicial.value && final.value && inicial.value > final.value
-            ? 'El período final no puede ser anterior al inicial.' : '');
-    }
-    function actualizarSeleccion() {
-        const rango = tipo.value === 'rango';
-        form.action = rango ? '/aios/generar-rango' : '/aios/generar';
-        document.getElementById('periodoUnico').hidden = rango;
-        document.getElementById('periodoRango').hidden = !rango;
-        fecha.disabled = rango;
-        fecha.required = !rango;
-        for (const input of [inicial, final]) {
-            input.disabled = !rango;
-            input.required = rango;
-            if (!input.value) input.value = fecha.value.slice(0, 7);
+        </section>
+    </main>
+
+    <div id="loading-overlay" role="status" aria-live="polite" aria-label="Generando archivos">
+        <div class="aios-spinner" aria-hidden="true"></div>
+        <p>Generando archivos, por favor espere…</p>
+    </div>
+
+    <div th:replace="~{fragments/version-footer :: versionFooter}"></div>
+
+    <script>
+        const form = document.getElementById('generacion');
+        const tipo = document.getElementById('tipoPeriodo');
+        const fecha = document.getElementById('fechaCorte');
+        const inicial = document.getElementById('periodoInicial');
+        const final = document.getElementById('periodoFinal');
+        const desde = document.getElementById('desde');
+        const hasta = document.getElementById('hasta');
+        const boton = document.getElementById('btnGenerar');
+        const overlay = document.getElementById('loading-overlay');
+
+        function validarRango() {
+            final.min = inicial.value;
+            final.setCustomValidity(inicial.value && final.value && inicial.value > final.value
+                ? 'El período final no puede ser anterior al inicial.' : '');
         }
-        desde.disabled = hasta.disabled = !rango;
-        validarRango();
-    }
-    tipo.addEventListener('change', actualizarSeleccion);
-    inicial.addEventListener('input', validarRango);
-    final.addEventListener('input', validarRango);
-    form.addEventListener('submit', (event) => {
-        if (tipo.value !== 'rango') return;
-        validarRango();
-        if (!form.reportValidity()) {
-            event.preventDefault();
-            return;
+
+        function actualizarSeleccion() {
+            const rango = tipo.value === 'rango';
+            form.action = rango ? form.dataset.rangeAction : form.dataset.singleAction;
+            document.getElementById('periodoUnico').hidden = rango;
+            document.getElementById('periodoRango').hidden = !rango;
+            fecha.disabled = rango;
+            fecha.required = !rango;
+            for (const input of [inicial, final]) {
+                input.disabled = !rango;
+                input.required = rango;
+                if (rango && !input.value) input.value = fecha.value.slice(0, 7);
+            }
+            desde.disabled = hasta.disabled = !rango;
+            validarRango();
         }
-        desde.value = inicial.value + '-01';
-        const [year, month] = final.value.split('-').map(Number);
-        hasta.value = final.value + '-' + String(new Date(year, month, 0).getDate()).padStart(2, '0');
-    });
-    actualizarSeleccion();
-</script>
+
+        tipo.addEventListener('change', actualizarSeleccion);
+        inicial.addEventListener('input', validarRango);
+        final.addEventListener('input', validarRango);
+
+        form.addEventListener('submit', (event) => {
+            if (tipo.value === 'rango') {
+                validarRango();
+                if (!form.reportValidity()) {
+                    event.preventDefault();
+                    return;
+                }
+                desde.value = inicial.value + '-01';
+                const [year, month] = final.value.split('-').map(Number);
+                hasta.value = final.value + '-'
+                    + String(new Date(year, month, 0).getDate()).padStart(2, '0');
+            }
+            boton.disabled = true;
+            overlay.style.display = 'flex';
+        });
+
+        window.addEventListener('pageshow', () => {
+            boton.disabled = false;
+            overlay.style.display = 'none';
+        });
+
+        actualizarSeleccion();
+    </script>
 </body>
 </html>
