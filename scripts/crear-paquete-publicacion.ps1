@@ -45,6 +45,7 @@ if ($version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
 
 $numeroVersion = [int]$Matches[1]
 $release = [int]$Matches[2]
+& (Join-Path $PSScriptRoot 'verificar-base-publicacion.ps1') -Repositorio $raizProyecto -Version $version
 $versionNueva = if ($CambioMayor) { "$($numeroVersion + 1).0" } else { "$numeroVersion.$($release + 1)" }
 $contenidoPom = [IO.File]::ReadAllText($pomPath)
 $patronVersion = '<version>' + [regex]::Escape($version) + '</version>'
@@ -83,6 +84,13 @@ try {
     New-Item -ItemType Directory -Path $directorioTemporal -Force | Out-Null
     Copy-Item -LiteralPath $jar.FullName -Destination (Join-Path $directorioTemporal $jar.Name)
 
+    New-Item -ItemType Directory -Path (Join-Path $directorioTemporal 'scripts'),(Join-Path $directorioTemporal 'docs') -Force | Out-Null
+    foreach ($name in @('manage-app.sh','publicar-produccion.sh','validar-paquete.py','desplegar-produccion.ps1','verificar-base-publicacion.ps1')) {
+        $text = [IO.File]::ReadAllText((Join-Path $PSScriptRoot $name)).Replace([string][char]13, '')
+        [IO.File]::WriteAllText((Join-Path $directorioTemporal "scripts\$name"), $text, [Text.UTF8Encoding]::new($false))
+    }
+    Copy-Item -LiteralPath (Join-Path $raizProyecto '.env.example') -Destination (Join-Path $directorioTemporal '.env.example')
+    Copy-Item -LiteralPath (Join-Path $raizProyecto 'docs\publicacion-produccion.md') -Destination (Join-Path $directorioTemporal 'docs\publicacion-produccion.md')
     $manifiesto = @(
         "app.version=$versionNueva",
         "package.created-at=$((Get-Date).ToUniversalTime().ToString('o'))",
@@ -97,7 +105,11 @@ try {
         [Text.UTF8Encoding]::new($false)
     )
 
-    Compress-Archive -Path (Join-Path $directorioTemporal '*') -DestinationPath $zipPath -Force
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::CreateFromDirectory($directorioTemporal, $zipPath)
+    foreach ($name in @('publicar-produccion.sh','validar-paquete.py')) {
+        Copy-Item -LiteralPath (Join-Path $directorioTemporal "scripts\$name") -Destination (Join-Path $DirectorioSalida $name)
+    }
     Write-Host "Paquete generado: $zipPath" -ForegroundColor Green
     Write-Host "JAR: $($jar.Name)"
     Write-Host "SHA256: $hashJar"

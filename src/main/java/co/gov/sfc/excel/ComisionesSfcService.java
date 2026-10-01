@@ -143,7 +143,7 @@ public class ComisionesSfcService {
 
     private String ocr(byte[] pdf, Path workDir) throws Exception {
         if (!Files.isRegularFile(tesseract)) {
-            throw new IllegalStateException("No se encontró Tesseract OCR. Configure TESSERACT_PATH o instálelo en AppData\\Local\\Tesseract-OCR");
+            throw new IllegalStateException("No se encontró Tesseract OCR. Configure TESSERACT_PATH con la ruta del ejecutable de su sistema");
         }
         StringBuilder all = new StringBuilder();
         try (PDDocument document = Loader.loadPDF(pdf)) {
@@ -292,6 +292,8 @@ public class ComisionesSfcService {
         String configured = System.getenv("TESSERACT_PATH");
         List<Path> candidates = new ArrayList<>();
         if (configured != null && !configured.isBlank()) candidates.add(Path.of(configured));
+        candidates.add(Path.of("/usr/bin/tesseract"));
+        candidates.add(Path.of("/usr/local/bin/tesseract"));
         candidates.add(Path.of(System.getProperty("user.home"), "AppData", "Local", "Tesseract-OCR", "tesseract.exe"));
         String programFiles = System.getenv("ProgramFiles");
         if (programFiles != null) candidates.add(Path.of(programFiles, "Tesseract-OCR", "tesseract.exe"));

@@ -22,3 +22,7 @@ plantillas/Plantilla AIOS-probable.xlsm
 plantillas/*
 /.apt_generated/
 /.apt_generated_tests/
+
+.env
+.env.*
+!.env.example
