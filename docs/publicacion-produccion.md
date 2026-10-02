@@ -118,12 +118,9 @@ no cambia esa fecha. Desde Windows servidor, pruebe http://localhost:8084/aios.
 
 Acceso desde otros equipos a http://172.19.130.163:8084/aios depende del firewall y
 la red WSL (NAT/reflejada o reenvío). No se abren puertos automáticamente.
-El script no programa arranque después de reiniciar Windows. Si se requiere,
-configure con TI una tarea de Windows bajo la cuenta propietaria de la distribución:
-
-    wsl.exe -d <Distribucion> -u <UsuarioWSL> -- bash /opt/plantilla-aios-macro/scripts/manage-app.sh start
-
-No cambie la tarea existente de Informes Financieros: AIOS usa otra carpeta y puerto.
+El publicador no crea la tarea Windows. La configuración productiva usa
+**Iniciar AIOS**, junto con **Iniciar Ubuntu** para mantener WSL activo.
+El procedimiento y la verificación están al final de este documento.
 
 ## 5. Acceso desde otras máquinas: configuración de red
 
@@ -305,3 +302,102 @@ servicio al reiniciar Windows. No reinicie WSL completo para un cambio de AIOS,
 pues puede interrumpir las otras aplicaciones alojadas allí.
 
 Referencia: [Red y acceso a aplicaciones de WSL (Microsoft)](https://learn.microsoft.com/en-us/windows/wsl/networking).
+
+
+## Arranque automático en Windows de producción (2 de octubre de 2026)
+
+Producción: **DPFUENTESW**, IP corporativa `172.19.130.163`. Los proyectos locales
+`D:\app\ConsultaTRMWeb` y `D:\app\plantilla-aios-macro` son fuentes de desarrollo;
+las aplicaciones instaladas se ejecutan en Ubuntu WSL bajo `/opt`.
+
+La tarea Windows **Iniciar Ubuntu** inicia InformesFinancieros y mantiene Ubuntu
+activo para las tres aplicaciones. Se ejecuta como **SUPERFIN\jcrojas**, aunque
+no haya sesión abierta (contraseña guardada), al iniciar Windows con un minuto
+de retraso. Su programa es `C:\Windows\System32\wsl.exe` y sus argumentos son:
+
+```text
+-d Ubuntu -u jcrojas --exec /bin/bash -lc "/opt/informes-financieros/scripts/manage-app.sh start && exec /usr/bin/sleep infinity"
+```
+
+En **Propiedades > Configuración**, desmarcar el límite de duración y seleccionar
+**No iniciar una instancia nueva**. El panel inferior del Programador es de solo
+lectura. Esta tarea permanece **En ejecución**. No terminarla ni modificarla para
+iniciar AIOS o TRM: sostiene WSL compartido. `sleep infinity` no supervisa los
+procesos de las aplicaciones.
+
+Administrar tareas desde PowerShell con permisos administrativos en producción:
+
+```powershell
+hostname
+whoami
+Get-ScheduledTask -TaskName "Iniciar Ubuntu" | Select-Object TaskPath,TaskName,State
+(Get-ScheduledTask -TaskName "Iniciar Ubuntu").Principal | Format-List UserId,LogonType
+(Get-ScheduledTask -TaskName "Iniciar Ubuntu").Actions | Format-List Execute,Arguments
+```
+
+Esperado: equipo `DPFUENTESW`, tarea `Running` y cuenta propietaria de WSL.
+Desde PowerShell de **SUPERFIN\jcrojas**, `wsl --list --running` debe listar
+Ubuntu. La cuenta `DPFUENTESW\Administrador` puede tener otra distribución Ubuntu
+detenida; `-u jcrojas` solo cambia el usuario Linux, no la cuenta Windows.
+
+Después de configurar el inicio, cerrar las terminales Ubuntu, esperar dos minutos
+y verificar HTTP desde Windows. Repetir tras el próximo reinicio programado,
+esperando dos o tres minutos, **sin abrir Ubuntu manualmente**. Así se comprueba
+el arranque automático, no un arranque provocado por la prueba.
+
+```powershell
+curl.exe --noproxy "*" -I --max-time 10 http://127.0.0.1:8081/reportes
+curl.exe --noproxy "*" -I --max-time 10 http://127.0.0.1:8084/aios
+curl.exe --noproxy "*" -I --max-time 10 http://127.0.0.1:8087/
+```
+
+Esperado: HTTP 200 para cada aplicación instalada. Si Ubuntu responde pero Windows
+no, comparar la IP actual (`hostname -I` dentro de Ubuntu) con
+`netsh interface portproxy show all`. No cambiar IP ni firewall sin localizar el
+fallo. Si no hay distribuciones activas bajo la cuenta correcta, revisar primero
+la tarea persistente. No reiniciar WSL como diagnóstico inicial: afecta las tres
+aplicaciones. Estos pasos no publican ni actualizan los binarios instalados.
+
+### Configurar la tarea Iniciar AIOS
+
+Primero abrir Ubuntu como `jcrojas` y verificar la instalación existente:
+
+```bash
+bash /opt/plantilla-aios-macro/scripts/manage-app.sh verificar
+bash /opt/plantilla-aios-macro/scripts/manage-app.sh start
+```
+
+En el Programador de tareas de producción, crear **Iniciar AIOS** si no existe:
+
+- Cuenta: `SUPERFIN\jcrojas`; ejecutar aunque no haya sesión iniciada, con contraseña.
+- Desencadenador: al iniciar el sistema, retraso de dos minutos.
+- Programa: `C:\Windows\System32\wsl.exe`.
+- Argumentos: la línea siguiente.
+- Permitir inicio a petición; no iniciar una instancia nueva; límite de duración desmarcado.
+
+```text
+-d Ubuntu -u jcrojas --exec /bin/bash /opt/plantilla-aios-macro/scripts/manage-app.sh start
+```
+
+Guardar; ejecutar con clic derecho > Ejecutar o PowerShell administrativa:
+
+```powershell
+Start-ScheduledTask -TaskName "Iniciar AIOS"
+Get-ScheduledTaskInfo -TaskName "Iniciar AIOS" | Format-List LastRunTime,LastTaskResult
+```
+
+Esperar 30 a 60 segundos antes de la prueba HTTP. Esta tarea puede terminar en
+**Listo**, con resultado 0: el script deja Java en segundo plano mediante `nohup`
+y `&`. Eso no mantiene WSL activo por sí solo; depende de **Iniciar Ubuntu**.
+Un resultado 0 no sustituye la verificación HTTP ni supervisa fallos posteriores.
+
+Diagnóstico dentro de Ubuntu:
+
+```bash
+bash /opt/plantilla-aios-macro/scripts/manage-app.sh status
+tail -n 80 /opt/plantilla-aios-macro/logs/aios.log
+curl --fail --max-time 10 http://127.0.0.1:8084/actuator/health
+```
+
+No imprimir ni compartir `.env`: contiene configuración sensible. Para TRM no
+se crea otra tarea Windows: se habilita `consulta-trm.service` dentro de Ubuntu.
