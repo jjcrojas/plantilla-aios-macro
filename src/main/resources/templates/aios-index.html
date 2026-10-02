@@ -16,6 +16,10 @@
         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
             <h1 class="app-title mb-0">Generador Plantilla AIOS</h1>
             <span class="pill text-white bg-primary">Parámetros</span>
+            <a id="volver-menu" class="btn btn-secondary ms-sm-auto" href="/reportes"
+               th:attr="data-menu-port=${@environment.getProperty('aios.menu.port')},data-menu-path=${@environment.getProperty('aios.menu.path')}">
+                ← Volver al menú principal
+            </a>
         </div>
         <p class="page-intro text-muted mb-4">
             Seleccione el período y el tipo de informe. La descarga del archivo Excel o ZIP
@@ -23,6 +27,8 @@
         </p>
 
         <div class="alert alert-warning" role="alert" th:if="${mensaje}" th:text="${mensaje}"></div>
+        <div id="resultado-generacion" class="alert" role="status" aria-live="polite" hidden></div>
+        <a id="descarga-generada" class="btn btn-outline-primary mb-3" hidden>Descargar archivo generado</a>
 
         <section class="card generator-card" aria-labelledby="generator-title">
             <div class="card-header bg-primary text-white">
@@ -98,6 +104,14 @@
     <div th:replace="~{fragments/version-footer :: versionFooter}"></div>
 
     <script>
+        const volverMenu = document.getElementById('volver-menu');
+        const destinoMenu = new URL(window.location.href);
+        destinoMenu.port = volverMenu.dataset.menuPort;
+        destinoMenu.pathname = volverMenu.dataset.menuPath;
+        destinoMenu.search = '';
+        destinoMenu.hash = '';
+        volverMenu.href = destinoMenu.toString();
+
         const form = document.getElementById('generacion');
         const tipo = document.getElementById('tipoPeriodo');
         const fecha = document.getElementById('fechaCorte');
@@ -107,6 +121,10 @@
         const hasta = document.getElementById('hasta');
         const boton = document.getElementById('btnGenerar');
         const overlay = document.getElementById('loading-overlay');
+        const resultado = document.getElementById('resultado-generacion');
+        const descarga = document.getElementById('descarga-generada');
+        let archivoUrl;
+        let generando = false;
 
         function validarRango() {
             final.min = inicial.value;
@@ -134,7 +152,9 @@
         inicial.addEventListener('input', validarRango);
         final.addEventListener('input', validarRango);
 
-        form.addEventListener('submit', (event) => {
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (generando) return;
             if (tipo.value === 'rango') {
                 validarRango();
                 if (!form.reportValidity()) {
@@ -146,8 +166,51 @@
                 hasta.value = final.value + '-'
                     + String(new Date(year, month, 0).getDate()).padStart(2, '0');
             }
+            if (!form.reportValidity()) return;
+            const datos = new URLSearchParams(new FormData(form));
+            generando = true;
             boton.disabled = true;
             overlay.style.display = 'flex';
+            resultado.hidden = true;
+            descarga.hidden = true;
+            if (archivoUrl) {
+                URL.revokeObjectURL(archivoUrl);
+                archivoUrl = undefined;
+            }
+            try {
+                const respuesta = await fetch(form.action, { method: 'POST', body: datos });
+                if (!respuesta.ok) {
+                    const detalle = (respuesta.headers.get('Content-Type') || '').startsWith('text/plain')
+                        ? await respuesta.text() : '';
+                    throw new Error(detalle || `No fue posible generar el archivo (HTTP ${respuesta.status}).`);
+                }
+                const contenido = respuesta.headers.get('Content-Type') || '';
+                if (!contenido.includes('application/zip')
+                    && !contenido.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) {
+                    throw new Error('El servidor no devolvió un archivo Excel o ZIP. Revise la conexión e intente de nuevo.');
+                }
+                const archivo = await respuesta.blob();
+                if (!archivo.size) throw new Error('El servidor devolvió un archivo vacío.');
+                const disposicion = respuesta.headers.get('Content-Disposition') || '';
+                const nombre = /filename="([^"]+)"/i.exec(disposicion)?.[1]
+                    || (contenido.includes('application/zip') ? 'aios.zip' : 'aios.xlsx');
+                archivoUrl = URL.createObjectURL(archivo);
+                descarga.href = archivoUrl;
+                descarga.download = nombre;
+                descarga.hidden = false;
+                descarga.click();
+                resultado.className = 'alert alert-success';
+                resultado.textContent = 'Generación finalizada. Se solicitó la descarga de ' + nombre
+                    + '. Si no comenzó, use el enlace Descargar archivo generado.';
+            } catch (error) {
+                resultado.className = 'alert alert-danger';
+                resultado.textContent = error.message || 'No fue posible recibir el archivo. Revise la conexión e intente de nuevo.';
+            } finally {
+                generando = false;
+                boton.disabled = false;
+                overlay.style.display = 'none';
+                resultado.hidden = false;
+            }
         });
 
         window.addEventListener('pageshow', () => {

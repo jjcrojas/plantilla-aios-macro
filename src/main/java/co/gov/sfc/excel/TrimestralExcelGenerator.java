@@ -2,6 +2,7 @@ package co.gov.sfc.excel;
 
 import co.gov.sfc.config.AiosProperties;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFRichTextString;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -56,6 +57,7 @@ public class TrimestralExcelGenerator {
                     ? new String[]{plantillaNombre, "Boletin_AIOS TRIMESTRAL.xlsx"}
                     : new String[]{plantillaNombre};
             try (Workbook wb = templateService.openWorkbook(templates)) {
+                for (Sheet sheet : wb) normalizarTextosSobredimensionados(sheet);
                 periodos.stream()
                         .sorted(Comparator.comparing(PeriodoTrimestral::fechaCorte))
                         .forEach(periodo -> escribirPeriodo(wb, periodo));
@@ -67,6 +69,30 @@ public class TrimestralExcelGenerator {
             return out;
         } catch (Exception e) {
             throw new IllegalStateException("No fue posible generar boletín " + salidaNombre, e);
+        }
+    }
+
+    void normalizarTextosSobredimensionados(Sheet sheet) {
+        // Algunas plantillas tienen fragmentos de 1000 puntos en encabezados y notas.
+        // Copiar el texto enriquecido evita alterar otras celdas que lo compartan.
+        for (Row row : sheet) {
+          for (Cell cell : row) {
+            if (cell == null || cell.getCellType() != CellType.STRING
+                    || !(cell.getRichStringCellValue() instanceof XSSFRichTextString original)) continue;
+            var copy = new XSSFRichTextString(
+                    (org.openxmlformats.schemas.spreadsheetml.x2006.main.CTRst) original.getCTRst().copy());
+            boolean changed = false;
+            for (var run : copy.getCTRst().getRList()) {
+                if (!run.isSetRPr()) continue;
+                for (var size : run.getRPr().getSzArray()) {
+                    if (size.getVal() > 100) {
+                        size.setVal(10);
+                        changed = true;
+                    }
+                }
+            }
+            if (changed) cell.setCellValue(copy);
+          }
         }
     }
 

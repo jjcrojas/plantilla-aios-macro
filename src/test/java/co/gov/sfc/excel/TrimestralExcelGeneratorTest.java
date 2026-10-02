@@ -85,6 +85,40 @@ class TrimestralExcelGeneratorTest {
         Path out = generator.generar(LocalDate.of(2025, 6, 30), data);
         assertTrue(out.toFile().exists());
         try (Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(out.toFile())) {
+            boolean notaEncontrada = false;
+            for (var sheet : workbook) {
+                for (var row : sheet) {
+                    for (var cell : row) {
+                        if (cell.getCellType() != org.apache.poi.ss.usermodel.CellType.STRING) continue;
+                        if (cell.getStringCellValue().startsWith("(*) A partir del 15 de septiembre de 2010")) {
+                            notaEncontrada = true;
+                            var nota = (org.apache.poi.xssf.usermodel.XSSFRichTextString) cell.getRichStringCellValue();
+                            for (int run = 0; run < nota.numFormattingRuns(); run++) {
+                                assertEquals(10, nota.getFontOfFormattingRun(run).getFontHeightInPoints());
+                            }
+                        }
+                        var richText = (org.apache.poi.xssf.usermodel.XSSFRichTextString) cell.getRichStringCellValue();
+                        for (var run : richText.getCTRst().getRList()) {
+                            if (run.isSetRPr()) for (var size : run.getRPr().getSzArray()) {
+                                assertTrue(size.getVal() <= 100, sheet.getSheetName() + "!" + cell.getAddress());
+                            }
+                        }
+                    }
+                }
+            }
+            assertTrue(notaEncontrada, "Debe conservarse la nota explicativa del Fondo Moderado");
+            var comisiones = workbook.getSheet("comisiones");
+            assertEquals(3.0d, comisiones.getRow(7).getCell(1).getNumericCellValue());
+            for (int col = 1; col <= 12; col++) {
+                var heading = comisiones.getRow(6).getCell(col);
+                assertTrue(heading.getStringCellValue().contains(col % 2 == 1 ? "Sobre Flujo" : "Seguro"));
+                var rich = (org.apache.poi.xssf.usermodel.XSSFRichTextString) heading.getRichStringCellValue();
+                for (int run = 0; run < rich.numFormattingRuns(); run++) {
+                    assertEquals(10, rich.getFontOfFormattingRun(run).getFontHeightInPoints());
+                    assertTrue(rich.getFontOfFormattingRun(run).getBold());
+                }
+            }
+            assertEquals(42.6f, comisiones.getRow(6).getHeightInPoints(), 0.1f);
             assertEquals("jun-25", workbook.getSheet("afiliados").getRow(7).getCell(0).getStringCellValue());
             assertEquals(1000d, workbook.getSheet("afiliados").getRow(7).getCell(1).getNumericCellValue());
             assertEquals("jun-25", workbook.getSheet("aportantes").getRow(6).getCell(0).getStringCellValue());

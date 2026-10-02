@@ -92,6 +92,18 @@ Los intentos fallidos quedan en /opt/plantilla-aios-macro.failed.* o .new.*.
 
 ## 4. Operación y verificación
 
+La interfaz AIOS incluye el botón **Volver al menú principal**, que abre Informes
+Financieros conservando el servidor y protocolo usados en el navegador. Por defecto,
+desde `http://localhost:8084/aios` vuelve a `http://localhost:8081/reportes`; desde
+`http://172.19.130.163:8084/aios` vuelve a `http://172.19.130.163:8081/reportes`.
+El enlace elimina los parámetros y el fragmento de la página AIOS.
+
+Si cambia el puerto o la ruta del menú, configure `AIOS_MENU_PORT` y
+`AIOS_MENU_PATH` en `/opt/plantilla-aios-macro/.env` y reinicie AIOS. Sus valores
+predeterminados son `8081` y `/reportes`; la ruta debe comenzar por `/`.
+El menú debe ser accesible en el mismo servidor y protocolo; estas variables no
+modifican su despliegue ni las reglas de red.
+
     bash /opt/plantilla-aios-macro/scripts/manage-app.sh verificar
     bash /opt/plantilla-aios-macro/scripts/manage-app.sh status
     bash /opt/plantilla-aios-macro/scripts/manage-app.sh restart
@@ -112,3 +124,184 @@ configure con TI una tarea de Windows bajo la cuenta propietaria de la distribuc
     wsl.exe -d <Distribucion> -u <UsuarioWSL> -- bash /opt/plantilla-aios-macro/scripts/manage-app.sh start
 
 No cambie la tarea existente de Informes Financieros: AIOS usa otra carpeta y puerto.
+
+## 5. Acceso desde otras máquinas: configuración de red
+
+Esta sección documenta la configuración comprobada en producción el 1 de octubre
+de 2026: Windows con WSL y reenvío de puertos hacia Ubuntu. Las direcciones internas
+pueden cambiar; confirme los valores antes de ejecutar los comandos. No es una
+receta para una instalación con red WSL reflejada.
+
+### 5.1. Qué significa cada dirección
+
+| Dirección | Pertenece a | Para qué se utiliza |
+|---|---|---|
+| `172.19.130.163` | Windows del servidor, en la red corporativa | Los usuarios acceden a `http://172.19.130.163:8084/aios`. |
+| `172.28.36.220` | Ubuntu dentro de WSL | Windows reenvía las conexiones a AIOS en esta IP y el puerto 8084. |
+| `172.28.32.1` | Adaptador virtual de Windows conectado a WSL | Es la IP de origen que Ubuntu recibe en las conexiones reenviadas por Windows; se autoriza en UFW. |
+| `127.0.0.1` | Interfaz local del entorno donde se usa | Permite probar AIOS dentro de Ubuntu. El acceso por localhost en Windows no demuestra acceso desde la red. |
+| `0.0.0.0` | Dirección de escucha, no una máquina | Indica que se aceptan conexiones por todas las interfaces IPv4 del entorno. No se escribe como destino en el navegador. |
+
+Windows tiene una dirección en la red corporativa y otra en la red virtual de WSL.
+El puerto 8084 identifica el servicio AIOS dentro de cada dirección.
+
+```text
+Equipo del usuario
+  -> Windows del servidor: 172.19.130.163:8084
+  -> portproxy de Windows (origen hacia WSL: 172.28.32.1)
+  -> Ubuntu WSL: 172.28.36.220:8084
+  -> Aplicación AIOS
+```
+
+### 5.2. Permitir que AIOS escuche en la interfaz de WSL
+
+En **Ubuntu de producción**, edite el archivo:
+
+```bash
+nano /opt/plantilla-aios-macro/.env
+```
+
+Compruebe estos valores:
+
+```bash
+AIOS_PORT=8084
+AIOS_BIND_ADDRESS=0.0.0.0
+```
+
+El perfil `prod` usa estas variables para configurar el puerto y la dirección de
+escucha. `0.0.0.0` permite recibir conexiones dirigidas a la IP de Ubuntu; los
+firewalls siguen controlando quién puede conectarse. Si cambió estos valores con
+la aplicación en ejecución, reinicie únicamente AIOS:
+
+```bash
+bash /opt/plantilla-aios-macro/scripts/manage-app.sh restart
+```
+
+Verifique el proceso, la escucha y la página:
+
+```bash
+bash /opt/plantilla-aios-macro/scripts/manage-app.sh status
+ss -lntp 'sport = :8084'
+curl --noproxy '*' -sS -o /dev/null --max-time 10 \
+  -w 'HTTP local: %{http_code}\n' http://127.0.0.1:8084/aios
+hostname -I
+```
+
+Se espera `AIOS activo: <PID>`, una escucha en `*:8084` o `0.0.0.0:8084`, y HTTP
+`200`. `hostname -I` puede mostrar varias IP; en esta instalación la interfaz WSL
+usa `172.28.36.220`. No seleccione una IP de otra red, como un puente de contenedores.
+
+### 5.3. Reenviar el puerto de Windows hacia Ubuntu
+
+En **PowerShell como administrador del servidor 172.19.130.163**, consulte primero
+la configuración existente:
+
+```powershell
+netsh interface portproxy show all
+```
+
+Si aún no existe el reenvío de AIOS, agréguelo con la IP actual de WSL:
+
+```powershell
+netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=8084 connectaddress=172.28.36.220 connectport=8084
+```
+
+Este comando hace que Windows escuche en el 8084 y reenvíe las conexiones al 8084
+de Ubuntu. No modifica los reenvíos existentes de 8081, 8083 o 8087.
+
+Si la entrada ya existe y solo cambió la IP de WSL, actualícela con el valor real:
+
+```powershell
+netsh interface portproxy set v4tov4 listenaddress=0.0.0.0 listenport=8084 connectaddress=172.28.36.220 connectport=8084
+```
+
+### 5.4. Permitir la entrada en el firewall de Windows
+
+En la misma **PowerShell como administrador del servidor**, consulte la regla:
+
+```powershell
+Get-NetFirewallRule -DisplayName 'Allow AIOS WSL 8084' -ErrorAction SilentlyContinue |
+    Select-Object DisplayName,Enabled,Direction,Action,Profile
+```
+
+Si no existe, cree la regla utilizada en esta instalación:
+
+```powershell
+New-NetFirewallRule -DisplayName 'Allow AIOS WSL 8084' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8084 -Profile Any
+```
+
+Esta regla permite conexiones TCP entrantes al 8084 de Windows en todos los
+perfiles de red. Si TI requiere limitar los equipos de origen o perfiles, adapte
+el alcance a la red autorizada. No es necesario crear reglas duplicadas.
+
+### 5.5. Permitir la entrada en el firewall de Ubuntu (UFW)
+
+En **Ubuntu**, consulte las reglas:
+
+```bash
+sudo ufw status verbose
+```
+
+En producción UFW estaba activo, con entrada denegada por defecto y permisos para
+8081 y 8087, pero no para 8084. Esto permitía abrir AIOS dentro de Ubuntu y bloqueaba
+la conexión desde Windows. Se resolvió con:
+
+```bash
+sudo ufw allow from 172.28.32.1 to any port 8084 proto tcp
+```
+
+La regla permite únicamente el origen Windows de la red virtual de WSL. La IP
+`172.28.32.1` se comprobó en `SourceAddress` al ejecutar desde Windows
+`Test-NetConnection 172.28.36.220 -Port 8084`. Use el origen real de su instalación.
+La regla se aplica inmediatamente; no requiere reiniciar AIOS ni desactivar UFW.
+Si UFW está inactivo, no lo active solo para añadir esta regla; revise el filtrado
+que realmente utilice el servidor.
+
+### 5.6. Verificar el recorrido completo
+
+En **PowerShell del servidor**, compruebe la conexión directa hacia Ubuntu:
+
+```powershell
+Test-NetConnection 172.28.36.220 -Port 8084
+curl.exe --noproxy "*" --fail --max-time 10 http://172.28.36.220:8084/aios -o NUL
+Get-NetTCPConnection -State Listen -LocalPort 8084 |
+    Select-Object LocalAddress,LocalPort,OwningProcess
+```
+
+Se espera `TcpTestSucceeded : True`, una respuesta HTTP satisfactoria y una escucha
+de Windows en `0.0.0.0:8084`. Una escucha solo en `::1` corresponde a acceso local.
+
+En **PowerShell de otro equipo de la red**, compruebe el acceso al servidor:
+
+```powershell
+Test-NetConnection 172.19.130.163 -Port 8084
+curl.exe --noproxy "*" --fail --max-time 10 http://172.19.130.163:8084/aios -o NUL
+```
+
+Abra después `http://172.19.130.163:8084/aios` en el navegador y genere un periodo
+conocido. Un resultado TCP positivo solo confirma que el puerto acepta conexiones:
+`portproxy` puede aceptarlas aunque no consiga comunicarse con Ubuntu. La prueba
+HTTP verifica un paso adicional; la generación comprueba las fuentes de datos.
+
+| Resultado | Qué revisar |
+|---|---|
+| AIOS no responde por localhost dentro de Ubuntu | Proceso AIOS y `logs/aios.log`. |
+| Responde por localhost, pero no por la IP de WSL dentro de Ubuntu | Dirección de escucha, IP actual y filtrado local. |
+| Responde por ambas direcciones dentro de Ubuntu, pero Windows no alcanza el 8084 de WSL | UFW y, si no explica el bloqueo, firewall de Hyper-V. |
+| Windows alcanza Ubuntu, pero otro equipo no alcanza el puerto del servidor | Escucha de portproxy, firewall de Windows y red corporativa. |
+| TCP desde otro equipo funciona, pero HTTP falla | Destino de portproxy y respuesta HTTP directa desde Windows hacia WSL. |
+
+### 5.7. Después de un reinicio
+
+Las reglas quedan guardadas, pero las IP internas pueden cambiar. Confirme la IP
+de Ubuntu con `hostname -I` y el origen Windows con `Test-NetConnection`; actualice
+el destino de `portproxy` y la regla de UFW si corresponde. Si cambia el origen,
+añada primero la regla nueva y elimine la anterior solo después de verificarla
+con `sudo ufw status numbered`.
+
+Esta configuración de red no programa el arranque automático de WSL ni de AIOS.
+Configure por separado la tarea indicada en la sección 4 si debe recuperarse el
+servicio al reiniciar Windows. No reinicie WSL completo para un cambio de AIOS,
+pues puede interrumpir las otras aplicaciones alojadas allí.
+
+Referencia: [Red y acceso a aplicaciones de WSL (Microsoft)](https://learn.microsoft.com/en-us/windows/wsl/networking).
